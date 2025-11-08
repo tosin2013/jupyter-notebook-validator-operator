@@ -1,115 +1,90 @@
-# jupyter-notebook-validator-operator
-// TODO(user): Add simple overview of use/purpose
+# Jupyter Notebook Validator Operator
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Go Report Card](https://goreportcard.com/badge/github.com/tosin2013/jupyter-notebook-validator-operator)](https://goreportcard.com/report/github.com/tosin2013/jupyter-notebook-validator-operator)
+[![OpenShift](https://img.shields.io/badge/OpenShift-4.18+-red.svg)](https://www.openshift.com/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-1.25+-blue.svg)](https://kubernetes.io/)
 
-## Getting Started
+A Kubernetes-native operator that automates Jupyter Notebook validation in MLOps workflows. Built with Operator SDK and Go, it provides Git integration, pod orchestration for notebook execution, golden notebook comparison for regression testing, and model-aware validation for ML/AI workloads.
+
+## Overview
+
+The Jupyter Notebook Validator Operator enables automated testing and validation of Jupyter notebooks in Kubernetes and OpenShift environments. It's designed for data science teams, ML engineers, and platform teams who need to ensure notebook reliability, reproducibility, and integration with deployed ML models.
+
+### Key Features
+
+- **🔄 Automated Notebook Execution** - Execute notebooks in isolated Kubernetes pods with Papermill
+- **📊 Golden Notebook Comparison** - Regression testing with cell-by-cell output comparison
+- **🔐 Credential Management** - Secure injection of credentials (AWS, databases, APIs) via Secrets, ESO, or Vault
+- **🤖 Model-Aware Validation** - Validate notebooks against deployed models (KServe, OpenShift AI, vLLM, etc.)
+- **🔍 Git Integration** - Clone notebooks from Git repositories (HTTPS and SSH authentication)
+- **📈 Observability** - Prometheus metrics and structured logging with credential sanitization
+- **🎯 Platform Detection** - Auto-detect model serving platforms (9 platforms supported)
+- **🔒 Security** - RBAC, Pod Security Standards, secret rotation, and audit logging
+
+## Quick Start
 
 ### Prerequisites
-- go version v1.21.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+- **Kubernetes/OpenShift Cluster:** OpenShift 4.18+ (recommended) or Kubernetes 1.25+
+- **Command-line Tools:** kubectl or oc CLI, make (for building from source)
+- **Optional:** External Secrets Operator (ESO), KServe or OpenShift AI
 
-```sh
-make docker-build docker-push IMG=<some-registry>/jupyter-notebook-validator-operator:tag
-```
+### Installation
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
-
-**Install the CRDs into the cluster:**
-
-```sh
+```bash
+# Install CRDs
 make install
+
+# Build and push image
+make docker-build docker-push IMG=quay.io/tosin2013/jupyter-notebook-validator-operator:v0.1.0
+
+# Deploy operator
+make deploy IMG=quay.io/tosin2013/jupyter-notebook-validator-operator:v0.1.0
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+### Verify Installation
 
-```sh
-make deploy IMG=<some-registry>/jupyter-notebook-validator-operator:tag
+```bash
+kubectl get pods -n jupyter-notebook-validator-operator-system
+kubectl get crd notebookvalidationjobs.mlops.mlops.dev
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
+## Usage Examples
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
+See [config/samples/](config/samples/) for complete examples.
 
-```sh
-kubectl apply -k config/samples/
+### Basic Validation
+
+```yaml
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: simple-validation
+spec:
+  notebook:
+    git:
+      url: https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git
+      ref: main
+    path: notebooks/tier1-simple/01-hello-world.ipynb
+  podConfig:
+    containerImage: quay.io/jupyter/scipy-notebook:latest
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
+## Documentation
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
+- **[Architecture Overview](docs/ARCHITECTURE_OVERVIEW.md)** - System design
+- **[Testing Guide](docs/TESTING_GUIDE.md)** - Testing procedures
+- **[Notebook Credentials Guide](docs/NOTEBOOK_CREDENTIALS_GUIDE.md)** - Credential injection
+- **[Model Discovery Guide](docs/MODEL_DISCOVERY_GUIDE.md)** - Model validation
+- **[Community Platforms](docs/COMMUNITY_PLATFORMS.md)** - Supported platforms
+- **[ADRs](docs/adrs/)** - Architectural decisions
 
-```sh
-kubectl delete -k config/samples/
-```
+## Supported Platforms
 
-**Delete the APIs(CRDs) from the cluster:**
-
-```sh
-make uninstall
-```
-
-**UnDeploy the controller from the cluster:**
-
-```sh
-make undeploy
-```
-
-## Project Distribution
-
-Following are the steps to build the installer and distribute this project to users.
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/jupyter-notebook-validator-operator:tag
-```
-
-NOTE: The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without
-its dependencies.
-
-2. Using the installer
-
-Users can just run kubectl apply -f <URL for YAML BUNDLE> to install the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/jupyter-notebook-validator-operator/<tag or branch>/dist/install.yaml
-```
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+- **Model Serving:** KServe, OpenShift AI, vLLM, TorchServe, TensorFlow Serving, Triton, Ray Serve, Seldon, BentoML
+- **Credential Management:** Kubernetes Secrets, External Secrets Operator (ESO), HashiCorp Vault
 
 ## License
 
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
-# jupyter-notebook-validator-operator
+Copyright 2025 Tosin Akinosho. Licensed under the Apache License, Version 2.0.
