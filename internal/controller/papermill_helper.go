@@ -61,17 +61,19 @@ log() {
     echo "[$(date +'%%Y-%%m-%%d %%H:%%M:%%S')] $1"
 }
 
-# Function to handle errors
+# Function to handle errors with categorization
 handle_error() {
     local exit_code=$1
     local error_msg="$2"
+    local error_category="${3:-unknown}"
     log "ERROR: $error_msg"
-    
-    # Create error results JSON
+
+    # Create error results JSON with category
     cat > %s <<EOF
 {
   "status": "failed",
   "error": "$error_msg",
+  "error_category": "$error_category",
   "exit_code": $exit_code,
   "notebook_path": "%s",
   "timestamp": "$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)"
@@ -83,7 +85,7 @@ EOF
 # Check if notebook exists
 log "Verifying notebook exists..."
 if [ ! -f "%s" ]; then
-    handle_error 1 "Notebook not found at path: %s"
+    handle_error 1 "Notebook not found at path: %s" "configuration_error"
 fi
 log "✓ Notebook found"
 
@@ -91,7 +93,15 @@ log "✓ Notebook found"
 log "Checking Papermill installation..."
 if ! python -c "import papermill" 2>/dev/null; then
     log "Installing Papermill..."
-    pip install --user --no-cache-dir papermill nbformat nbconvert || handle_error 2 "Failed to install Papermill"
+    log "Environment: HOME=$HOME, PYTHONUSERBASE=$PYTHONUSERBASE"
+    log "User: $(id -u):$(id -g)"
+    log "Writable check: $(test -w /workspace && echo 'YES' || echo 'NO')"
+
+    if ! pip install --user --no-cache-dir papermill nbformat nbconvert 2>&1 | tee /tmp/pip_install.log; then
+        log "Pip installation failed. Log contents:"
+        cat /tmp/pip_install.log
+        handle_error 2 "Failed to install Papermill. This may be due to: 1) Insufficient permissions in the container, 2) Missing Python development tools, 3) Network connectivity issues. Check that the base image supports user-level pip installs or consider using a custom image with Papermill pre-installed." "dependency_install_failed"
+    fi
     log "✓ Papermill installed"
 else
     log "✓ Papermill already installed"
@@ -123,14 +133,32 @@ if papermill \
     EXIT_CODE=0
     STATUS="succeeded"
     ERROR_MSG="None"
+    ERROR_CATEGORY="none"
     log ""
     log "✓ Notebook execution completed successfully"
 else
     EXIT_CODE=$?
     STATUS="failed"
-    ERROR_MSG="Papermill execution failed with exit code $EXIT_CODE"
+    ERROR_CATEGORY="notebook_execution_failed"
+
+    # Analyze the error log to provide better categorization
+    if grep -q "PermissionError\|Permission denied" /workspace/execution.log; then
+        ERROR_MSG="Notebook execution failed due to permission errors. Check that the container has write access to required directories."
+        ERROR_CATEGORY="environment_setup_failed"
+    elif grep -q "ModuleNotFoundError\|ImportError\|No module named" /workspace/execution.log; then
+        ERROR_MSG="Notebook execution failed due to missing Python dependencies. Consider using a custom image with required packages pre-installed."
+        ERROR_CATEGORY="dependency_install_failed"
+    elif grep -q "NameError\|AttributeError\|TypeError" /workspace/execution.log; then
+        ERROR_MSG="Notebook execution failed due to code errors. Review the notebook code for issues."
+        ERROR_CATEGORY="notebook_execution_failed"
+    else
+        ERROR_MSG="Papermill execution failed with exit code $EXIT_CODE. Check logs for details."
+        ERROR_CATEGORY="notebook_execution_failed"
+    fi
+
     log ""
     log "✗ Notebook execution failed with exit code: $EXIT_CODE"
+    log "Error category: $ERROR_CATEGORY"
 fi
 
 END_TIME=$(date +%%s)
@@ -165,6 +193,7 @@ try:
     results = {
         "status": "%s",
         "error": "%s",
+        "error_category": "%s",
         "exit_code": %s,
         "notebook_path": "%s",
         "execution_duration_seconds": %s,
@@ -221,6 +250,7 @@ except Exception as e:
     results = {
         "status": "failed",
         "error": f"Failed to parse notebook: {str(e)}",
+        "error_category": "notebook_execution_failed",
         "exit_code": 1,
         "notebook_path": "%s",
         "timestamp": "$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)"
@@ -339,7 +369,7 @@ exit $EXIT_CODE
 		resultsJSON, notebookPath,
 		inputNotebook, inputNotebook,
 		inputNotebook, outputNotebook,
-		outputNotebook, inputNotebook, `${STATUS}`, `${ERROR_MSG}`, `${EXIT_CODE}`, notebookPath, `${DURATION}`,
+		outputNotebook, inputNotebook, `${STATUS}`, `${ERROR_MSG}`, `${ERROR_CATEGORY}`, `${EXIT_CODE}`, notebookPath, `${DURATION}`,
 		resultsJSON, notebookPath, resultsJSON,
 		resultsJSON, resultsJSON, resultsJSON,
 		notebookPath)

@@ -48,17 +48,22 @@ const (
 	ConditionTypeGitCloned          = "GitCloned"
 	ConditionTypeValidationStarted  = "ValidationStarted"
 	ConditionTypeValidationComplete = "ValidationComplete"
+	ConditionTypeEnvironmentReady   = "EnvironmentReady"
 
 	// Condition reasons
-	ReasonInitializing       = "Initializing"
-	ReasonGitCloneInProgress = "GitCloneInProgress"
-	ReasonGitCloneSucceeded  = "GitCloneSucceeded"
-	ReasonGitCloneFailed     = "GitCloneFailed"
-	ReasonPodCreated         = "PodCreated"
-	ReasonPodRunning         = "PodRunning"
-	ReasonPodSucceeded       = "PodSucceeded"
-	ReasonPodFailed          = "PodFailed"
-	ReasonValidationComplete = "ValidationComplete"
+	ReasonInitializing            = "Initializing"
+	ReasonGitCloneInProgress      = "GitCloneInProgress"
+	ReasonGitCloneSucceeded       = "GitCloneSucceeded"
+	ReasonGitCloneFailed          = "GitCloneFailed"
+	ReasonPodCreated              = "PodCreated"
+	ReasonPodRunning              = "PodRunning"
+	ReasonPodSucceeded            = "PodSucceeded"
+	ReasonPodFailed               = "PodFailed"
+	ReasonValidationComplete      = "ValidationComplete"
+	ReasonEnvironmentSetupFailed  = "EnvironmentSetupFailed"
+	ReasonDependencyInstallFailed = "DependencyInstallFailed"
+	ReasonNotebookExecutionFailed = "NotebookExecutionFailed"
+	ReasonConfigurationError      = "ConfigurationError"
 
 	// Defaults
 	DefaultTimeout = 30 * time.Minute
