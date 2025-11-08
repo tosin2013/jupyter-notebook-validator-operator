@@ -91,7 +91,7 @@ log "✓ Notebook found"
 log "Checking Papermill installation..."
 if ! python -c "import papermill" 2>/dev/null; then
     log "Installing Papermill..."
-    pip install --quiet papermill nbformat nbconvert || handle_error 2 "Failed to install Papermill"
+    pip install --user --no-cache-dir papermill nbformat nbconvert || handle_error 2 "Failed to install Papermill"
     log "✓ Papermill installed"
 else
     log "✓ Papermill already installed"
@@ -367,6 +367,14 @@ exit $EXIT_CODE
 			corev1.EnvVar{
 				Name:  "PYTHONUSERBASE",
 				Value: "/workspace/.local",
+			},
+			corev1.EnvVar{
+				Name:  "PIP_USER",
+				Value: "1",
+			},
+			corev1.EnvVar{
+				Name:  "PIP_NO_CACHE_DIR",
+				Value: "1",
 			},
 		),
 		SecurityContext: &corev1.SecurityContext{
