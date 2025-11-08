@@ -56,36 +56,6 @@ var defaultTimestampPatterns = []string{
 	`\d{10,13}`,                           // Unix timestamp
 }
 
-// fetchGoldenNotebook fetches the golden notebook from Git repository
-func (r *NotebookValidationJobReconciler) fetchGoldenNotebook(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (*NotebookFormat, error) {
-	logger := log.FromContext(ctx)
-
-	// Check if golden notebook is specified
-	if job.Spec.GoldenNotebook == nil {
-		logger.Info("No golden notebook specified, skipping comparison")
-		return nil, nil
-	}
-
-	logger.Info("Fetching golden notebook",
-		"url", job.Spec.GoldenNotebook.Git.URL,
-		"ref", job.Spec.GoldenNotebook.Git.Ref,
-		"path", job.Spec.GoldenNotebook.Path)
-
-	// For MVP, we'll fetch the golden notebook in the same validation pod
-	// This will be done by adding a second init container in the next iteration
-	// The golden notebook will be cloned to /workspace/golden
-	// and parsed from the pod logs along with the executed notebook
-
-	// For now, return nil to indicate golden notebook comparison is not yet fully implemented
-	// The infrastructure is in place, but we need to:
-	// 1. Add a second init container to the validation pod
-	// 2. Parse the golden notebook from the pod filesystem or logs
-	// 3. Compare the two notebooks using the comparison logic below
-
-	logger.Info("Golden notebook fetching infrastructure ready - will be fully implemented in next iteration")
-	return nil, nil
-}
-
 // compareNotebooks compares executed notebook with golden notebook
 func compareNotebooks(executed, golden *NotebookFormat, config ComparisonConfig) *mlopsv1alpha1.ComparisonResult {
 	result := &mlopsv1alpha1.ComparisonResult{

@@ -107,31 +107,6 @@ func recordValidationComplete(namespace, status string) {
 	validationJobsTotal.WithLabelValues(namespace, status).Inc()
 }
 
-// recordGitCloneDuration records the duration of a Git clone operation
-func recordGitCloneDuration(namespace, authType string, duration float64) {
-	gitCloneDuration.WithLabelValues(namespace, authType).Observe(duration)
-}
-
-// setActivePods sets the number of active pods for a given phase
-func setActivePods(namespace, phase string, count float64) {
-	activePods.WithLabelValues(namespace, phase).Set(count)
-}
-
-// incrementActivePods increments the active pod count for a given phase
-func incrementActivePods(namespace, phase string) {
-	activePods.WithLabelValues(namespace, phase).Inc()
-}
-
-// decrementActivePods decrements the active pod count for a given phase
-func decrementActivePods(namespace, phase string) {
-	activePods.WithLabelValues(namespace, phase).Dec()
-}
-
-// recordReconciliationError records a reconciliation error
-func recordReconciliationError(namespace, errorType string) {
-	reconciliationErrors.WithLabelValues(namespace, errorType).Inc()
-}
-
 // recordPodCreation records a pod creation attempt
 func recordPodCreation(namespace, result string) {
 	podCreations.WithLabelValues(namespace, result).Inc()

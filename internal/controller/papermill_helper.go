@@ -374,14 +374,6 @@ exit $EXIT_CODE
 	return container
 }
 
-// parseNotebookResults extracts structured results from the results JSON
-// This will be used in Phase 2 when implementing pod log collection
-func parseNotebookResults(resultsJSON string) (*NotebookResults, error) {
-	// TODO: Implement in pod log collection phase
-	// This function will parse the results.json file from the pod
-	return nil, fmt.Errorf("not implemented yet")
-}
-
 // NotebookResults holds parsed notebook execution results
 type NotebookResults struct {
 	Status                   string         `json:"status"`

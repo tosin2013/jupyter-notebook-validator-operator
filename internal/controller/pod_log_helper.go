@@ -270,24 +270,6 @@ func (r *NotebookValidationJobReconciler) updateJobStatusWithResults(
 	return nil
 }
 
-// extractExecutionTimeFromLogs extracts execution duration from logs
-func extractExecutionTimeFromLogs(logs string) (time.Duration, error) {
-	// Look for "Execution duration: Xs" pattern
-	re := regexp.MustCompile(`Execution duration: (\d+)s`)
-	matches := re.FindStringSubmatch(logs)
-	if len(matches) < 2 {
-		return 0, fmt.Errorf("execution duration not found in logs")
-	}
-
-	// Parse the duration
-	var seconds int
-	if _, err := fmt.Sscanf(matches[1], "%d", &seconds); err != nil {
-		return 0, fmt.Errorf("failed to parse execution duration: %w", err)
-	}
-
-	return time.Duration(seconds) * time.Second, nil
-}
-
 // extractErrorFromLogs extracts error messages from logs if validation failed
 func extractErrorFromLogs(logs string) string {
 	// Look for error patterns in logs
