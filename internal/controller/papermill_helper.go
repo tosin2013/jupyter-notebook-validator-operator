@@ -359,10 +359,16 @@ exit $EXIT_CODE
 			},
 		},
 		Resources: convertResourceRequirements(job.Spec.PodConfig.Resources),
-		Env: append(convertEnvVars(job.Spec.PodConfig.Env), corev1.EnvVar{
-			Name:  "HOME",
-			Value: "/workspace",
-		}),
+		Env: append(convertEnvVars(job.Spec.PodConfig.Env),
+			corev1.EnvVar{
+				Name:  "HOME",
+				Value: "/workspace",
+			},
+			corev1.EnvVar{
+				Name:  "PYTHONUSERBASE",
+				Value: "/workspace/.local",
+			},
+		),
 		SecurityContext: &corev1.SecurityContext{
 			RunAsNonRoot: boolPtr(true),
 			// RunAsUser is intentionally omitted to allow OpenShift to assign a UID
