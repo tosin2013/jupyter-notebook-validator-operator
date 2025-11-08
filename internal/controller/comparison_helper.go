@@ -1,13 +1,11 @@
 package controller
 
 import (
-	"context"
 	"fmt"
 	"regexp"
 	"strings"
 
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // NotebookFormat represents a simplified Jupyter notebook structure

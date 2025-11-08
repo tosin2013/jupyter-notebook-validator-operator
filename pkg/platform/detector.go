@@ -264,6 +264,8 @@ func (d *Detector) autoDetectPlatform(ctx context.Context) (*PlatformInfo, error
 
 // checkCRDs checks if the specified CRDs are installed in the cluster
 func (d *Detector) checkCRDs(ctx context.Context, crdNames []string) ([]string, error) {
+	logger := log.FromContext(ctx)
+
 	if d.discoveryClient == nil {
 		return nil, fmt.Errorf("discovery client not available")
 	}
@@ -275,7 +277,7 @@ func (d *Detector) checkCRDs(ctx context.Context, crdNames []string) ([]string, 
 	if err != nil {
 		// Partial errors are acceptable (some API groups may be unavailable)
 		// Continue with whatever resources we got
-		d.logger.V(1).Info("Partial error getting API resources", "error", err)
+		logger.V(1).Info("Partial error getting API resources", "error", err)
 	}
 
 	// Build a map of available resources

@@ -107,6 +107,11 @@ func recordValidationComplete(namespace, status string) {
 	validationJobsTotal.WithLabelValues(namespace, status).Inc()
 }
 
+// setActivePods sets the number of active pods for a given phase
+func setActivePods(namespace, phase string, count float64) {
+	activePods.WithLabelValues(namespace, phase).Set(count)
+}
+
 // recordPodCreation records a pod creation attempt
 func recordPodCreation(namespace, result string) {
 	podCreations.WithLabelValues(namespace, result).Inc()
