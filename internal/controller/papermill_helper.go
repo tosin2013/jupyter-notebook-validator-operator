@@ -97,12 +97,24 @@ if ! python -c "import papermill" 2>/dev/null; then
     log "User: $(id -u):$(id -g)"
     log "Writable check: $(test -w /workspace && echo 'YES' || echo 'NO')"
 
-    if ! pip install --user --no-cache-dir papermill nbformat nbconvert 2>&1 | tee /tmp/pip_install.log; then
-        log "Pip installation failed. Log contents:"
+    # Run pip install and capture output
+    pip install --user --no-cache-dir papermill nbformat nbconvert 2>&1 | tee /tmp/pip_install.log
+    PIP_EXIT_CODE=$?
+
+    # Check if pip reported errors (even if exit code is 0)
+    if grep -q "ERROR:\|Permission denied\|Could not install" /tmp/pip_install.log; then
+        log "ERROR: Pip installation failed. Log contents:"
         cat /tmp/pip_install.log
-        handle_error 2 "Failed to install Papermill. This may be due to: 1) Insufficient permissions in the container, 2) Missing Python development tools, 3) Network connectivity issues. Check that the base image supports user-level pip installs or consider using a custom image with Papermill pre-installed." "dependency_install_failed"
+        handle_error 2 "Failed to install Papermill due to permission errors. The container cannot write to the Python user site-packages directory. SOLUTION: Use a custom container image with Papermill pre-installed. See docs/ERROR_HANDLING_GUIDE.md for instructions." "dependency_install_failed"
     fi
-    log "✓ Papermill installed"
+
+    # Verify papermill was actually installed
+    if ! python -c "import papermill" 2>/dev/null; then
+        log "ERROR: Papermill import failed after pip install"
+        handle_error 2 "Papermill installation appeared to succeed but the module cannot be imported. This usually indicates a permission or path issue. SOLUTION: Use a custom container image with Papermill pre-installed." "dependency_install_failed"
+    fi
+
+    log "✓ Papermill installed successfully"
 else
     log "✓ Papermill already installed"
 fi
