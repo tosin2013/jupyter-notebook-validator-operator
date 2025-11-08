@@ -1,0 +1,68 @@
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: notebookvalidationjob-database-sample
+  namespace: default
+  annotations:
+    mlops.dev/description: "Sample validation job with database credentials using envFrom"
+spec:
+  notebook:
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+      credentialsSecret: "git-credentials"
+    path: "notebooks/tier2-intermediate/database-feature-engineering.ipynb"
+  
+  podConfig:
+    containerImage: "jupyter/scipy-notebook:latest"
+    serviceAccountName: "jupyter-notebook-validator-runner"
+    
+    # Load all database credentials from secret
+    envFrom:
+      - secretRef:
+          name: postgres-credentials
+      - configMapRef:
+          name: database-config
+    
+    # Additional environment variables
+    env:
+      - name: DB_POOL_SIZE
+        value: "10"
+      - name: DB_TIMEOUT
+        value: "30"
+    
+    resources:
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+  
+  timeout: "15m"
+---
+# Secret containing PostgreSQL credentials (create this first)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-credentials
+  namespace: default
+type: Opaque
+stringData:
+  DB_HOST: "postgres.example.com"
+  DB_PORT: "5432"
+  DB_NAME: "mlops_features"
+  DB_USER: "mlops_reader"
+  DB_PASSWORD: "secure-password-here"
+---
+# ConfigMap containing database configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: database-config
+  namespace: default
+data:
+  DB_SSL_MODE: "require"
+  DB_SCHEMA: "public"
+  DB_CONNECTION_TIMEOUT: "30"
+

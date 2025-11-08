@@ -1,0 +1,96 @@
+---
+# NotebookValidationJob for training AND deploying a model
+# This job trains a sentiment analysis model and automatically deploys it to KServe/OpenShift AI
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: train-and-deploy-sentiment
+  namespace: mlops
+  labels:
+    app: jupyter-notebook-validator
+    test-type: model-training-deployment
+spec:
+  # Notebook source
+  notebook:
+    git:
+      url: https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git
+      ref: main
+    path: model-training/train-sentiment-model.ipynb
+  
+  # Pod configuration
+  podConfig:
+    containerImage: quay.io/jupyter/scipy-notebook:latest
+    serviceAccountName: model-validator-sa
+    
+    # Resource requirements for training
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+    
+    # Environment variables for training and deployment
+    env:
+      - name: TRAINING_MODE
+        value: "true"
+      - name: MODEL_OUTPUT_DIR
+        value: "/tmp/sentiment-model"
+      - name: TRAINING_SAMPLES
+        value: "20"
+      
+      # Deployment configuration - ENABLED
+      - name: DEPLOY_MODEL
+        value: "true"  # Enable automatic deployment
+      - name: NAMESPACE
+        value: "mlops"
+      - name: MODEL_NAME
+        value: "trained-sentiment-model"
+      - name: MODEL_STORAGE_URI
+        value: "pvc://model-storage/sentiment-model"  # or s3://bucket/path
+  
+  # Validation configuration
+  validation:
+    # Allow longer execution time for training + deployment
+    timeout: 900  # 15 minutes
+    
+    # Expected outputs
+    expectedOutputs:
+      - type: file
+        path: /tmp/sentiment-model/model.pkl
+        description: "Trained model file"
+      
+      - type: file
+        path: /tmp/sentiment-model/vectorizer.pkl
+        description: "TF-IDF vectorizer"
+      
+      - type: file
+        path: /tmp/sentiment-model/metadata.json
+        description: "Model metadata"
+      
+      - type: log
+        pattern: "Model trained successfully"
+        description: "Training completion message"
+      
+      - type: log
+        pattern: "Model Accuracy:"
+        description: "Model accuracy metric"
+      
+      - type: log
+        pattern: "Model saved to"
+        description: "Model save confirmation"
+      
+      - type: log
+        pattern: "InferenceService.*created"
+        description: "Deployment confirmation"
+  
+  # No model validation needed during training
+  modelValidation:
+    enabled: false
+  
+  # Retry configuration
+  retryPolicy:
+    maxRetries: 2
+    backoffLimit: 3
+

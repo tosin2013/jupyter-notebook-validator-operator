@@ -1,0 +1,136 @@
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: notebookvalidationjob-advanced-comparison
+  namespace: default
+  annotations:
+    mlops.dev/description: "Sample validation job with advanced comparison configuration"
+spec:
+  notebook:
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+      credentialsSecret: "git-credentials"
+    path: "notebooks/tier2-intermediate/ml-model-training.ipynb"
+  
+  goldenNotebook:
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+      credentialsSecret: "git-credentials"
+    path: "notebooks/tier2-intermediate/ml-model-training-golden.ipynb"
+  
+  # Advanced comparison configuration
+  comparisonConfig:
+    # Strategy: "exact" for byte-for-byte comparison, "normalized" for flexible comparison
+    strategy: "normalized"
+    
+    # Floating-point tolerance for numeric comparisons
+    # Useful for ML metrics that may vary slightly between runs
+    floatingPointTolerance: "0.001"
+    
+    # Ignore timestamp differences (recommended for most notebooks)
+    ignoreTimestamps: true
+    
+    # Ignore execution count differences (recommended for most notebooks)
+    ignoreExecutionCount: true
+    
+    # Custom timestamp patterns to detect and ignore
+    # Add patterns specific to your notebook outputs
+    customTimestampPatterns:
+      - "Training time: \\d+\\.\\d+s"
+      - "Epoch \\d+/\\d+ - \\d+s"
+      - "\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d+"
+  
+  podConfig:
+    containerImage: "jupyter/scipy-notebook:latest"
+    serviceAccountName: "jupyter-notebook-validator-runner"
+    
+    resources:
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+      requests:
+        memory: "1Gi"
+        cpu: "1000m"
+  
+  timeout: "30m"
+---
+# Example: Exact comparison (strict mode)
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: notebookvalidationjob-exact-comparison
+  namespace: default
+  annotations:
+    mlops.dev/description: "Strict byte-for-byte comparison"
+spec:
+  notebook:
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+    path: "notebooks/tier1-basic/deterministic-computation.ipynb"
+  
+  goldenNotebook:
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+    path: "notebooks/tier1-basic/deterministic-computation-golden.ipynb"
+  
+  comparisonConfig:
+    strategy: "exact"
+    floatingPointTolerance: "0.0"
+    ignoreTimestamps: false
+    ignoreExecutionCount: false
+  
+  podConfig:
+    containerImage: "jupyter/scipy-notebook:latest"
+  
+  timeout: "15m"
+---
+# Example: ML training with high tolerance
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: notebookvalidationjob-ml-training
+  namespace: default
+  annotations:
+    mlops.dev/description: "ML training with high floating-point tolerance"
+spec:
+  notebook:
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+    path: "notebooks/tier3-complex/neural-network-training.ipynb"
+  
+  goldenNotebook:
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+    path: "notebooks/tier3-complex/neural-network-training-golden.ipynb"
+  
+  comparisonConfig:
+    strategy: "normalized"
+    # Higher tolerance for ML metrics (0.1%)
+    floatingPointTolerance: "0.01"
+    ignoreTimestamps: true
+    ignoreExecutionCount: true
+    customTimestampPatterns:
+      - "Epoch \\d+/\\d+"
+      - "\\d+/\\d+ \\[.*\\]"
+      - "ETA: \\d+s"
+      - "loss: \\d+\\.\\d+ - accuracy: \\d+\\.\\d+"
+  
+  podConfig:
+    containerImage: "tensorflow/tensorflow:latest-jupyter"
+    resources:
+      limits:
+        memory: "4Gi"
+        cpu: "4000m"
+        nvidia.com/gpu: "1"
+      requests:
+        memory: "2Gi"
+        cpu: "2000m"
+  
+  timeout: "60m"
+

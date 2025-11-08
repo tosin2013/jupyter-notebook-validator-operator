@@ -1,0 +1,188 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  REGISTRY: quay.io
+  IMAGE_NAME: takinosh/jupyter-notebook-validator-operator
+  GO_VERSION: '1.21'
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Get version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Build release binaries
+        run: |
+          mkdir -p dist
+          
+          # Build for multiple platforms
+          GOOS=linux GOARCH=amd64 go build -o dist/manager-linux-amd64 cmd/main.go
+          GOOS=linux GOARCH=arm64 go build -o dist/manager-linux-arm64 cmd/main.go
+          GOOS=darwin GOARCH=amd64 go build -o dist/manager-darwin-amd64 cmd/main.go
+          GOOS=darwin GOARCH=arm64 go build -o dist/manager-darwin-arm64 cmd/main.go
+          
+          # Create checksums
+          cd dist
+          sha256sum * > checksums.txt
+          cd ..
+
+      - name: Generate manifests
+        run: |
+          make manifests
+          mkdir -p dist/manifests
+          cp -r config dist/manifests/
+          
+          # Create installation bundle
+          cd dist/manifests
+          tar -czf ../install-bundle.tar.gz config/
+          cd ../..
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          cat > release_notes.md << 'EOF'
+          ## Jupyter Notebook Validator Operator ${{ steps.version.outputs.version }}
+          
+          ### What's New
+          
+          This release includes:
+          - Kubernetes operator for validating Jupyter notebooks
+          - Support for Git repository cloning (HTTPS and SSH)
+          - Configurable pod resources and environment variables
+          - Comprehensive error handling and retry logic
+          - Status tracking with Kubernetes conditions
+          
+          ### Installation
+          
+          #### Using Kustomize
+          ```bash
+          kubectl apply -k https://github.com/tosin2013/jupyter-notebook-validator-operator/config/default?ref=${{ steps.version.outputs.version }}
+          ```
+          
+          #### Using Container Image
+          ```bash
+          docker pull quay.io/takinosh/jupyter-notebook-validator-operator:${{ steps.version.outputs.version }}
+          ```
+          
+          ### Supported Platforms
+          - Kubernetes 1.28+
+          - OpenShift 4.14+
+          - Architectures: amd64, arm64
+          
+          ### Documentation
+          - [Installation Guide](https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/README.md)
+          - [Architecture Decision Records](https://github.com/tosin2013/jupyter-notebook-validator-operator/tree/main/docs/adrs)
+          - [API Reference](https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/docs/api-reference.md)
+          
+          ### Container Images
+          - `quay.io/takinosh/jupyter-notebook-validator-operator:${{ steps.version.outputs.version }}`
+          - `quay.io/takinosh/jupyter-notebook-validator-operator:latest`
+          
+          ### Checksums
+          See `checksums.txt` in the release assets.
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: release_notes.md
+          files: |
+            dist/manager-*
+            dist/checksums.txt
+            dist/install-bundle.tar.gz
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-olm-bundle:
+    name: Publish OLM Bundle
+    runs-on: ubuntu-latest
+    needs: create-release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install operator-sdk
+        run: |
+          export ARCH=$(case $(uname -m) in x86_64) echo -n amd64 ;; aarch64) echo -n arm64 ;; *) echo -n $(uname -m) ;; esac)
+          export OS=$(uname | awk '{print tolower($0)}')
+          export OPERATOR_SDK_DL_URL=https://github.com/operator-framework/operator-sdk/releases/download/v1.37.0
+          curl -LO ${OPERATOR_SDK_DL_URL}/operator-sdk_${OS}_${ARCH}
+          chmod +x operator-sdk_${OS}_${ARCH}
+          sudo mv operator-sdk_${OS}_${ARCH} /usr/local/bin/operator-sdk
+
+      - name: Get version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate OLM bundle
+        run: |
+          make bundle VERSION=${{ steps.version.outputs.version }} IMG=quay.io/takinosh/jupyter-notebook-validator-operator:v${{ steps.version.outputs.version }}
+
+      - name: Validate bundle
+        run: operator-sdk bundle validate ./bundle
+
+      - name: Build and push bundle image
+        run: |
+          docker login -u ${{ secrets.QUAY_USERNAME }} -p ${{ secrets.QUAY_PASSWORD }} quay.io
+          make bundle-build bundle-push BUNDLE_IMG=quay.io/takinosh/jupyter-notebook-validator-operator-bundle:v${{ steps.version.outputs.version }}
+
+  update-docs:
+    name: Update Documentation
+    runs-on: ubuntu-latest
+    needs: create-release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update README with latest version
+        run: |
+          sed -i "s/jupyter-notebook-validator-operator:v[0-9]\+\.[0-9]\+\.[0-9]\+/jupyter-notebook-validator-operator:${{ steps.version.outputs.version }}/g" README.md
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add README.md
+          git commit -m "docs: update version to ${{ steps.version.outputs.version }}" || echo "No changes to commit"
+          git push origin HEAD:main || echo "No changes to push"
+

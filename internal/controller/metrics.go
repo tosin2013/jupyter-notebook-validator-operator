@@ -1,0 +1,138 @@
+/*
+Copyright 2024.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package controller
+
+import (
+	"github.com/prometheus/client_golang/prometheus"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
+)
+
+var (
+	// Reconciliation duration histogram
+	// Tracks how long reconciliation loops take
+	reconciliationDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "notebookvalidationjob_reconciliation_duration_seconds",
+			Help:    "Duration of NotebookValidationJob reconciliation in seconds",
+			Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 30, 60},
+		},
+		[]string{"namespace", "result"},
+	)
+
+	// Validation job counters
+	// Tracks total number of validation jobs by outcome
+	validationJobsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "notebookvalidationjob_validations_total",
+			Help: "Total number of notebook validations",
+		},
+		[]string{"namespace", "status"},
+	)
+
+	// Git clone duration histogram
+	// Tracks Git clone performance by authentication type
+	gitCloneDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "notebookvalidationjob_git_clone_duration_seconds",
+			Help:    "Duration of Git clone operations in seconds",
+			Buckets: []float64{1, 5, 10, 30, 60, 120},
+		},
+		[]string{"namespace", "auth_type"},
+	)
+
+	// Active pod gauge
+	// Tracks number of active validation pods by phase
+	activePods = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "notebookvalidationjob_active_pods",
+			Help: "Number of active validation pods",
+		},
+		[]string{"namespace", "phase"},
+	)
+
+	// Reconciliation errors counter
+	// Tracks reconciliation errors by type
+	reconciliationErrors = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "notebookvalidationjob_reconciliation_errors_total",
+			Help: "Total number of reconciliation errors",
+		},
+		[]string{"namespace", "error_type"},
+	)
+
+	// Pod creation counter
+	// Tracks pod creation attempts
+	podCreations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "notebookvalidationjob_pod_creations_total",
+			Help: "Total number of validation pod creation attempts",
+		},
+		[]string{"namespace", "result"},
+	)
+)
+
+func init() {
+	// Register metrics with controller-runtime's registry
+	metrics.Registry.MustRegister(
+		reconciliationDuration,
+		validationJobsTotal,
+		gitCloneDuration,
+		activePods,
+		reconciliationErrors,
+		podCreations,
+	)
+}
+
+// recordReconciliationDuration records the duration of a reconciliation loop
+func recordReconciliationDuration(namespace, result string, duration float64) {
+	reconciliationDuration.WithLabelValues(namespace, result).Observe(duration)
+}
+
+// recordValidationComplete records a completed validation job
+func recordValidationComplete(namespace, status string) {
+	validationJobsTotal.WithLabelValues(namespace, status).Inc()
+}
+
+// recordGitCloneDuration records the duration of a Git clone operation
+func recordGitCloneDuration(namespace, authType string, duration float64) {
+	gitCloneDuration.WithLabelValues(namespace, authType).Observe(duration)
+}
+
+// setActivePods sets the number of active pods for a given phase
+func setActivePods(namespace, phase string, count float64) {
+	activePods.WithLabelValues(namespace, phase).Set(count)
+}
+
+// incrementActivePods increments the active pod count for a given phase
+func incrementActivePods(namespace, phase string) {
+	activePods.WithLabelValues(namespace, phase).Inc()
+}
+
+// decrementActivePods decrements the active pod count for a given phase
+func decrementActivePods(namespace, phase string) {
+	activePods.WithLabelValues(namespace, phase).Dec()
+}
+
+// recordReconciliationError records a reconciliation error
+func recordReconciliationError(namespace, errorType string) {
+	reconciliationErrors.WithLabelValues(namespace, errorType).Inc()
+}
+
+// recordPodCreation records a pod creation attempt
+func recordPodCreation(namespace, result string) {
+	podCreations.WithLabelValues(namespace, result).Inc()
+}

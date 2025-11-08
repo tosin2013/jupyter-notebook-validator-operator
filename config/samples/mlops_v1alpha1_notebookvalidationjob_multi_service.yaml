@@ -1,0 +1,142 @@
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: notebookvalidationjob-multi-service-sample
+  namespace: default
+  annotations:
+    mlops.dev/description: "Sample validation job with multiple service credentials (S3 + Database + MLflow)"
+spec:
+  notebook:
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+      credentialsSecret: "git-credentials"
+    path: "notebooks/tier3-complex/end-to-end-ml-pipeline.ipynb"
+  
+  podConfig:
+    containerImage: "jupyter/scipy-notebook:latest"
+    serviceAccountName: "jupyter-notebook-validator-runner"
+    
+    # Load credentials from multiple sources
+    envFrom:
+      # Database credentials
+      - secretRef:
+          name: postgres-credentials
+      # MLflow configuration
+      - configMapRef:
+          name: mlflow-config
+    
+    # Individual environment variables
+    env:
+      # AWS S3 credentials
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: aws-credentials
+            key: access-key-id
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: aws-credentials
+            key: secret-access-key
+      - name: AWS_DEFAULT_REGION
+        value: "us-east-1"
+      
+      # MLflow tracking credentials
+      - name: MLFLOW_TRACKING_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: mlflow-credentials
+            key: username
+      - name: MLFLOW_TRACKING_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: mlflow-credentials
+            key: password
+      
+      # API keys
+      - name: OPENAI_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: api-keys
+            key: openai
+      - name: HUGGINGFACE_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: api-keys
+            key: huggingface
+      
+      # Application configuration
+      - name: MODEL_NAME
+        value: "fraud-detection-v1"
+      - name: EXPERIMENT_NAME
+        value: "fraud-detection-experiment"
+    
+    resources:
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+      requests:
+        memory: "1Gi"
+        cpu: "1000m"
+  
+  timeout: "30m"
+---
+# AWS credentials secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-credentials
+  namespace: default
+type: Opaque
+stringData:
+  access-key-id: "AKIAIOSFODNN7EXAMPLE"
+  secret-access-key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+---
+# PostgreSQL credentials secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-credentials
+  namespace: default
+type: Opaque
+stringData:
+  DB_HOST: "postgres.example.com"
+  DB_PORT: "5432"
+  DB_NAME: "mlops_features"
+  DB_USER: "mlops_reader"
+  DB_PASSWORD: "secure-password-here"
+---
+# MLflow credentials secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mlflow-credentials
+  namespace: default
+type: Opaque
+stringData:
+  username: "mlflow-user"
+  password: "mlflow-password"
+---
+# API keys secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: api-keys
+  namespace: default
+type: Opaque
+stringData:
+  openai: "sk-proj-..."
+  huggingface: "hf_..."
+---
+# MLflow configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mlflow-config
+  namespace: default
+data:
+  MLFLOW_TRACKING_URI: "https://mlflow.example.com"
+  MLFLOW_S3_ENDPOINT_URL: "https://s3.amazonaws.com"
+  MLFLOW_EXPERIMENT_NAME: "default"
+

@@ -1,0 +1,105 @@
+---
+# Example: Model-Aware Validation with OpenShift AI
+# This example demonstrates notebook validation against OpenShift AI models
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: model-validation-openshift-ai-example
+  namespace: mlops
+spec:
+  notebook:
+    path: model-inference-openshift-ai.ipynb
+    git:
+      url: https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git
+      ref: main
+  
+  podConfig:
+    containerImage: quay.io/jupyter/scipy-notebook:latest
+    serviceAccountName: model-validator-sa
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+  
+  # Model validation configuration for OpenShift AI
+  modelValidation:
+    enabled: true
+    platform: openshift-ai
+    phase: both  # Run both clean and existing environment validation
+    
+    # Target models to validate against
+    targetModels:
+      - sentiment-analysis-model
+      - text-classification-model
+    
+    # Prediction validation configuration
+    predictionValidation:
+      enabled: true
+      testData: |
+        {
+          "instances": [
+            "This is a great product!"
+          ]
+        }
+      expectedOutput: |
+        {
+          "predictions": [
+            {
+              "label": "positive",
+              "score": 0.98
+            }
+          ]
+        }
+      tolerance: "0.05"
+    
+    timeout: "5m"
+  
+  timeout: "30m"
+
+---
+# ServiceAccount for model validation
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: model-validator-sa
+  namespace: mlops
+
+---
+# Role for OpenShift AI model access
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: model-validator-role
+  namespace: mlops
+rules:
+  # KServe InferenceServices (used by OpenShift AI)
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices/status"]
+    verbs: ["get"]
+  # ServingRuntimes (OpenShift AI specific)
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["servingruntimes"]
+    verbs: ["get", "list", "watch"]
+
+---
+# RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: model-validator-rolebinding
+  namespace: mlops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: model-validator-role
+subjects:
+  - kind: ServiceAccount
+    name: model-validator-sa
+    namespace: mlops
+

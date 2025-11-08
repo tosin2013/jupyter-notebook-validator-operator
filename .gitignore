@@ -1,0 +1,44 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/*
+Dockerfile.cross
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Go workspace file
+go.work
+
+# Kubernetes Generated files - skip generated files, except for vendored files
+!vendor/**/zz_generated.*
+
+# editor and IDE paraphernalia
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Developer notes and internal documentation (not for end users)
+docs/IMPLEMENTATION-PLAN.md
+docs/*_COMPLETE.md
+docs/*_SUMMARY.md
+docs/PHASE*.md
+docs/NEXT_TASK_*.md
+docs/PROGRESS_*.md
+docs/SECRETS_UPDATE_SUMMARY.md
+docs/TEST_REPOSITORY_SETUP.md
+docs/TEST_REPOSITORY_COMPLETE.md
+docs/AUTHENTICATION_TESTING_COMPLETE.md
+docs/CELL_ERROR_DISPLAY_FIX.md
+docs/POD_LOG_COLLECTION_COMPLETE.md
+docs/PAPERMILL_INTEGRATION_COMPLETE.md
+docs/TEST_NOTEBOOKS_DEPLOYMENT_SUMMARY.md
+.golangci.yml

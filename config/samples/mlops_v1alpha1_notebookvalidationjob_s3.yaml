@@ -1,0 +1,73 @@
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: notebookvalidationjob-s3-sample
+  namespace: default
+  annotations:
+    mlops.dev/description: "Sample validation job with AWS S3 credentials"
+spec:
+  notebook:
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+      credentialsSecret: "git-credentials"
+    path: "notebooks/tier2-intermediate/s3-data-pipeline.ipynb"
+  
+  podConfig:
+    containerImage: "jupyter/scipy-notebook:latest"
+    serviceAccountName: "jupyter-notebook-validator-runner"
+    
+    # Environment variables for AWS S3 access
+    env:
+      # AWS credentials from secret
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: aws-credentials
+            key: access-key-id
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: aws-credentials
+            key: secret-access-key
+      # AWS region as plain value
+      - name: AWS_DEFAULT_REGION
+        value: "us-east-1"
+      # S3 bucket name from ConfigMap
+      - name: S3_BUCKET_NAME
+        valueFrom:
+          configMapKeyRef:
+            name: mlops-config
+            key: s3-bucket
+    
+    resources:
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+  
+  timeout: "15m"
+---
+# Secret containing AWS credentials (create this first)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-credentials
+  namespace: default
+type: Opaque
+stringData:
+  access-key-id: "AKIAIOSFODNN7EXAMPLE"
+  secret-access-key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+---
+# ConfigMap containing S3 bucket configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mlops-config
+  namespace: default
+data:
+  s3-bucket: "my-mlops-data-bucket"
+  s3-prefix: "training-data/"
+

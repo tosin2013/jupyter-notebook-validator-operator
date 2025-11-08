@@ -1,0 +1,36 @@
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: notebookvalidationjob-golden-sample
+  namespace: default
+  annotations:
+    mlops.dev/comparison-strategy: "exact"
+    mlops.dev/description: "Sample validation job with golden notebook comparison"
+spec:
+  notebook:
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+      credentialsSecret: "git-credentials"
+    path: "notebooks/tier1-simple/01-hello-world.ipynb"
+  
+  goldenNotebook:
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+      credentialsSecret: "git-credentials"
+    path: "notebooks/tier1-simple/01-hello-world-golden.ipynb"
+  
+  podConfig:
+    containerImage: "jupyter/scipy-notebook:latest"
+    serviceAccountName: "jupyter-notebook-validator-runner"
+    resources:
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+  
+  timeout: "10m"
+

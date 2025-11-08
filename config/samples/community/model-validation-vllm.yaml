@@ -1,0 +1,174 @@
+---
+# Example: Model-Aware Validation with vLLM
+# This example demonstrates notebook validation against vLLM LLM serving
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: model-validation-vllm-example
+  namespace: mlops
+spec:
+  notebook:
+    path: llm-inference-vllm.ipynb
+    git:
+      url: https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git
+      ref: main
+  
+  podConfig:
+    containerImage: quay.io/jupyter/scipy-notebook:latest
+    serviceAccountName: model-validator-sa
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "1000m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+  
+  # Model validation configuration for vLLM
+  modelValidation:
+    enabled: true
+    platform: vllm
+    phase: existing  # Only validate against existing models (vLLM doesn't have CRDs)
+    
+    # Target models to validate against
+    targetModels:
+      - llama-2-7b-chat
+      - mistral-7b-instruct
+    
+    # Custom platform configuration for vLLM
+    customPlatform:
+      apiGroup: "apps"
+      resourceType: "deployments"
+      healthCheckEndpoint: "http://{{.ModelName}}-vllm:8000/health"
+      predictionEndpoint: "http://{{.ModelName}}-vllm:8000/v1/completions"
+    
+    # Prediction validation configuration
+    predictionValidation:
+      enabled: true
+      testData: |
+        {
+          "model": "llama-2-7b-chat",
+          "prompt": "What is the capital of France?",
+          "max_tokens": 50,
+          "temperature": 0.7
+        }
+      expectedOutput: |
+        {
+          "choices": [
+            {
+              "text": "Paris"
+            }
+          ]
+        }
+      tolerance: "0.1"
+    
+    timeout: "10m"
+  
+  timeout: "30m"
+
+---
+# ServiceAccount for model validation
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: model-validator-sa
+  namespace: mlops
+
+---
+# Role for vLLM deployment access
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: model-validator-role
+  namespace: mlops
+rules:
+  # Standard Kubernetes resources (vLLM uses Deployments)
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+
+---
+# RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: model-validator-rolebinding
+  namespace: mlops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: model-validator-role
+subjects:
+  - kind: ServiceAccount
+    name: model-validator-sa
+    namespace: mlops
+
+---
+# Example vLLM Deployment (for testing)
+# This is a mock vLLM deployment for demonstration purposes
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llama-2-7b-chat-vllm
+  namespace: mlops
+  labels:
+    app: vllm
+    model: llama-2-7b-chat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm
+      model: llama-2-7b-chat
+  template:
+    metadata:
+      labels:
+        app: vllm
+        model: llama-2-7b-chat
+    spec:
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:latest
+          args:
+            - "--model"
+            - "meta-llama/Llama-2-7b-chat-hf"
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - "8000"
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            requests:
+              cpu: "2"
+              memory: "8Gi"
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "4"
+              memory: "16Gi"
+              nvidia.com/gpu: "1"
+
+---
+# Service for vLLM
+apiVersion: v1
+kind: Service
+metadata:
+  name: llama-2-7b-chat-vllm
+  namespace: mlops
+spec:
+  selector:
+    app: vllm
+    model: llama-2-7b-chat
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP
+
