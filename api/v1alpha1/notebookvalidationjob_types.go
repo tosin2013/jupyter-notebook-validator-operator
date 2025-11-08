@@ -91,7 +91,7 @@ type PodConfigSpec struct {
 	Resources *ResourceRequirements `json:"resources,omitempty"`
 
 	// ServiceAccountName is the name of the ServiceAccount to use for the validation pod
-	// +kubebuilder:default="jupyter-notebook-validator-runner"
+	// +kubebuilder:default="notebook-validator-jupyter-notebook-validator-runner"
 	// +optional
 	ServiceAccountName string `json:"serviceAccountName,omitempty"`
 

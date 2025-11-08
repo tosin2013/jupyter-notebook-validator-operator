@@ -15,7 +15,7 @@ spec:
   
   podConfig:
     containerImage: "jupyter/scipy-notebook:latest"
-    serviceAccountName: "jupyter-notebook-validator-runner"
+    serviceAccountName: "notebook-validator-jupyter-notebook-validator-runner"
     
     # Environment variables for AWS S3 access
     env:

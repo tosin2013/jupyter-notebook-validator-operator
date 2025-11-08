@@ -44,7 +44,7 @@ spec:
   
   podConfig:
     containerImage: "jupyter/scipy-notebook:latest"
-    serviceAccountName: "jupyter-notebook-validator-runner"
+    serviceAccountName: "notebook-validator-jupyter-notebook-validator-runner"
     
     resources:
       limits:

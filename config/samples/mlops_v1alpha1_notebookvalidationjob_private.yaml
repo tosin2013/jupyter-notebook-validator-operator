@@ -25,7 +25,7 @@ spec:
 
   podConfig:
     containerImage: quay.io/jupyter/scipy-notebook:latest
-    serviceAccountName: jupyter-notebook-validator-runner
+    serviceAccountName: notebook-validator-jupyter-notebook-validator-runner
     resources:
       requests:
         memory: "512Mi"
@@ -59,7 +59,7 @@ spec:
 
   podConfig:
     containerImage: quay.io/jupyter/scipy-notebook:latest
-    serviceAccountName: jupyter-notebook-validator-runner
+    serviceAccountName: notebook-validator-jupyter-notebook-validator-runner
     resources:
       requests:
         memory: "512Mi"

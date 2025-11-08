@@ -362,7 +362,8 @@ exit $EXIT_CODE
 		Env:       convertEnvVars(job.Spec.PodConfig.Env),
 		SecurityContext: &corev1.SecurityContext{
 			RunAsNonRoot:             boolPtr(true),
-			RunAsUser:                int64Ptr(1000),
+			// RunAsUser is intentionally omitted to allow OpenShift to assign a UID
+			// from the namespace's allocated range (ADR-005: OpenShift Compatibility)
 			AllowPrivilegeEscalation: boolPtr(false),
 			Capabilities: &corev1.Capabilities{
 				Drop: []corev1.Capability{"ALL"},
