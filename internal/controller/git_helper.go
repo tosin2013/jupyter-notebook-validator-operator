@@ -209,7 +209,7 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 			},
 		},
 		SecurityContext: &corev1.SecurityContext{
-			RunAsNonRoot:             boolPtr(true),
+			RunAsNonRoot: boolPtr(true),
 			// RunAsUser is intentionally omitted to allow OpenShift to assign a UID
 			// from the namespace's allocated range (ADR-005: OpenShift Compatibility)
 			AllowPrivilegeEscalation: boolPtr(false),
@@ -404,7 +404,7 @@ func (r *NotebookValidationJobReconciler) buildGoldenGitCloneInitContainer(ctx c
 			},
 		},
 		SecurityContext: &corev1.SecurityContext{
-			RunAsNonRoot:             boolPtr(true),
+			RunAsNonRoot: boolPtr(true),
 			// RunAsUser is intentionally omitted to allow OpenShift to assign a UID
 			// from the namespace's allocated range (ADR-005: OpenShift Compatibility)
 			AllowPrivilegeEscalation: boolPtr(false),
