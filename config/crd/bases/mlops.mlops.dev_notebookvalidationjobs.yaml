@@ -353,7 +353,7 @@ spec:
                         type: object
                     type: object
                   serviceAccountName:
-                    default: jupyter-notebook-validator-runner
+                    default: notebook-validator-jupyter-notebook-validator-runner
                     description: ServiceAccountName is the name of the ServiceAccount
                       to use for the validation pod
                     type: string
