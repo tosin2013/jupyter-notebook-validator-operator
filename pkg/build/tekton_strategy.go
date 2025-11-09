@@ -269,8 +269,9 @@ func (t *TektonStrategy) createBuildPipeline(job *mlopsv1alpha1.NotebookValidati
 						Kind: tektonv1.NamespacedTaskKind,
 					},
 					Params: []tektonv1.Param{
-						{Name: "url", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: "$(params.git-url)"}},
-						{Name: "revision", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: "$(params.git-revision)"}},
+						// ADR-030: Use uppercase param names to match OpenShift Pipelines git-clone Task
+						{Name: "URL", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: "$(params.git-url)"}},
+						{Name: "REVISION", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: "$(params.git-revision)"}},
 					},
 					Workspaces: []tektonv1.WorkspacePipelineTaskBinding{
 						{Name: "output", Workspace: "shared-workspace"},
