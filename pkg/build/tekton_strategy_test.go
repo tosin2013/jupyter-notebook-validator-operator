@@ -125,7 +125,49 @@ func TestTektonStrategyCreateBuild(t *testing.T) {
 	scheme := runtime.NewScheme()
 	_ = mlopsv1alpha1.AddToScheme(scheme)
 	_ = tektonv1.AddToScheme(scheme)
-	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+	// ADR-028: Pre-create Tasks in openshift-pipelines namespace for testing
+	// This simulates the Tasks that exist in a real OpenShift cluster
+	gitCloneTask := &tektonv1.Task{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "git-clone",
+			Namespace: "openshift-pipelines",
+		},
+		Spec: tektonv1.TaskSpec{
+			Description: "Test git-clone task",
+			Params: []tektonv1.ParamSpec{
+				{Name: "url", Type: tektonv1.ParamTypeString},
+				{Name: "revision", Type: tektonv1.ParamTypeString},
+			},
+			Workspaces: []tektonv1.WorkspaceDeclaration{
+				{Name: "output"},
+				{Name: "ssh-directory", Optional: true},
+			},
+		},
+	}
+
+	buildahTask := &tektonv1.Task{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "buildah",
+			Namespace: "openshift-pipelines",
+		},
+		Spec: tektonv1.TaskSpec{
+			Description: "Test buildah task",
+			Params: []tektonv1.ParamSpec{
+				{Name: "IMAGE", Type: tektonv1.ParamTypeString},
+				{Name: "BUILDER_IMAGE", Type: tektonv1.ParamTypeString},
+				{Name: "CONTEXT", Type: tektonv1.ParamTypeString},
+			},
+			Workspaces: []tektonv1.WorkspaceDeclaration{
+				{Name: "source"},
+			},
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(gitCloneTask, buildahTask).
+		Build()
 
 	strategy := NewTektonStrategy(fakeClient, scheme)
 	ctx := context.Background()
