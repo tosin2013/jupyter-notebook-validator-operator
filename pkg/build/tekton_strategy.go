@@ -209,23 +209,33 @@ func (t *TektonStrategy) createPipelineRun(job *mlopsv1alpha1.NotebookValidation
 
 // GetBuildStatus returns the current build status for a Tekton TaskRun or PipelineRun
 func (t *TektonStrategy) GetBuildStatus(ctx context.Context, buildName string) (*BuildInfo, error) {
-	namespace := "default" // TODO: Get from context
-
-	// Try PipelineRun first
-	pipelineRun := &tektonv1.PipelineRun{}
-	err := t.client.Get(ctx, types.NamespacedName{Name: buildName, Namespace: namespace}, pipelineRun)
-	if err == nil {
-		return t.getPipelineRunStatus(pipelineRun), nil
+	// List all PipelineRuns with our label
+	pipelineRunList := &tektonv1.PipelineRunList{}
+	if err := t.client.List(ctx, pipelineRunList, client.MatchingLabels{"mlops.redhat.com/notebook-validation": "true"}); err != nil {
+		return nil, fmt.Errorf("failed to list pipelineruns: %w", err)
 	}
 
-	// Try TaskRun
-	taskRun := &tektonv1.TaskRun{}
-	err = t.client.Get(ctx, types.NamespacedName{Name: buildName, Namespace: namespace}, taskRun)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get build: %w", err)
+	// Find the PipelineRun with matching name
+	for i := range pipelineRunList.Items {
+		if pipelineRunList.Items[i].Name == buildName {
+			return t.getPipelineRunStatus(&pipelineRunList.Items[i]), nil
+		}
 	}
 
-	return t.getTaskRunStatus(taskRun), nil
+	// Try TaskRuns
+	taskRunList := &tektonv1.TaskRunList{}
+	if err := t.client.List(ctx, taskRunList, client.MatchingLabels{"mlops.redhat.com/notebook-validation": "true"}); err != nil {
+		return nil, fmt.Errorf("failed to list taskruns: %w", err)
+	}
+
+	// Find the TaskRun with matching name
+	for i := range taskRunList.Items {
+		if taskRunList.Items[i].Name == buildName {
+			return t.getTaskRunStatus(&taskRunList.Items[i]), nil
+		}
+	}
+
+	return nil, fmt.Errorf("build not found: %s", buildName)
 }
 
 // getPipelineRunStatus extracts status from a PipelineRun
@@ -330,39 +340,47 @@ func (t *TektonStrategy) GetBuildLogs(ctx context.Context, buildName string) (st
 
 // DeleteBuild cleans up Tekton build resources
 func (t *TektonStrategy) DeleteBuild(ctx context.Context, buildName string) error {
-	namespace := "default" // TODO: Get from context
-
-	// Try to delete PipelineRun
-	pipelineRun := &tektonv1.PipelineRun{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      buildName,
-			Namespace: namespace,
-		},
-	}
-	if err := t.client.Delete(ctx, pipelineRun); err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf("failed to delete pipelinerun: %w", err)
+	// List and delete PipelineRuns
+	pipelineRunList := &tektonv1.PipelineRunList{}
+	if err := t.client.List(ctx, pipelineRunList, client.MatchingLabels{"mlops.redhat.com/notebook-validation": "true"}); err != nil {
+		return fmt.Errorf("failed to list pipelineruns: %w", err)
 	}
 
-	// Try to delete TaskRun
-	taskRun := &tektonv1.TaskRun{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      buildName,
-			Namespace: namespace,
-		},
-	}
-	if err := t.client.Delete(ctx, taskRun); err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf("failed to delete taskrun: %w", err)
+	for i := range pipelineRunList.Items {
+		if pipelineRunList.Items[i].Name == buildName {
+			if err := t.client.Delete(ctx, &pipelineRunList.Items[i]); err != nil && !errors.IsNotFound(err) {
+				return fmt.Errorf("failed to delete pipelinerun: %w", err)
+			}
+		}
 	}
 
-	// Delete Pipeline
-	pipeline := &tektonv1.Pipeline{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-pipeline", buildName),
-			Namespace: namespace,
-		},
+	// List and delete TaskRuns
+	taskRunList := &tektonv1.TaskRunList{}
+	if err := t.client.List(ctx, taskRunList, client.MatchingLabels{"mlops.redhat.com/notebook-validation": "true"}); err != nil {
+		return fmt.Errorf("failed to list taskruns: %w", err)
 	}
-	if err := t.client.Delete(ctx, pipeline); err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf("failed to delete pipeline: %w", err)
+
+	for i := range taskRunList.Items {
+		if taskRunList.Items[i].Name == buildName {
+			if err := t.client.Delete(ctx, &taskRunList.Items[i]); err != nil && !errors.IsNotFound(err) {
+				return fmt.Errorf("failed to delete taskrun: %w", err)
+			}
+		}
+	}
+
+	// List and delete Pipelines
+	pipelineList := &tektonv1.PipelineList{}
+	if err := t.client.List(ctx, pipelineList, client.MatchingLabels{"mlops.redhat.com/notebook-validation": "true"}); err != nil {
+		return fmt.Errorf("failed to list pipelines: %w", err)
+	}
+
+	pipelineName := fmt.Sprintf("%s-pipeline", buildName)
+	for i := range pipelineList.Items {
+		if pipelineList.Items[i].Name == pipelineName {
+			if err := t.client.Delete(ctx, &pipelineList.Items[i]); err != nil && !errors.IsNotFound(err) {
+				return fmt.Errorf("failed to delete pipeline: %w", err)
+			}
+		}
 	}
 
 	return nil

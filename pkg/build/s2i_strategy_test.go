@@ -255,11 +255,14 @@ func TestS2IStrategyGetBuildStatus(t *testing.T) {
 	_ = mlopsv1alpha1.AddToScheme(scheme)
 	_ = buildv1.AddToScheme(scheme)
 
-	// Create a fake build
+	// Create a fake build with the label our code looks for
 	build := &buildv1.Build{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-build",
 			Namespace: "default",
+			Labels: map[string]string{
+				"mlops.redhat.com/notebook-validation": "true",
+			},
 		},
 		Status: buildv1.BuildStatus{
 			Phase: buildv1.BuildPhaseComplete,

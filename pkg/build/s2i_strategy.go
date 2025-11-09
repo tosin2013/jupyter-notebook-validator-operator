@@ -129,7 +129,8 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 			Name:      fmt.Sprintf("%s-1", buildName),
 			Namespace: job.Namespace,
 			Labels: map[string]string{
-				"buildconfig": buildName,
+				"buildconfig":                          buildName,
+				"mlops.redhat.com/notebook-validation": "true",
 			},
 		},
 		Spec: buildv1.BuildSpec{
@@ -158,12 +159,23 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 
 // GetBuildStatus returns the current build status
 func (s *S2IStrategy) GetBuildStatus(ctx context.Context, buildName string) (*BuildInfo, error) {
-	// Parse namespace from context or use default
-	namespace := "default" // TODO: Get from context
-	
-	build := &buildv1.Build{}
-	if err := s.client.Get(ctx, types.NamespacedName{Name: buildName, Namespace: namespace}, build); err != nil {
-		return nil, fmt.Errorf("failed to get build: %w", err)
+	// List all builds with this name across namespaces
+	buildList := &buildv1.BuildList{}
+	if err := s.client.List(ctx, buildList, client.MatchingLabels{"mlops.redhat.com/notebook-validation": "true"}); err != nil {
+		return nil, fmt.Errorf("failed to list builds: %w", err)
+	}
+
+	// Find the build with matching name
+	var build *buildv1.Build
+	for i := range buildList.Items {
+		if buildList.Items[i].Name == buildName {
+			build = &buildList.Items[i]
+			break
+		}
+	}
+
+	if build == nil {
+		return nil, fmt.Errorf("build not found: %s", buildName)
 	}
 
 	info := &BuildInfo{
@@ -237,28 +249,35 @@ func (s *S2IStrategy) GetBuildLogs(ctx context.Context, buildName string) (strin
 
 // DeleteBuild cleans up build resources
 func (s *S2IStrategy) DeleteBuild(ctx context.Context, buildName string) error {
-	namespace := "default" // TODO: Get from context
-	
-	// Delete Build
-	build := &buildv1.Build{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      buildName,
-			Namespace: namespace,
-		},
-	}
-	if err := s.client.Delete(ctx, build); err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf("failed to delete build: %w", err)
+	// List all builds with this name
+	buildList := &buildv1.BuildList{}
+	if err := s.client.List(ctx, buildList, client.MatchingLabels{"mlops.redhat.com/notebook-validation": "true"}); err != nil {
+		return fmt.Errorf("failed to list builds: %w", err)
 	}
 
-	// Delete BuildConfig
-	buildConfig := &buildv1.BuildConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      buildName,
-			Namespace: namespace,
-		},
+	// Find and delete the build with matching name
+	for i := range buildList.Items {
+		if buildList.Items[i].Name == buildName {
+			if err := s.client.Delete(ctx, &buildList.Items[i]); err != nil && !errors.IsNotFound(err) {
+				return fmt.Errorf("failed to delete build: %w", err)
+			}
+			break
+		}
 	}
-	if err := s.client.Delete(ctx, buildConfig); err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf("failed to delete buildconfig: %w", err)
+
+	// List and delete BuildConfigs
+	buildConfigList := &buildv1.BuildConfigList{}
+	if err := s.client.List(ctx, buildConfigList, client.MatchingLabels{"mlops.redhat.com/notebook-validation": "true"}); err != nil {
+		return fmt.Errorf("failed to list buildconfigs: %w", err)
+	}
+
+	for i := range buildConfigList.Items {
+		if buildConfigList.Items[i].Name == buildName {
+			if err := s.client.Delete(ctx, &buildConfigList.Items[i]); err != nil && !errors.IsNotFound(err) {
+				return fmt.Errorf("failed to delete buildconfig: %w", err)
+			}
+			break
+		}
 	}
 
 	return nil

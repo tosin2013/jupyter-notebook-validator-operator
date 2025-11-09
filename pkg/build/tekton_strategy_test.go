@@ -288,11 +288,14 @@ func TestTektonStrategyGetBuildStatus(t *testing.T) {
 	_ = mlopsv1alpha1.AddToScheme(scheme)
 	_ = tektonv1.AddToScheme(scheme)
 
-	// Create a fake PipelineRun with minimal status
+	// Create a fake PipelineRun with minimal status and the label our code looks for
 	pipelineRun := &tektonv1.PipelineRun{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-build",
 			Namespace: "default",
+			Labels: map[string]string{
+				"mlops.redhat.com/notebook-validation": "true",
+			},
 		},
 		Status: tektonv1.PipelineRunStatus{
 			PipelineRunStatusFields: tektonv1.PipelineRunStatusFields{
