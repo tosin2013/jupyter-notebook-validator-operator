@@ -8,6 +8,9 @@ spec:
     git:
       url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
       ref: "main"
+      # For private repositories, create a secret with Git credentials
+      # See config/samples/git-credentials-example.yaml for how to create the secret
+      credentialsSecret: "git-credentials"
     path: "notebooks/tier1-simple/01-hello-world.ipynb"
   
   podConfig:

@@ -102,16 +102,27 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 		},
 		Spec: buildv1.BuildConfigSpec{
 			CommonSpec: buildv1.CommonSpec{
-				Source: buildv1.BuildSource{
-					Type: buildv1.BuildSourceGit,
-					Git: &buildv1.GitBuildSource{
-						URI: job.Spec.Notebook.Git.URL,
-						Ref: job.Spec.Notebook.Git.Ref,
-					},
-					// ContextDir is the directory containing the notebook
-					// We'll use the directory part of the notebook path
-					ContextDir: "",
-				},
+				Source: func() buildv1.BuildSource {
+					source := buildv1.BuildSource{
+						Type: buildv1.BuildSourceGit,
+						Git: &buildv1.GitBuildSource{
+							URI: job.Spec.Notebook.Git.URL,
+							Ref: job.Spec.Notebook.Git.Ref,
+						},
+						// ContextDir is the directory containing the notebook
+						// We'll use the directory part of the notebook path
+						ContextDir: "",
+					}
+
+					// Add Git credentials secret if specified
+					if job.Spec.Notebook.Git.CredentialsSecret != "" {
+						source.SourceSecret = &corev1.LocalObjectReference{
+							Name: job.Spec.Notebook.Git.CredentialsSecret,
+						}
+					}
+
+					return source
+				}(),
 				Strategy: buildv1.BuildStrategy{
 					Type: buildv1.SourceBuildStrategyType,
 					SourceStrategy: &buildv1.SourceBuildStrategy{
