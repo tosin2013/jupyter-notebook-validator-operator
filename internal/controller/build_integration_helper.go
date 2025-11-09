@@ -81,12 +81,19 @@ func (r *NotebookValidationJobReconciler) handleBuildIntegration(ctx context.Con
 	available, err := strategy.Detect(ctx, r.Client)
 	if err != nil {
 		logger.Error(err, "Failed to check strategy availability", "strategy", strategyName)
+		// Include detailed error in build status
+		errorMsg := fmt.Sprintf("Strategy detection failed for %s: %v", strategyName, err)
+		if updateErr := r.updateBuildStatus(ctx, job, "Failed", errorMsg, ""); updateErr != nil {
+			logger.Error(updateErr, "Failed to update build status")
+		}
 		return job.Spec.PodConfig.ContainerImage, fmt.Errorf("failed to check strategy availability: %w", err)
 	}
 
 	if !available {
 		logger.Info("Build strategy not available, falling back to container image", "strategy", strategyName)
-		if updateErr := r.updateBuildStatus(ctx, job, "Failed", fmt.Sprintf("Strategy not available: %s", strategyName), ""); updateErr != nil {
+		// Provide more helpful message about why strategy is not available
+		errorMsg := fmt.Sprintf("Strategy not available: %s. This may indicate that the required CRDs (BuildConfig for S2I, Pipeline for Tekton) are not installed in the cluster.", strategyName)
+		if updateErr := r.updateBuildStatus(ctx, job, "Failed", errorMsg, ""); updateErr != nil {
 			logger.Error(updateErr, "Failed to update build status")
 		}
 		return job.Spec.PodConfig.ContainerImage, fmt.Errorf("build strategy not available: %s", strategyName)
@@ -241,6 +248,11 @@ func (r *NotebookValidationJobReconciler) updateBuildStatus(ctx context.Context,
 	job.Status.BuildStatus.Phase = status
 	job.Status.BuildStatus.Message = message
 	job.Status.BuildStatus.ImageReference = imageReference
+
+	// Set strategy from build config if available
+	if job.Spec.PodConfig != nil && job.Spec.PodConfig.BuildConfig != nil {
+		job.Status.BuildStatus.Strategy = job.Spec.PodConfig.BuildConfig.Strategy
+	}
 
 	if status == "Running" && job.Status.BuildStatus.StartTime == nil {
 		now := metav1.Now()

@@ -36,24 +36,41 @@ func (s *S2IStrategy) Name() string {
 
 // Detect checks if S2I is available (OpenShift build API)
 func (s *S2IStrategy) Detect(ctx context.Context, client client.Client) (bool, error) {
-	// Check if BuildConfig CRD exists
-	buildConfig := &buildv1.BuildConfig{}
-	err := client.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, buildConfig)
+	logger := log.FromContext(ctx)
 
-	// If we get NotFound, the CRD exists but the resource doesn't - that's OK
-	// If we get NoKindMatchError, the CRD doesn't exist
+	// Check if BuildConfig CRD exists by trying to list BuildConfigs
+	// This is more reliable than trying to Get a specific resource
+	buildConfigList := &buildv1.BuildConfigList{}
+	err := client.List(ctx, buildConfigList, &client2.ListOptions{
+		Namespace: "default",
+		Limit:     1,
+	})
+
 	if err != nil {
-		if errors.IsNotFound(err) {
-			return true, nil
-		}
+		logger.V(1).Info("S2I detection: error listing BuildConfigs",
+			"error", err,
+			"errorType", fmt.Sprintf("%T", err),
+			"isNotFound", errors.IsNotFound(err),
+			"isNotRegistered", runtime.IsNotRegisteredError(err))
+
 		// Check if it's a "no kind match" error (CRD doesn't exist)
 		if runtime.IsNotRegisteredError(err) {
+			logger.Info("S2I not available: BuildConfig CRD not registered")
 			return false, nil
 		}
-		// Other errors might indicate the API is available but we can't access it
+
+		// Check for "no matches for kind" error (API not available)
+		if strings.Contains(err.Error(), "no matches for kind") {
+			logger.Info("S2I not available: BuildConfig API not found")
+			return false, nil
+		}
+
+		// Other errors might indicate permission issues
+		logger.Error(err, "S2I detection failed with unexpected error")
 		return false, err
 	}
 
+	logger.Info("S2I available: BuildConfig API detected", "buildConfigCount", len(buildConfigList.Items))
 	return true, nil
 }
 

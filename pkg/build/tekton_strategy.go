@@ -37,20 +37,41 @@ func (t *TektonStrategy) Name() string {
 
 // Detect checks if Tekton is available in the cluster
 func (t *TektonStrategy) Detect(ctx context.Context, client client.Client) (bool, error) {
-	// Check if TaskRun CRD exists
-	taskRun := &tektonv1.TaskRun{}
-	err := client.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, taskRun)
+	logger := log.FromContext(ctx)
+
+	// Check if TaskRun CRD exists by trying to list TaskRuns
+	// This is more reliable than trying to Get a specific resource
+	taskRunList := &tektonv1.TaskRunList{}
+	err := client.List(ctx, taskRunList, &client2.ListOptions{
+		Namespace: "default",
+		Limit:     1,
+	})
 
 	if err != nil {
-		if errors.IsNotFound(err) {
-			return true, nil
-		}
+		logger.V(1).Info("Tekton detection: error listing TaskRuns",
+			"error", err,
+			"errorType", fmt.Sprintf("%T", err),
+			"isNotFound", errors.IsNotFound(err),
+			"isNotRegistered", runtime.IsNotRegisteredError(err))
+
+		// Check if it's a "no kind match" error (CRD doesn't exist)
 		if runtime.IsNotRegisteredError(err) {
+			logger.Info("Tekton not available: TaskRun CRD not registered")
 			return false, nil
 		}
+
+		// Check for "no matches for kind" error (API not available)
+		if strings.Contains(err.Error(), "no matches for kind") {
+			logger.Info("Tekton not available: TaskRun API not found")
+			return false, nil
+		}
+
+		// Other errors might indicate permission issues
+		logger.Error(err, "Tekton detection failed with unexpected error")
 		return false, err
 	}
 
+	logger.Info("Tekton available: TaskRun API detected", "taskRunCount", len(taskRunList.Items))
 	return true, nil
 }
 
