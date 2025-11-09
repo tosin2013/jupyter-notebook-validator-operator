@@ -9,12 +9,12 @@ metadata:
 spec:
   notebook:
     git:
-      # Using a real public repository with example notebooks
-      url: https://github.com/jakevdp/PythonDataScienceHandbook.git
-      ref: master
+      # Using our test repository with validated notebooks
+      url: https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git
+      ref: main
       # credentialsSecret: git-credentials  # Optional for private repos
-    # Simple notebook that should execute successfully
-    path: notebooks/01.01-Help-And-Documentation.ipynb
+    # Simple hello world notebook that should execute successfully
+    path: notebooks/tier1-simple/01-hello-world.ipynb
 
   podConfig:
     containerImage: quay.io/jupyter/scipy-notebook:latest

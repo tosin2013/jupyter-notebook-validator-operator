@@ -194,11 +194,13 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 	}
 
 	// Build init container
+	// Use bitnami/git which supports running as non-root user
+	// ADR-005: OpenShift Compatibility - use non-root container images
 	initContainer := corev1.Container{
 		Name:  "git-clone",
-		Image: "alpine/git:latest",
+		Image: "bitnami/git:latest",
 		Command: []string{
-			"/bin/sh",
+			"/bin/bash",
 			"-c",
 			cloneCommand,
 		},
@@ -389,11 +391,13 @@ func (r *NotebookValidationJobReconciler) buildGoldenGitCloneInitContainer(ctx c
 	}
 
 	// Build init container
+	// Use bitnami/git which supports running as non-root user
+	// ADR-005: OpenShift Compatibility - use non-root container images
 	initContainer := corev1.Container{
 		Name:  "golden-git-clone",
-		Image: "alpine/git:latest",
+		Image: "bitnami/git:latest",
 		Command: []string{
-			"/bin/sh",
+			"/bin/bash",
 			"-c",
 			cloneCommand,
 		},
