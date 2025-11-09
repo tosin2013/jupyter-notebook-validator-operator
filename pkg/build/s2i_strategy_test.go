@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	buildv1 "github.com/openshift/api/build/v1"
+	imagev1 "github.com/openshift/api/image/v1"
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -16,6 +17,7 @@ func TestNewS2IStrategy(t *testing.T) {
 	scheme := runtime.NewScheme()
 	_ = mlopsv1alpha1.AddToScheme(scheme)
 	_ = buildv1.AddToScheme(scheme)
+	_ = imagev1.AddToScheme(scheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
 	strategy := NewS2IStrategy(fakeClient, scheme)
@@ -34,6 +36,7 @@ func TestS2IStrategyName(t *testing.T) {
 	scheme := runtime.NewScheme()
 	_ = mlopsv1alpha1.AddToScheme(scheme)
 	_ = buildv1.AddToScheme(scheme)
+	_ = imagev1.AddToScheme(scheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
 	strategy := NewS2IStrategy(fakeClient, scheme)
@@ -48,6 +51,7 @@ func TestS2IStrategyDetect(t *testing.T) {
 	scheme := runtime.NewScheme()
 	_ = mlopsv1alpha1.AddToScheme(scheme)
 	_ = buildv1.AddToScheme(scheme)
+	_ = imagev1.AddToScheme(scheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
 	strategy := NewS2IStrategy(fakeClient, scheme)
@@ -70,6 +74,7 @@ func TestS2IStrategyValidateConfig(t *testing.T) {
 	scheme := runtime.NewScheme()
 	_ = mlopsv1alpha1.AddToScheme(scheme)
 	_ = buildv1.AddToScheme(scheme)
+	_ = imagev1.AddToScheme(scheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
 	strategy := NewS2IStrategy(fakeClient, scheme)
@@ -125,6 +130,7 @@ func TestS2IStrategyCreateBuild(t *testing.T) {
 	scheme := runtime.NewScheme()
 	_ = mlopsv1alpha1.AddToScheme(scheme)
 	_ = buildv1.AddToScheme(scheme)
+	_ = imagev1.AddToScheme(scheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
 	strategy := NewS2IStrategy(fakeClient, scheme)
@@ -254,6 +260,7 @@ func TestS2IStrategyGetBuildStatus(t *testing.T) {
 	scheme := runtime.NewScheme()
 	_ = mlopsv1alpha1.AddToScheme(scheme)
 	_ = buildv1.AddToScheme(scheme)
+	_ = imagev1.AddToScheme(scheme)
 
 	// Create a fake build with the label our code looks for
 	build := &buildv1.Build{
@@ -294,6 +301,7 @@ func TestS2IStrategyDeleteBuild(t *testing.T) {
 	scheme := runtime.NewScheme()
 	_ = mlopsv1alpha1.AddToScheme(scheme)
 	_ = buildv1.AddToScheme(scheme)
+	_ = imagev1.AddToScheme(scheme)
 
 	// Create a fake build
 	build := &buildv1.Build{
