@@ -241,7 +241,8 @@ func (s *S2IStrategy) buildInfoFromBuild(build *buildv1.Build) *BuildInfo {
 	case buildv1.BuildPhaseComplete:
 		info.Status = BuildStatusComplete
 		if build.Status.Output.To != nil {
-			info.ImageReference = build.Status.Output.To.ImageDigest
+			// Get full image reference from ImageStream instead of just digest
+			info.ImageReference = s.getFullImageReference(build)
 		}
 	case buildv1.BuildPhaseFailed, buildv1.BuildPhaseError:
 		info.Status = BuildStatusFailed
@@ -259,6 +260,64 @@ func (s *S2IStrategy) buildInfoFromBuild(build *buildv1.Build) *BuildInfo {
 	}
 
 	return info
+}
+
+// getFullImageReference constructs the full image reference from Build and ImageStream
+// Returns: image-registry.openshift-image-registry.svc:5000/namespace/imagestream@sha256:...
+func (s *S2IStrategy) getFullImageReference(build *buildv1.Build) string {
+	// If no digest, return empty
+	if build.Status.Output.To == nil || build.Status.Output.To.ImageDigest == "" {
+		return ""
+	}
+
+	digest := build.Status.Output.To.ImageDigest
+
+	// Get the BuildConfig name from build labels
+	buildConfigName := build.Labels["buildconfig"]
+	if buildConfigName == "" {
+		// Fallback: just return the digest
+		return digest
+	}
+
+	// Get the BuildConfig to find the output ImageStreamTag
+	bc := &buildv1.BuildConfig{}
+	if err := s.client.Get(context.Background(), client.ObjectKey{
+		Name:      buildConfigName,
+		Namespace: build.Namespace,
+	}, bc); err != nil {
+		// Fallback: just return the digest
+		return digest
+	}
+
+	// Get the ImageStream name from BuildConfig output
+	if bc.Spec.Output.To == nil || bc.Spec.Output.To.Name == "" {
+		return digest
+	}
+
+	// Parse ImageStreamTag name (format: "imagestream:tag")
+	imageStreamName := bc.Spec.Output.To.Name
+	if idx := strings.Index(imageStreamName, ":"); idx != -1 {
+		imageStreamName = imageStreamName[:idx]
+	}
+
+	// Get the ImageStream to find the docker image repository
+	is := &imagev1.ImageStream{}
+	if err := s.client.Get(context.Background(), client.ObjectKey{
+		Name:      imageStreamName,
+		Namespace: build.Namespace,
+	}, is); err != nil {
+		// Fallback: just return the digest
+		return digest
+	}
+
+	// Get the docker image repository
+	dockerRepo := is.Status.DockerImageRepository
+	if dockerRepo == "" {
+		return digest
+	}
+
+	// Construct full image reference: registry/namespace/imagestream@digest
+	return fmt.Sprintf("%s@%s", dockerRepo, digest)
 }
 
 // GetLatestBuild returns the most recent build for a BuildConfig
