@@ -27,14 +27,14 @@ const (
 // PodFailureAnalysis contains detailed analysis of pod failure
 type PodFailureAnalysis struct {
 	Reason          PodFailureReason
-	IsTransient     bool          // Can be retried with same configuration
-	ShouldRetry     bool          // Should we retry at all
-	SuggestedAction string        // Human-readable suggestion
-	FailedContainer string        // Name of failed container
-	ErrorMessage    string        // Detailed error message
-	IsInitContainer bool          // Whether failure is in init container
-	IsSCCViolation  bool          // Whether failure is OpenShift SCC violation
-	IsImageIssue    bool          // Whether failure is image-related
+	IsTransient     bool   // Can be retried with same configuration
+	ShouldRetry     bool   // Should we retry at all
+	SuggestedAction string // Human-readable suggestion
+	FailedContainer string // Name of failed container
+	ErrorMessage    string // Detailed error message
+	IsInitContainer bool   // Whether failure is in init container
+	IsSCCViolation  bool   // Whether failure is OpenShift SCC violation
+	IsImageIssue    bool   // Whether failure is image-related
 }
 
 // analyzePodFailure performs detailed analysis of pod failure
@@ -282,4 +282,3 @@ func getFailureRecoveryAction(analysis *PodFailureAnalysis, retryCount int) stri
 	// Non-transient errors - may need manual intervention
 	return "manual_intervention_required"
 }
-
