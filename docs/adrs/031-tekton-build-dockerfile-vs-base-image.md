@@ -1,9 +1,10 @@
 # ADR-031: Tekton Build Strategy - Dockerfile vs Base Image Support
 
-**Status**: Proposed  
-**Date**: 2025-11-09  
-**Authors**: Sophia (AI Assistant), User Feedback  
+**Status**: ✅ **IMPLEMENTED** (Phase 1 + Phase 2)
+**Date**: 2025-11-09
+**Authors**: Sophia (AI Assistant), User Feedback
 **Related**: ADR-028 (Tekton Task Strategy), ADR-027 (S2I Build Strategy)
+**Implementation**: Commits `3c95bc7` (Phase 1), `[PENDING]` (Phase 2)
 
 ## Context
 
@@ -342,9 +343,76 @@ buildConfig:
 - Buildah Task Documentation: https://hub.tekton.dev/tekton/task/buildah
 - S2I Documentation: https://docs.openshift.com/container-platform/4.18/cicd/builds/understanding-image-builds.html
 
+## Implementation Status
+
+### Phase 1: ✅ COMPLETE (Commit `3c95bc7`)
+- Inline `generate-dockerfile` TaskSpec in Pipeline
+- Auto-generate Dockerfile from baseImage if not present
+- Check standard locations (Dockerfile, Containerfile)
+- Use buildah Task for actual build
+
+### Phase 2: ✅ COMPLETE (Commit `[PENDING]`)
+- Added `Dockerfile` field to `BuildConfigSpec` CRD
+- Added `dockerfile-path` parameter to Pipeline
+- Updated inline task script to check custom path first
+- Added fsGroup (65532) to PipelineRun for PVC permissions fix
+- Created test samples:
+  - `mlops_v1alpha1_notebookvalidationjob_tekton.yaml` (baseImage only)
+  - `mlops_v1alpha1_notebookvalidationjob_tekton_custom_dockerfile.yaml` (custom Dockerfile)
+
+**PVC Permissions Fix**: Added `TaskRunTemplate.PodTemplate.SecurityContext.FSGroup = 65532` to fix "Permission denied" errors when git-clone writes to PVC.
+
+### Phase 3: 🔮 FUTURE
+- Multi-stage Dockerfile generation
+- Dockerfile templates for common scenarios
+- Dockerfile validation and linting
+- Build cache optimization
+
+## Test Scenarios
+
+### Test 1: BaseImage Only (Auto-Generate Dockerfile)
+**File**: `config/samples/mlops_v1alpha1_notebookvalidationjob_tekton.yaml`
+
+```yaml
+buildConfig:
+  enabled: true
+  strategy: "tekton"
+  baseImage: "quay.io/jupyter/minimal-notebook:latest"
+  # No dockerfile specified - will auto-generate
+```
+
+**Expected Behavior**:
+1. Pipeline creates inline `generate-dockerfile` task
+2. Task checks for Dockerfile/Containerfile in repo
+3. Not found → generates Dockerfile from baseImage
+4. buildah builds image from generated Dockerfile
+5. Validation pod runs with built image
+
+### Test 2: Custom Dockerfile Path
+**File**: `config/samples/mlops_v1alpha1_notebookvalidationjob_tekton_custom_dockerfile.yaml`
+
+```yaml
+buildConfig:
+  enabled: true
+  strategy: "tekton"
+  dockerfile: "docker/Dockerfile.custom"
+  baseImage: "quay.io/jupyter/minimal-notebook:latest"  # Fallback
+```
+
+**Expected Behavior**:
+1. Pipeline creates inline `generate-dockerfile` task with DOCKERFILE_PATH parameter
+2. Task checks custom path first: `docker/Dockerfile.custom`
+3. If found → copies to `./Dockerfile` for buildah
+4. If not found → falls back to standard locations or auto-generation
+5. buildah builds image from Dockerfile
+6. Validation pod runs with built image
+
 ## Notes
 
 **User Feedback**: This ADR was created in response to excellent user insight: "What if someone does not have a base image yet and has a docker file we may need to support both"
+
+**Follow-up Question**: "Do we need to create a custom tekton task? and use buildah when someone has a docker file"
+**Answer**: NO! Use inline TaskSpec (simpler, more maintainable) + buildah for BOTH scenarios
 
 **Sophia Framework Alignment**:
 - **Pragmatic Success Criteria**: Support real-world use cases (both scenarios)

@@ -270,6 +270,14 @@ spec:
                         default: quay.io/jupyter/minimal-notebook:latest
                         description: BaseImage specifies the base image for the build
                         type: string
+                      dockerfile:
+                        description: |-
+                          Dockerfile specifies the path to a custom Dockerfile in the Git repository
+                          ADR-031: Support custom Dockerfile for advanced build scenarios
+                          If specified, this takes precedence over BaseImage (Dockerfile will be used as-is)
+                          If not specified, a Dockerfile will be auto-generated from BaseImage
+                        pattern: ^[a-zA-Z0-9._/-]+$
+                        type: string
                       enabled:
                         default: false
                         description: Enabled specifies whether to build a custom image

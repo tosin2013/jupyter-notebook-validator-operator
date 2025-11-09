@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tektoncd/pipeline/pkg/apis/pipeline/pod"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -254,6 +255,8 @@ func (t *TektonStrategy) createBuildPipeline(job *mlopsv1alpha1.NotebookValidati
 				{Name: "git-revision", Type: tektonv1.ParamTypeString, Default: &tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: "main"}},
 				{Name: "image-reference", Type: tektonv1.ParamTypeString},
 				{Name: "base-image", Type: tektonv1.ParamTypeString, Default: &tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: baseImage}},
+				// ADR-031 Phase 2: Add custom Dockerfile path parameter
+				{Name: "dockerfile-path", Type: tektonv1.ParamTypeString, Default: &tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: ""}},
 			},
 			Workspaces: []tektonv1.PipelineWorkspaceDeclaration{
 				{Name: "shared-workspace"},
@@ -283,10 +286,12 @@ func (t *TektonStrategy) createBuildPipeline(job *mlopsv1alpha1.NotebookValidati
 					// ADR-031: Inline Task to generate Dockerfile from baseImage if not present
 					// User insight: "Do we need to create a custom tekton task? and use buildah when someone has a docker file"
 					// Answer: NO! Use inline Task with script, then buildah for both scenarios
+					// Phase 2: Support custom Dockerfile path from CRD
 					TaskSpec: &tektonv1.EmbeddedTask{
 						TaskSpec: tektonv1.TaskSpec{
 							Params: []tektonv1.ParamSpec{
 								{Name: "BASE_IMAGE", Type: tektonv1.ParamTypeString},
+								{Name: "DOCKERFILE_PATH", Type: tektonv1.ParamTypeString},
 							},
 							Workspaces: []tektonv1.WorkspaceDeclaration{
 								{Name: "source"},
@@ -298,7 +303,24 @@ func (t *TektonStrategy) createBuildPipeline(job *mlopsv1alpha1.NotebookValidati
 									Script: `#!/bin/sh
 set -e
 
-# Check if Dockerfile already exists
+# ADR-031 Phase 2: Check for custom Dockerfile path first
+if [ -n "$(params.DOCKERFILE_PATH)" ]; then
+    CUSTOM_DOCKERFILE="$(workspaces.source.path)/$(params.DOCKERFILE_PATH)"
+    if [ -f "$CUSTOM_DOCKERFILE" ]; then
+        echo "✅ Custom Dockerfile found at: $(params.DOCKERFILE_PATH)"
+        # Copy to standard location for buildah
+        if [ "$(params.DOCKERFILE_PATH)" != "Dockerfile" ]; then
+            cp "$CUSTOM_DOCKERFILE" "$(workspaces.source.path)/Dockerfile"
+            echo "📋 Copied custom Dockerfile to ./Dockerfile"
+        fi
+        exit 0
+    else
+        echo "⚠️  Custom Dockerfile specified but not found: $(params.DOCKERFILE_PATH)"
+        echo "⚠️  Falling back to auto-generation from baseImage"
+    fi
+fi
+
+# Check if Dockerfile already exists in standard locations
 if [ -f "$(workspaces.source.path)/Dockerfile" ] || [ -f "$(workspaces.source.path)/Containerfile" ]; then
     echo "✅ Dockerfile found in repository, using existing file"
     exit 0
@@ -332,6 +354,7 @@ cat $(workspaces.source.path)/Dockerfile
 					RunAfter: []string{"fetch-repository"},
 					Params: []tektonv1.Param{
 						{Name: "BASE_IMAGE", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: "$(params.base-image)"}},
+						{Name: "DOCKERFILE_PATH", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: "$(params.dockerfile-path)"}},
 					},
 					Workspaces: []tektonv1.WorkspacePipelineTaskBinding{
 						{Name: "source", Workspace: "shared-workspace"},
@@ -368,6 +391,15 @@ func (t *TektonStrategy) createPipelineRun(job *mlopsv1alpha1.NotebookValidation
 		baseImage = job.Spec.PodConfig.BuildConfig.BaseImage
 	}
 
+	// ADR-031 Phase 2: Get custom Dockerfile path if specified
+	dockerfilePath := ""
+	if job.Spec.PodConfig.BuildConfig != nil && job.Spec.PodConfig.BuildConfig.Dockerfile != "" {
+		dockerfilePath = job.Spec.PodConfig.BuildConfig.Dockerfile
+	}
+
+	// ADR-031: Fix PVC permissions with fsGroup
+	fsGroup := int64(65532) // Standard non-root user group for Tekton
+
 	return &tektonv1.PipelineRun{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      buildName,
@@ -381,11 +413,21 @@ func (t *TektonStrategy) createPipelineRun(job *mlopsv1alpha1.NotebookValidation
 			PipelineRef: &tektonv1.PipelineRef{
 				Name: pipelineName,
 			},
+			// ADR-031: Add podTemplate with fsGroup for PVC permissions
+			TaskRunTemplate: tektonv1.PipelineTaskRunTemplate{
+				PodTemplate: &pod.Template{
+					SecurityContext: &corev1.PodSecurityContext{
+						FSGroup: &fsGroup,
+					},
+				},
+			},
 			Params: []tektonv1.Param{
 				{Name: "git-url", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: job.Spec.Notebook.Git.URL}},
 				{Name: "git-revision", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: job.Spec.Notebook.Git.Ref}},
 				{Name: "image-reference", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: fmt.Sprintf("image-registry.openshift-image-registry.svc:5000/%s/%s:latest", job.Namespace, buildName)}},
 				{Name: "base-image", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: baseImage}},
+				// ADR-031 Phase 2: Pass custom Dockerfile path
+				{Name: "dockerfile-path", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: dockerfilePath}},
 			},
 			Workspaces: func() []tektonv1.WorkspaceBinding {
 				workspaces := []tektonv1.WorkspaceBinding{

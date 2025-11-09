@@ -1,0 +1,44 @@
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: notebookvalidationjob-tekton-custom-dockerfile
+  namespace: default
+  annotations:
+    mlops.dev/description: "ADR-031 Phase 2: Test custom Dockerfile support"
+spec:
+  notebook:
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+      credentialsSecret: "git-credentials"
+    path: "notebooks/tier1-simple/01-hello-world.ipynb"
+  
+  podConfig:
+    # ADR-031 Phase 2: Build with custom Dockerfile
+    buildConfig:
+      enabled: true
+      strategy: "tekton"
+      # Custom Dockerfile path (if exists in repo, will be used)
+      # If not found, will fall back to baseImage generation
+      dockerfile: "docker/Dockerfile.custom"
+      # BaseImage is still provided as fallback
+      baseImage: "quay.io/jupyter/minimal-notebook:latest"
+      autoGenerateRequirements: false
+      requirementsFile: "requirements.txt"
+      fallbackStrategy: "warn"
+    
+    # Use pre-built image as fallback if build is disabled
+    containerImage: "quay.io/jupyter/minimal-notebook:latest"
+    
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+    
+    serviceAccountName: "notebook-validator-jupyter-notebook-validator-runner"
+  
+  timeout: "30m"
+

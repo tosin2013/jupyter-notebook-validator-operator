@@ -211,6 +211,14 @@ type BuildConfigSpec struct {
 	// +optional
 	BaseImage string `json:"baseImage,omitempty"`
 
+	// Dockerfile specifies the path to a custom Dockerfile in the Git repository
+	// ADR-031: Support custom Dockerfile for advanced build scenarios
+	// If specified, this takes precedence over BaseImage (Dockerfile will be used as-is)
+	// If not specified, a Dockerfile will be auto-generated from BaseImage
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9._/-]+$`
+	// +optional
+	Dockerfile string `json:"dockerfile,omitempty"`
+
 	// AutoGenerateRequirements specifies whether to auto-generate requirements.txt if missing
 	// Uses pipreqs to analyze notebook imports
 	// +kubebuilder:default=false
