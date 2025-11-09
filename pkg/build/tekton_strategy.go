@@ -343,11 +343,12 @@ FROM $(params.BASE_IMAGE)
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-# Copy source code
-COPY . /workspace/
+# Copy source code to /opt/app-root/src/ (S2I standard location)
+# This matches S2I behavior so validation pod can find notebooks
+COPY . /opt/app-root/src/
 
 # Set working directory
-WORKDIR /workspace
+WORKDIR /opt/app-root/src
 EOF
 else
     echo "📦 No requirements.txt found, skipping dependency installation"
@@ -356,11 +357,12 @@ else
 # ADR-031: Support both baseImage and custom Dockerfile
 FROM $(params.BASE_IMAGE)
 
-# Copy source code
-COPY . /workspace/
+# Copy source code to /opt/app-root/src/ (S2I standard location)
+# This matches S2I behavior so validation pod can find notebooks
+COPY . /opt/app-root/src/
 
 # Set working directory
-WORKDIR /workspace
+WORKDIR /opt/app-root/src
 EOF
 fi
 
