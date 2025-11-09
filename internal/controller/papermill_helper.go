@@ -34,7 +34,21 @@ func (r *NotebookValidationJobReconciler) buildPapermillValidationContainer(ctx 
 	logger := log.FromContext(ctx)
 
 	notebookPath := job.Spec.Notebook.Path
-	inputNotebook := fmt.Sprintf("/workspace/repo/%s", notebookPath)
+
+	// ADR-019: Smart Validation Pod Recovery - Phase 3
+	// When using built images (S2I/Tekton), notebooks are in /opt/app-root/src/
+	// When using pre-built images with git-clone, notebooks are in /workspace/repo/
+	var inputNotebook string
+	if shouldSkipGitClone(containerImage, job.Spec.PodConfig.ContainerImage) {
+		// Built image - notebooks are in S2I source directory
+		inputNotebook = fmt.Sprintf("/opt/app-root/src/%s", notebookPath)
+		logger.Info("Using built image notebook path", "path", inputNotebook)
+	} else {
+		// Pre-built image - notebooks are cloned to /workspace/repo/
+		inputNotebook = fmt.Sprintf("/workspace/repo/%s", notebookPath)
+		logger.Info("Using git-cloned notebook path", "path", inputNotebook)
+	}
+
 	outputNotebook := "/workspace/output.ipynb"
 	resultsJSON := "/workspace/results.json"
 
