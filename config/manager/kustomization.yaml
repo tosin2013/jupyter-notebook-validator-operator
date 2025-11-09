@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: quay.io/takinosh/jupyter-notebook-validator-operator
-  newTag: release-4.18-8133b7e
+  newTag: release-4.18-a791258
