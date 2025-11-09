@@ -212,8 +212,9 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 		},
 		SecurityContext: &corev1.SecurityContext{
 			RunAsNonRoot: boolPtr(true),
-			// RunAsUser is intentionally omitted to allow OpenShift to assign a UID
-			// from the namespace's allocated range (ADR-005: OpenShift Compatibility)
+			// ADR-005: OpenShift Compatibility - explicitly set RunAsUser to bitnami/git's non-root UID
+			// bitnami/git:latest runs as UID 1001 by default
+			RunAsUser:                int64Ptr(1001),
 			AllowPrivilegeEscalation: boolPtr(false),
 			Capabilities: &corev1.Capabilities{
 				Drop: []corev1.Capability{"ALL"},
@@ -409,8 +410,9 @@ func (r *NotebookValidationJobReconciler) buildGoldenGitCloneInitContainer(ctx c
 		},
 		SecurityContext: &corev1.SecurityContext{
 			RunAsNonRoot: boolPtr(true),
-			// RunAsUser is intentionally omitted to allow OpenShift to assign a UID
-			// from the namespace's allocated range (ADR-005: OpenShift Compatibility)
+			// ADR-005: OpenShift Compatibility - explicitly set RunAsUser to bitnami/git's non-root UID
+			// bitnami/git:latest runs as UID 1001 by default
+			RunAsUser:                int64Ptr(1001),
 			AllowPrivilegeEscalation: boolPtr(false),
 			Capabilities: &corev1.Capabilities{
 				Drop: []corev1.Capability{"ALL"},
@@ -447,4 +449,8 @@ func sanitizeForLog(value string) string {
 // Helper functions for pointer types
 func boolPtr(b bool) *bool {
 	return &b
+}
+
+func int64Ptr(i int64) *int64 {
+	return &i
 }
