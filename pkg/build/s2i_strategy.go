@@ -7,6 +7,7 @@ import (
 	"time"
 
 	buildv1 "github.com/openshift/api/build/v1"
+	imagev1 "github.com/openshift/api/image/v1"
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -90,6 +91,30 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 		baseImage = "quay.io/jupyter/minimal-notebook:latest"
 	}
 
+	logger := log.FromContext(ctx)
+
+	// Create ImageStream first (required for BuildConfig output)
+	imageStream := &imagev1.ImageStream{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      buildName,
+			Namespace: job.Namespace,
+			Labels: map[string]string{
+				"app":                                  job.Name,
+				"mlops.redhat.com/notebook-validation": "true",
+			},
+		},
+	}
+
+	if err := s.client.Create(ctx, imageStream); err != nil {
+		if !errors.IsAlreadyExists(err) {
+			logger.Error(err, "Failed to create ImageStream", "imageStreamName", buildName)
+			return nil, fmt.Errorf("failed to create ImageStream: %w", err)
+		}
+		logger.Info("ImageStream already exists", "imageStreamName", buildName)
+	} else {
+		logger.Info("ImageStream created successfully", "imageStreamName", buildName)
+	}
+
 	// Create BuildConfig
 	bc := &buildv1.BuildConfig{
 		ObjectMeta: metav1.ObjectMeta{
@@ -143,10 +168,15 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 	}
 
 	// Create the BuildConfig
+	logger.Info("Creating BuildConfig", "buildConfigName", buildName, "gitURL", job.Spec.Notebook.Git.URL, "hasCredentials", job.Spec.Notebook.Git.CredentialsSecret != "")
 	if err := s.client.Create(ctx, bc); err != nil {
 		if !errors.IsAlreadyExists(err) {
+			logger.Error(err, "Failed to create BuildConfig", "buildConfigName", buildName)
 			return nil, fmt.Errorf("failed to create BuildConfig: %w", err)
 		}
+		logger.Info("BuildConfig already exists", "buildConfigName", buildName)
+	} else {
+		logger.Info("BuildConfig created successfully", "buildConfigName", buildName)
 	}
 
 	// Trigger a build
@@ -168,10 +198,15 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 		},
 	}
 
+	logger.Info("Triggering build", "buildName", build.Name)
 	if err := s.client.Create(ctx, build); err != nil {
 		if !errors.IsAlreadyExists(err) {
+			logger.Error(err, "Failed to trigger build", "buildName", build.Name)
 			return nil, fmt.Errorf("failed to trigger build: %w", err)
 		}
+		logger.Info("Build already exists", "buildName", build.Name)
+	} else {
+		logger.Info("Build created and triggered successfully", "buildName", build.Name)
 	}
 
 	now := time.Now()
