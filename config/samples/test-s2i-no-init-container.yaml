@@ -1,0 +1,51 @@
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: test-s2i-no-init-container
+  namespace: default
+  annotations:
+    mlops.dev/description: "S2I build that includes git clone - no init container needed"
+spec:
+  notebook:
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+    path: "notebooks/tier1-simple/01-hello-world.ipynb"
+  
+  podConfig:
+    buildConfig:
+      enabled: true
+      strategy: "s2i"
+      
+      # S2I will build an image with:
+      # 1. Base Jupyter image
+      # 2. Git clone of the repository
+      # 3. All dependencies from requirements.txt
+      # 4. Runs as non-root user (OpenShift compatible)
+      baseImage: "quay.io/jupyter/minimal-notebook:latest"
+      
+      # Use the requirements.txt from the repo
+      requirementsFile: "requirements.txt"
+      autoGenerateRequirements: false
+      
+      # If build fails, fall back to base image (will fail at runtime)
+      fallbackStrategy: "warn"
+      
+      # Build timeout
+      timeout: "15m"
+    
+    # This will be replaced by the built image
+    containerImage: "quay.io/jupyter/minimal-notebook:latest"
+    
+    serviceAccountName: "notebook-validator-jupyter-notebook-validator-runner"
+    
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+  
+  timeout: "30m"
+
