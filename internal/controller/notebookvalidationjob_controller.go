@@ -94,7 +94,7 @@ type NotebookValidationJobReconciler struct {
 //+kubebuilder:rbac:groups=serving.yatai.ai,resources=bentos;bentodeployments,verbs=get;list;watch
 //+kubebuilder:rbac:groups=build.openshift.io,resources=buildconfigs;builds,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=image.openshift.io,resources=imagestreams,verbs=get;list;watch;create;update;patch
-//+kubebuilder:rbac:groups=tekton.dev,resources=pipelines;pipelineruns;taskruns,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=tekton.dev,resources=pipelines;pipelineruns;taskruns;tasks,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
