@@ -1,10 +1,10 @@
 # ADR-031: Tekton Build Strategy - Dockerfile vs Base Image Support
 
-**Status**: ✅ **IMPLEMENTED** (Phase 1 + Phase 2)
+**Status**: ✅ **IMPLEMENTED** (Phase 1 + Phase 2 + Git Credentials Fix)
 **Date**: 2025-11-09
 **Authors**: Sophia (AI Assistant), User Feedback
-**Related**: ADR-028 (Tekton Task Strategy), ADR-027 (S2I Build Strategy)
-**Implementation**: Commits `3c95bc7` (Phase 1), `7d4fbd8` (Phase 2)
+**Related**: ADR-028 (Tekton Task Strategy), ADR-027 (S2I Build Strategy), ADR-009 (Secret Management)
+**Implementation**: Commits `3c95bc7` (Phase 1), `7d4fbd8` (Phase 2), `2f0ce75` (Git Credentials)
 
 ## Context
 
@@ -361,6 +361,22 @@ buildConfig:
   - `mlops_v1alpha1_notebookvalidationjob_tekton_custom_dockerfile.yaml` (custom Dockerfile)
 
 **PVC Permissions Fix**: Added `TaskRunTemplate.PodTemplate.SecurityContext.FSGroup = 65532` to fix "Permission denied" errors when git-clone writes to PVC.
+
+### Git Credentials Fix: ✅ COMPLETE (Commit `2f0ce75`)
+**Problem**: git-clone Task was using `ssh-directory` workspace with username/password secret, causing authentication failure for HTTPS URLs.
+
+**Root Cause**: BuildConfig and Tekton require different secret formats:
+- **BuildConfig**: `kubernetes.io/basic-auth` with `username` + `password` keys
+- **Tekton HTTPS**: `Opaque` secret with `.gitconfig` + `.git-credentials` files for `basic-auth` workspace
+- **Tekton SSH**: `Opaque` secret with `ssh-privatekey` for `ssh-directory` workspace
+
+**Solution**:
+- Changed Pipeline workspace mapping from `ssh-directory` to `basic-auth`
+- Created `git-credentials-tekton` secret in correct format
+- Added ESO configuration template (`config/samples/eso-git-credentials-tekton.yaml`)
+- Updated sample YAMLs to reference new secret
+
+**ESO Integration**: ExternalSecret syncs from same credential source as BuildConfig but formats output for Tekton basic-auth workspace.
 
 ### Phase 3: 🔮 FUTURE
 - Multi-stage Dockerfile generation
