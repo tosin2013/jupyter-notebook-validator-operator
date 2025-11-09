@@ -137,6 +137,7 @@ func (t *TektonStrategy) createBuildPipeline(job *mlopsv1alpha1.NotebookValidati
 			},
 			Workspaces: []tektonv1.PipelineWorkspaceDeclaration{
 				{Name: "shared-workspace"},
+				{Name: "git-credentials", Optional: true},
 			},
 			Tasks: []tektonv1.PipelineTask{
 				{
@@ -151,6 +152,7 @@ func (t *TektonStrategy) createBuildPipeline(job *mlopsv1alpha1.NotebookValidati
 					},
 					Workspaces: []tektonv1.WorkspacePipelineTaskBinding{
 						{Name: "output", Workspace: "shared-workspace"},
+						{Name: "ssh-directory", Workspace: "git-credentials"},
 					},
 				},
 				{
@@ -201,21 +203,35 @@ func (t *TektonStrategy) createPipelineRun(job *mlopsv1alpha1.NotebookValidation
 				{Name: "image-reference", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: fmt.Sprintf("image-registry.openshift-image-registry.svc:5000/%s/%s:latest", job.Namespace, buildName)}},
 				{Name: "base-image", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: baseImage}},
 			},
-			Workspaces: []tektonv1.WorkspaceBinding{
-				{
-					Name: "shared-workspace",
-					VolumeClaimTemplate: &corev1.PersistentVolumeClaim{
-						Spec: corev1.PersistentVolumeClaimSpec{
-							AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-							Resources: corev1.VolumeResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: *resource.NewQuantity(1*1024*1024*1024, resource.BinarySI),
+			Workspaces: func() []tektonv1.WorkspaceBinding {
+				workspaces := []tektonv1.WorkspaceBinding{
+					{
+						Name: "shared-workspace",
+						VolumeClaimTemplate: &corev1.PersistentVolumeClaim{
+							Spec: corev1.PersistentVolumeClaimSpec{
+								AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+								Resources: corev1.VolumeResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceStorage: *resource.NewQuantity(1*1024*1024*1024, resource.BinarySI),
+									},
 								},
 							},
 						},
 					},
-				},
-			},
+				}
+
+				// Add Git credentials workspace if specified
+				if job.Spec.Notebook.Git.CredentialsSecret != "" {
+					workspaces = append(workspaces, tektonv1.WorkspaceBinding{
+						Name: "git-credentials",
+						Secret: &corev1.SecretVolumeSource{
+							SecretName: job.Spec.Notebook.Git.CredentialsSecret,
+						},
+					})
+				}
+
+				return workspaces
+			}(),
 		},
 	}
 }
