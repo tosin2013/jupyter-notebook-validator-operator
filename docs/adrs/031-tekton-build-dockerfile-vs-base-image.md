@@ -4,7 +4,7 @@
 **Date**: 2025-11-09
 **Authors**: Sophia (AI Assistant), User Feedback
 **Related**: ADR-028 (Tekton Task Strategy), ADR-027 (S2I Build Strategy)
-**Implementation**: Commits `3c95bc7` (Phase 1), `[PENDING]` (Phase 2)
+**Implementation**: Commits `3c95bc7` (Phase 1), `7d4fbd8` (Phase 2)
 
 ## Context
 
@@ -351,7 +351,7 @@ buildConfig:
 - Check standard locations (Dockerfile, Containerfile)
 - Use buildah Task for actual build
 
-### Phase 2: ✅ COMPLETE (Commit `[PENDING]`)
+### Phase 2: ✅ COMPLETE (Commit `7d4fbd8`)
 - Added `Dockerfile` field to `BuildConfigSpec` CRD
 - Added `dockerfile-path` parameter to Pipeline
 - Updated inline task script to check custom path first
