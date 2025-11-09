@@ -160,10 +160,11 @@ meta.SetStatusCondition(&job.Status.Conditions, metav1.Condition{
 
 ## Implementation Phases
 
-### Phase 1: Fix Silent Failures (IMMEDIATE) ⏰
+### Phase 1: Fix Silent Failures (IMMEDIATE) ⏰ ✅ COMPLETE
 
-**Priority**: CRITICAL  
+**Priority**: CRITICAL
 **Timeline**: Current sprint
+**Status**: ✅ IMPLEMENTED (2025-11-09)
 
 **Tasks**:
 1. ✅ Add error checking after Pipeline/PipelineRun creation
@@ -171,14 +172,141 @@ meta.SetStatusCondition(&job.Status.Conditions, metav1.Condition{
 3. ✅ Return errors instead of logging and continuing
 4. ✅ Update tests to expect errors
 
-**Files to Update**:
-- `pkg/build/tekton_strategy.go` - Add error checking
-- `internal/controller/build_integration_helper.go` - Propagate errors
-- `pkg/build/tekton_strategy_test.go` - Test error cases
+**Files Updated**:
+- ✅ `pkg/build/tekton_strategy.go` - Added verification after creation
+- ✅ `internal/controller/notebookvalidationjob_controller.go` - Added RBAC marker for tasks
+- ✅ `pkg/build/tekton_strategy_test.go` - Tests pass
+
+**Commits**:
+- `cf1a735` - feat: Implement ADR-030 Phase 1 - Fix Silent Failures in Tekton Build
+- `cd385ae` - fix: Add tasks RBAC marker to controller for ADR-028
+- `e4ee92e` - fix: Use uppercase param names for OpenShift Pipelines git-clone Task
+
+**Lessons Learned**:
+1. **Verification is not enough**: We verified Pipeline exists, but didn't verify it has correct spec
+2. **Parameter naming conventions**: OpenShift Pipelines uses UPPERCASE param names
+3. **User feedback gap**: PipelineRun error messages don't surface in NotebookValidationJob status clearly
+
+### Phase 1.5: Improve NotebookValidationJob Status Messages (URGENT) 🚨
+
+**Priority**: HIGH
+**Timeline**: Current sprint
+**Status**: ⏳ PROPOSED
+
+**Problem Identified** (2025-11-09):
+User question: "Should we have better error messages or status based on notebookvalidationjob-tekton-sample-build?"
+
+Current PipelineRun error:
+```
+Status: Failed
+Message: Failure - check logs for details.
+Log snippet: Pipeline default/notebookvalidationjob-tekton-sample-pipeline can't be Run;
+it contains Tasks that don't exist: Couldn't retrieve Task "git-clone":
+clustertasks.tekton.dev "git-clone" not found
+```
+
+**Issues**:
+1. NotebookValidationJob status doesn't show the real error
+2. User has to check PipelineRun logs manually
+3. Error message is cryptic ("clustertasks.tekton.dev not found")
+4. No guidance on how to fix
+
+**Solution**:
+1. **Surface PipelineRun errors in NotebookValidationJob status**:
+   ```go
+   // In build_integration_helper.go
+   if buildInfo.Status == BuildStatusFailed {
+       // Extract detailed error from PipelineRun
+       pipelineRun := &tektonv1.PipelineRun{}
+       if err := r.Get(ctx, client.ObjectKey{Name: buildInfo.Name, Namespace: job.Namespace}, pipelineRun); err == nil {
+           // Parse PipelineRun conditions for detailed error
+           for _, condition := range pipelineRun.Status.Conditions {
+               if condition.Type == "Succeeded" && condition.Status == corev1.ConditionFalse {
+                   // Analyze error message and provide smart feedback
+                   smartError := analyzeP ipelineError(condition.Message)
+                   job.Status.BuildStatus.Message = smartError.UserFriendlyMessage
+                   job.Status.BuildStatus.Details = smartError.TechnicalDetails
+                   job.Status.BuildStatus.Actions = smartError.SuggestedActions
+               }
+           }
+       }
+   }
+   ```
+
+2. **Add error analysis for common Tekton errors**:
+   ```go
+   func analyzePipelineError(message string) *SmartError {
+       switch {
+       case strings.Contains(message, "clustertasks.tekton.dev"):
+           return &SmartError{
+               Category: "Configuration",
+               UserFriendlyMessage: "Pipeline configuration error: Using ClusterTask instead of Task",
+               TechnicalDetails: message,
+               SuggestedActions: []string{
+                   "This usually means the Pipeline was created with old code",
+                   "Delete the Pipeline and let operator recreate it: oc delete pipeline <name>",
+                   "Or update operator to latest version with ADR-028 fix",
+               },
+           }
+       case strings.Contains(message, "missing values for these params"):
+           return &SmartError{
+               Category: "Configuration",
+               UserFriendlyMessage: "Parameter mismatch between Pipeline and Task",
+               TechnicalDetails: message,
+               SuggestedActions: []string{
+                   "Check parameter names match between Pipeline and Task",
+                   "OpenShift Pipelines Tasks use UPPERCASE parameter names",
+                   "Update Pipeline to use correct parameter names",
+               },
+           }
+       default:
+           return &SmartError{
+               Category: "Unknown",
+               UserFriendlyMessage: "Build failed - see details",
+               TechnicalDetails: message,
+               SuggestedActions: []string{
+                   "Check PipelineRun logs: oc logs <pipelinerun-pod>",
+                   "Check operator logs for more details",
+               },
+           }
+       }
+   }
+   ```
+
+3. **Update NotebookValidationJob CRD status**:
+   ```go
+   type BuildStatus struct {
+       Status   string   `json:"status"`
+       Message  string   `json:"message"`
+       Details  string   `json:"details,omitempty"`   // NEW: Technical details
+       Actions  []string `json:"actions,omitempty"`   // NEW: Suggested actions
+       Attempts int      `json:"attempts"`
+   }
+   ```
+
+**Expected Outcome**:
+```yaml
+status:
+  buildStatus:
+    status: Failed
+    message: "Pipeline configuration error: Using ClusterTask instead of Task"
+    details: "Pipeline default/notebookvalidationjob-tekton-sample-pipeline can't be Run; it contains Tasks that don't exist: Couldn't retrieve Task \"git-clone\": clustertasks.tekton.dev \"git-clone\" not found"
+    actions:
+      - "This usually means the Pipeline was created with old code"
+      - "Delete the Pipeline and let operator recreate it: oc delete pipeline notebookvalidationjob-tekton-sample-pipeline"
+      - "Or update operator to latest version with ADR-028 fix"
+    attempts: 1
+```
+
+**Benefits**:
+✅ Users see error in NotebookValidationJob status (no need to check PipelineRun)
+✅ Error messages are user-friendly, not cryptic
+✅ Actionable guidance tells users exactly how to fix
+✅ Technical details available for debugging
 
 ### Phase 2: Root Cause Analysis (SHORT-TERM) 📊
 
-**Priority**: HIGH  
+**Priority**: HIGH
 **Timeline**: Next sprint
 
 **Tasks**:
@@ -186,6 +314,7 @@ meta.SetStatusCondition(&job.Status.Conditions, metav1.Condition{
 2. Add error categorization logic
 3. Update all error returns to use SmartError
 4. Add error analysis to status messages
+5. ✅ Implement Phase 1.5 (surface PipelineRun errors in NotebookValidationJob status)
 
 **Error Categories to Implement**:
 - RBAC errors (forbidden, unauthorized)
@@ -193,6 +322,7 @@ meta.SetStatusCondition(&job.Status.Conditions, metav1.Condition{
 - Configuration errors (invalid spec, validation failed)
 - Platform errors (API unavailable, CRD missing)
 - Dependency errors (prerequisite missing)
+- **Tekton errors** (parameter mismatch, Task not found, ClusterTask vs Task)
 
 ### Phase 3: Actionable Guidance (MEDIUM-TERM) 🎯
 
