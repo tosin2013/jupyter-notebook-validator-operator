@@ -159,6 +159,7 @@ rules:
   - pipelineruns
   - pipelines
   - taskruns
+  - tasks
   verbs:
   - create
   - delete
