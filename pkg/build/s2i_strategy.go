@@ -3,6 +3,7 @@ package build
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -239,6 +240,11 @@ func (s *S2IStrategy) GetBuildStatus(ctx context.Context, buildName string) (*Bu
 		return nil, fmt.Errorf("build not found: %s", buildName)
 	}
 
+	return s.buildInfoFromBuild(build), nil
+}
+
+// buildInfoFromBuild converts an OpenShift Build to BuildInfo
+func (s *S2IStrategy) buildInfoFromBuild(build *buildv1.Build) *BuildInfo {
 	info := &BuildInfo{
 		Name:    build.Name,
 		Message: build.Status.Message,
@@ -270,7 +276,128 @@ func (s *S2IStrategy) GetBuildStatus(ctx context.Context, buildName string) (*Bu
 		info.CompletionTime = &build.Status.CompletionTimestamp.Time
 	}
 
-	return info, nil
+	return info
+}
+
+// GetLatestBuild returns the most recent build for a BuildConfig
+// Prioritizes: Complete > Running > Pending > Failed
+func (s *S2IStrategy) GetLatestBuild(ctx context.Context, buildConfigName string) (*BuildInfo, error) {
+	logger := log.FromContext(ctx)
+
+	// List all builds for this BuildConfig
+	buildList := &buildv1.BuildList{}
+	if err := s.client.List(ctx, buildList, client.MatchingLabels{
+		"buildconfig":                          buildConfigName,
+		"mlops.redhat.com/notebook-validation": "true",
+	}); err != nil {
+		return nil, fmt.Errorf("failed to list builds: %w", err)
+	}
+
+	if len(buildList.Items) == 0 {
+		return nil, fmt.Errorf("no builds found for BuildConfig: %s", buildConfigName)
+	}
+
+	logger.Info("Found builds for BuildConfig", "buildConfigName", buildConfigName, "count", len(buildList.Items))
+
+	// Categorize builds by status
+	var completedBuilds, runningBuilds, pendingBuilds, failedBuilds []*buildv1.Build
+
+	for i := range buildList.Items {
+		build := &buildList.Items[i]
+		switch build.Status.Phase {
+		case buildv1.BuildPhaseComplete:
+			completedBuilds = append(completedBuilds, build)
+		case buildv1.BuildPhaseRunning:
+			runningBuilds = append(runningBuilds, build)
+		case buildv1.BuildPhaseNew, buildv1.BuildPhasePending:
+			pendingBuilds = append(pendingBuilds, build)
+		case buildv1.BuildPhaseFailed, buildv1.BuildPhaseError, buildv1.BuildPhaseCancelled:
+			failedBuilds = append(failedBuilds, build)
+		}
+	}
+
+	// Priority: Complete > Running > Pending > Failed
+	// Within each category, choose the most recent (by creation timestamp)
+	var selectedBuild *buildv1.Build
+
+	if len(completedBuilds) > 0 {
+		selectedBuild = s.getMostRecentBuild(completedBuilds)
+		logger.Info("Using completed build", "buildName", selectedBuild.Name)
+	} else if len(runningBuilds) > 0 {
+		selectedBuild = s.getMostRecentBuild(runningBuilds)
+		logger.Info("Using running build", "buildName", selectedBuild.Name)
+	} else if len(pendingBuilds) > 0 {
+		selectedBuild = s.getMostRecentBuild(pendingBuilds)
+		logger.Info("Using pending build", "buildName", selectedBuild.Name)
+	} else if len(failedBuilds) > 0 {
+		selectedBuild = s.getMostRecentBuild(failedBuilds)
+		logger.Info("Using failed build", "buildName", selectedBuild.Name)
+	}
+
+	if selectedBuild == nil {
+		return nil, fmt.Errorf("no suitable build found for BuildConfig: %s", buildConfigName)
+	}
+
+	return s.buildInfoFromBuild(selectedBuild), nil
+}
+
+// getMostRecentBuild returns the build with the most recent creation timestamp
+func (s *S2IStrategy) getMostRecentBuild(builds []*buildv1.Build) *buildv1.Build {
+	if len(builds) == 0 {
+		return nil
+	}
+
+	mostRecent := builds[0]
+	for _, build := range builds[1:] {
+		if build.CreationTimestamp.After(mostRecent.CreationTimestamp.Time) {
+			mostRecent = build
+		}
+	}
+	return mostRecent
+}
+
+// TriggerBuild manually triggers a build that's stuck in New/Pending status
+func (s *S2IStrategy) TriggerBuild(ctx context.Context, buildName string) error {
+	logger := log.FromContext(ctx)
+
+	// List all builds to find the one we want
+	buildList := &buildv1.BuildList{}
+	if err := s.client.List(ctx, buildList, client.MatchingLabels{
+		"mlops.redhat.com/notebook-validation": "true",
+	}); err != nil {
+		return fmt.Errorf("failed to list builds: %w", err)
+	}
+
+	// Find the build
+	var targetBuild *buildv1.Build
+	for i := range buildList.Items {
+		if buildList.Items[i].Name == buildName {
+			targetBuild = &buildList.Items[i]
+			break
+		}
+	}
+
+	if targetBuild == nil {
+		return fmt.Errorf("build not found: %s", buildName)
+	}
+
+	buildConfigName := targetBuild.Labels["buildconfig"]
+	if buildConfigName == "" {
+		return fmt.Errorf("build %s has no buildconfig label", buildName)
+	}
+
+	logger.Info("Triggering stuck build by updating build phase", "buildName", buildName, "buildConfigName", buildConfigName)
+
+	// Update the build to trigger it (change phase from New to Pending)
+	// This simulates what the build controller should do
+	targetBuild.Status.Phase = buildv1.BuildPhasePending
+	if err := s.client.Status().Update(ctx, targetBuild); err != nil {
+		logger.Error(err, "Failed to update build status, build may need manual intervention")
+		return fmt.Errorf("failed to trigger build: %w", err)
+	}
+
+	logger.Info("Build phase updated to Pending", "buildName", buildName)
+	return nil
 }
 
 // WaitForCompletion waits for the build to complete
@@ -299,6 +426,119 @@ func (s *S2IStrategy) WaitForCompletion(ctx context.Context, buildName string, t
 			}
 		}
 	}
+}
+
+// GetImageFromImageStream checks ImageStream for recently pushed image
+func (s *S2IStrategy) GetImageFromImageStream(ctx context.Context, imageStreamName string) (string, error) {
+	logger := log.FromContext(ctx)
+
+	// Get the ImageStream
+	imageStreamList := &imagev1.ImageStreamList{}
+	if err := s.client.List(ctx, imageStreamList, client.MatchingLabels{
+		"mlops.redhat.com/notebook-validation": "true",
+	}); err != nil {
+		return "", fmt.Errorf("failed to list ImageStreams: %w", err)
+	}
+
+	// Find the ImageStream with matching name
+	var foundImageStream *imagev1.ImageStream
+	for i := range imageStreamList.Items {
+		if imageStreamList.Items[i].Name == imageStreamName {
+			foundImageStream = &imageStreamList.Items[i]
+			break
+		}
+	}
+
+	if foundImageStream == nil {
+		return "", fmt.Errorf("ImageStream not found: %s", imageStreamName)
+	}
+
+	// Check if there are any tags
+	if len(foundImageStream.Status.Tags) == 0 {
+		return "", fmt.Errorf("ImageStream %s has no tags", imageStreamName)
+	}
+
+	// Get the latest tag (usually "latest" or the most recent)
+	var latestTag *imagev1.NamedTagEventList
+	for i := range foundImageStream.Status.Tags {
+		tag := &foundImageStream.Status.Tags[i]
+		if tag.Tag == "latest" {
+			latestTag = tag
+			break
+		}
+	}
+
+	// If no "latest" tag, use the first tag with items
+	if latestTag == nil {
+		for i := range foundImageStream.Status.Tags {
+			tag := &foundImageStream.Status.Tags[i]
+			if len(tag.Items) > 0 {
+				latestTag = tag
+				break
+			}
+		}
+	}
+
+	if latestTag == nil || len(latestTag.Items) == 0 {
+		return "", fmt.Errorf("ImageStream %s has no image items", imageStreamName)
+	}
+
+	// Get the most recent image
+	latestImage := latestTag.Items[0]
+	imageRef := fmt.Sprintf("%s@%s", foundImageStream.Status.DockerImageRepository, latestImage.Image)
+
+	logger.Info("Found image in ImageStream", "imageStreamName", imageStreamName, "imageRef", imageRef)
+	return imageRef, nil
+}
+
+// CleanupOldBuilds removes old builds to prevent resource accumulation
+func (s *S2IStrategy) CleanupOldBuilds(ctx context.Context, buildConfigName string, keepCount int) error {
+	logger := log.FromContext(ctx)
+
+	// List all builds for this BuildConfig
+	buildList := &buildv1.BuildList{}
+	if err := s.client.List(ctx, buildList, client.MatchingLabels{
+		"buildconfig":                          buildConfigName,
+		"mlops.redhat.com/notebook-validation": "true",
+	}); err != nil {
+		return fmt.Errorf("failed to list builds: %w", err)
+	}
+
+	if len(buildList.Items) <= keepCount {
+		logger.V(1).Info("No builds to clean up", "buildConfigName", buildConfigName, "totalBuilds", len(buildList.Items), "keepCount", keepCount)
+		return nil
+	}
+
+	// Sort builds by creation timestamp (newest first)
+	builds := buildList.Items
+	sort.Slice(builds, func(i, j int) bool {
+		return builds[i].CreationTimestamp.After(builds[j].CreationTimestamp.Time)
+	})
+
+	// Delete old builds (keep the most recent keepCount builds)
+	buildsToDelete := builds[keepCount:]
+	deletedCount := 0
+
+	for i := range buildsToDelete {
+		build := &buildsToDelete[i]
+		// Don't delete running builds
+		if build.Status.Phase == buildv1.BuildPhaseRunning {
+			logger.Info("Skipping running build", "buildName", build.Name)
+			continue
+		}
+
+		if err := s.client.Delete(ctx, build); err != nil {
+			if !errors.IsNotFound(err) {
+				logger.Error(err, "Failed to delete old build", "buildName", build.Name)
+				continue
+			}
+		}
+		deletedCount++
+		logger.V(1).Info("Deleted old build", "buildName", build.Name)
+	}
+
+	logger.Info("Cleaned up old builds", "buildConfigName", buildConfigName, "deletedCount", deletedCount)
+	return nil
 }
 
 // GetBuildLogs returns the build logs

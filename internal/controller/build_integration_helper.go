@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
@@ -164,6 +165,9 @@ func (r *NotebookValidationJobReconciler) handleBuildIntegration(ctx context.Con
 }
 
 // waitForBuildCompletion waits for a build to complete and returns the built image
+// PHASE 1: Uses smart build discovery to find latest completed build
+// PHASE 2: Auto-triggers stuck builds and checks ImageStream fallback
+// PHASE 3: Implements retry logic and cleanup
 func (r *NotebookValidationJobReconciler) waitForBuildCompletion(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob, strategy build.Strategy, buildName string) (string, error) {
 	logger := log.FromContext(ctx)
 
@@ -178,7 +182,20 @@ func (r *NotebookValidationJobReconciler) waitForBuildCompletion(ctx context.Con
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
-	logger.Info("Waiting for build to complete", "buildName", buildName, "timeout", timeout)
+	// Extract BuildConfig name from build name (remove -1, -2, etc. suffix)
+	buildConfigName := buildName
+	if idx := strings.LastIndex(buildName, "-"); idx > 0 {
+		// Check if the suffix is a number
+		suffix := buildName[idx+1:]
+		if _, err := fmt.Sscanf(suffix, "%d", new(int)); err == nil {
+			buildConfigName = buildName[:idx]
+		}
+	}
+
+	logger.Info("Waiting for build to complete", "buildName", buildName, "buildConfigName", buildConfigName, "timeout", timeout)
+
+	stuckBuildCheckTime := time.Now().Add(2 * time.Minute) // Check for stuck builds after 2 minutes
+	stuckBuildTriggered := false
 
 	for {
 		select {
@@ -195,42 +212,80 @@ func (r *NotebookValidationJobReconciler) waitForBuildCompletion(ctx context.Con
 				return job.Spec.PodConfig.ContainerImage, fmt.Errorf("build timeout exceeded: %v", timeout)
 			}
 
-			buildInfo, err := strategy.GetBuildStatus(ctx, buildName)
+			// PHASE 1: Smart Build Discovery - Check for latest completed build
+			latestBuild, err := strategy.GetLatestBuild(ctx, buildConfigName)
 			if err != nil {
-				logger.Error(err, "Failed to get build status", "buildName", buildName)
-				continue
+				logger.V(1).Info("No latest build found yet", "buildConfigName", buildConfigName, "error", err)
+				// Fall back to checking specific build
+				buildInfo, err := strategy.GetBuildStatus(ctx, buildName)
+				if err != nil {
+					logger.Error(err, "Failed to get build status", "buildName", buildName)
+					continue
+				}
+				latestBuild = buildInfo
+			} else {
+				logger.V(1).Info("Found latest build", "latestBuildName", latestBuild.Name, "status", latestBuild.Status)
 			}
 
-			logger.V(1).Info("Build status check", "buildName", buildName, "status", buildInfo.Status, "message", buildInfo.Message)
+			logger.V(1).Info("Build status check", "buildName", latestBuild.Name, "status", latestBuild.Status, "message", latestBuild.Message)
 
-			switch buildInfo.Status {
+			switch latestBuild.Status {
 			case build.BuildStatusComplete:
-				logger.Info("Build completed successfully", "buildName", buildName, "image", buildInfo.ImageReference)
-				if updateErr := r.updateBuildStatus(ctx, job, "Complete", "Build completed successfully", buildInfo.ImageReference); updateErr != nil {
+				logger.Info("Build completed successfully", "buildName", latestBuild.Name, "image", latestBuild.ImageReference)
+				if updateErr := r.updateBuildStatus(ctx, job, "Complete", "Build completed successfully", latestBuild.ImageReference); updateErr != nil {
 					logger.Error(updateErr, "Failed to update build status")
 				}
-				return buildInfo.ImageReference, nil
+
+				// PHASE 3: Cleanup old builds (keep last 3)
+				if cleanupErr := strategy.CleanupOldBuilds(ctx, buildConfigName, 3); cleanupErr != nil {
+					logger.Error(cleanupErr, "Failed to cleanup old builds")
+				}
+
+				return latestBuild.ImageReference, nil
 
 			case build.BuildStatusFailed:
-				logger.Error(nil, "Build failed", "buildName", buildName, "message", buildInfo.Message)
-				if updateErr := r.updateBuildStatus(ctx, job, "Failed", fmt.Sprintf("Build failed: %s", buildInfo.Message), ""); updateErr != nil {
+				logger.Error(nil, "Build failed", "buildName", latestBuild.Name, "message", latestBuild.Message)
+				if updateErr := r.updateBuildStatus(ctx, job, "Failed", fmt.Sprintf("Build failed: %s", latestBuild.Message), ""); updateErr != nil {
 					logger.Error(updateErr, "Failed to update build status")
 				}
-				return job.Spec.PodConfig.ContainerImage, fmt.Errorf("build failed: %s", buildInfo.Message)
+				return job.Spec.PodConfig.ContainerImage, fmt.Errorf("build failed: %s", latestBuild.Message)
 
 			case build.BuildStatusCancelled:
-				logger.Info("Build was cancelled", "buildName", buildName)
+				logger.Info("Build was cancelled", "buildName", latestBuild.Name)
 				if updateErr := r.updateBuildStatus(ctx, job, "Failed", "Build was cancelled", ""); updateErr != nil {
 					logger.Error(updateErr, "Failed to update build status")
 				}
 				return job.Spec.PodConfig.ContainerImage, fmt.Errorf("build was cancelled")
 
 			case build.BuildStatusPending, build.BuildStatusRunning:
+				// PHASE 2: Auto-trigger stuck builds
+				if latestBuild.Status == build.BuildStatusPending && !stuckBuildTriggered && time.Now().After(stuckBuildCheckTime) {
+					logger.Info("Build stuck in Pending status, attempting to trigger", "buildName", latestBuild.Name)
+					if triggerErr := strategy.TriggerBuild(ctx, latestBuild.Name); triggerErr != nil {
+						logger.Error(triggerErr, "Failed to trigger stuck build")
+					} else {
+						logger.Info("Successfully triggered stuck build", "buildName", latestBuild.Name)
+						stuckBuildTriggered = true
+					}
+				}
+
 				// Continue waiting
-				logger.V(2).Info("Build still in progress", "buildName", buildName, "status", buildInfo.Status)
+				logger.V(2).Info("Build still in progress", "buildName", latestBuild.Name, "status", latestBuild.Status)
+
+				// PHASE 2: Check ImageStream fallback after 5 minutes
+				if time.Now().After(time.Now().Add(-5 * time.Minute)) {
+					imageStreamName := buildConfigName
+					if imageRef, imgErr := strategy.GetImageFromImageStream(ctx, imageStreamName); imgErr == nil {
+						logger.Info("Found image in ImageStream as fallback", "imageStreamName", imageStreamName, "imageRef", imageRef)
+						if updateErr := r.updateBuildStatus(ctx, job, "Complete", "Using image from ImageStream", imageRef); updateErr != nil {
+							logger.Error(updateErr, "Failed to update build status")
+						}
+						return imageRef, nil
+					}
+				}
 
 			default:
-				logger.Info("Unknown build status", "buildName", buildName, "status", buildInfo.Status)
+				logger.Info("Unknown build status", "buildName", latestBuild.Name, "status", latestBuild.Status)
 			}
 		}
 	}

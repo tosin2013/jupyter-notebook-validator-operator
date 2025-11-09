@@ -62,6 +62,19 @@ type Strategy interface {
 	// GetBuildStatus returns the current build status
 	GetBuildStatus(ctx context.Context, buildName string) (*BuildInfo, error)
 
+	// GetLatestBuild returns the most recent build for a BuildConfig/Pipeline
+	// Prioritizes: Complete > Running > Pending > Failed
+	GetLatestBuild(ctx context.Context, buildConfigName string) (*BuildInfo, error)
+
+	// TriggerBuild manually triggers a build that's stuck in New/Pending status
+	TriggerBuild(ctx context.Context, buildName string) error
+
+	// GetImageFromImageStream checks ImageStream for recently pushed image
+	GetImageFromImageStream(ctx context.Context, imageStreamName string) (string, error)
+
+	// CleanupOldBuilds removes old builds to prevent resource accumulation
+	CleanupOldBuilds(ctx context.Context, buildConfigName string, keepCount int) error
+
 	// WaitForCompletion waits for the build to complete or timeout
 	WaitForCompletion(ctx context.Context, buildName string, timeout time.Duration) (*BuildInfo, error)
 

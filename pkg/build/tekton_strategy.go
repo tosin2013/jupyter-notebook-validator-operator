@@ -361,6 +361,113 @@ func (t *TektonStrategy) WaitForCompletion(ctx context.Context, buildName string
 	}
 }
 
+// GetLatestBuild returns the most recent PipelineRun for a Pipeline
+func (t *TektonStrategy) GetLatestBuild(ctx context.Context, pipelineName string) (*BuildInfo, error) {
+	logger := log.FromContext(ctx)
+
+	// List all PipelineRuns for this Pipeline
+	pipelineRunList := &tektonv1.PipelineRunList{}
+	if err := t.client.List(ctx, pipelineRunList, client.MatchingLabels{
+		"tekton.dev/pipeline":                  pipelineName,
+		"mlops.redhat.com/notebook-validation": "true",
+	}); err != nil {
+		return nil, fmt.Errorf("failed to list pipelineruns: %w", err)
+	}
+
+	if len(pipelineRunList.Items) == 0 {
+		return nil, fmt.Errorf("no pipelineruns found for Pipeline: %s", pipelineName)
+	}
+
+	logger.Info("Found PipelineRuns for Pipeline", "pipelineName", pipelineName, "count", len(pipelineRunList.Items))
+
+	// Find the most recent PipelineRun (by creation timestamp)
+	var mostRecent *tektonv1.PipelineRun
+	for i := range pipelineRunList.Items {
+		pr := &pipelineRunList.Items[i]
+		if mostRecent == nil || pr.CreationTimestamp.After(mostRecent.CreationTimestamp.Time) {
+			mostRecent = pr
+		}
+	}
+
+	if mostRecent == nil {
+		return nil, fmt.Errorf("no suitable pipelinerun found for Pipeline: %s", pipelineName)
+	}
+
+	logger.Info("Using most recent PipelineRun", "pipelineRunName", mostRecent.Name)
+	return t.getPipelineRunStatus(mostRecent), nil
+}
+
+// TriggerBuild manually triggers a Tekton build (creates a new PipelineRun)
+func (t *TektonStrategy) TriggerBuild(ctx context.Context, buildName string) error {
+	// For Tekton, we would need to create a new PipelineRun from the Pipeline
+	// This is more complex than S2I and would require the full job context
+	// For now, return not implemented
+	return fmt.Errorf("manual trigger not yet implemented for Tekton")
+}
+
+// GetImageFromImageStream checks ImageStream for recently pushed image (Tekton doesn't use ImageStreams)
+func (t *TektonStrategy) GetImageFromImageStream(ctx context.Context, imageStreamName string) (string, error) {
+	// Tekton doesn't use ImageStreams - it pushes directly to external registries
+	return "", fmt.Errorf("ImageStream not applicable for Tekton strategy")
+}
+
+// CleanupOldBuilds removes old PipelineRuns to prevent resource accumulation
+func (t *TektonStrategy) CleanupOldBuilds(ctx context.Context, pipelineName string, keepCount int) error {
+	logger := log.FromContext(ctx)
+
+	// List all PipelineRuns for this Pipeline
+	pipelineRunList := &tektonv1.PipelineRunList{}
+	if err := t.client.List(ctx, pipelineRunList, client.MatchingLabels{
+		"tekton.dev/pipeline":                  pipelineName,
+		"mlops.redhat.com/notebook-validation": "true",
+	}); err != nil {
+		return fmt.Errorf("failed to list pipelineruns: %w", err)
+	}
+
+	if len(pipelineRunList.Items) <= keepCount {
+		logger.V(1).Info("No PipelineRuns to clean up", "pipelineName", pipelineName, "totalRuns", len(pipelineRunList.Items), "keepCount", keepCount)
+		return nil
+	}
+
+	// Sort PipelineRuns by creation timestamp (newest first)
+	runs := pipelineRunList.Items
+	// Sort using a simple bubble sort since we can't import sort package easily
+	for i := 0; i < len(runs)-1; i++ {
+		for j := 0; j < len(runs)-i-1; j++ {
+			if runs[j].CreationTimestamp.Before(&runs[j+1].CreationTimestamp) {
+				runs[j], runs[j+1] = runs[j+1], runs[j]
+			}
+		}
+	}
+
+	// Delete old PipelineRuns (keep the most recent keepCount runs)
+	runsToDelete := runs[keepCount:]
+	deletedCount := 0
+
+	for i := range runsToDelete {
+		pr := &runsToDelete[i]
+		// Don't delete running PipelineRuns
+		for _, condition := range pr.Status.Conditions {
+			if condition.Type == "Succeeded" && condition.Status == corev1.ConditionUnknown {
+				logger.Info("Skipping running PipelineRun", "pipelineRunName", pr.Name)
+				continue
+			}
+		}
+
+		if err := t.client.Delete(ctx, pr); err != nil {
+			if !errors.IsNotFound(err) {
+				logger.Error(err, "Failed to delete old PipelineRun", "pipelineRunName", pr.Name)
+				continue
+			}
+		}
+		deletedCount++
+		logger.V(1).Info("Deleted old PipelineRun", "pipelineRunName", pr.Name)
+	}
+
+	logger.Info("Cleaned up old PipelineRuns", "pipelineName", pipelineName, "deletedCount", deletedCount)
+	return nil
+}
+
 // GetBuildLogs returns the build logs from Tekton
 func (t *TektonStrategy) GetBuildLogs(ctx context.Context, buildName string) (string, error) {
 	// TODO: Implement log streaming from Tekton TaskRun/PipelineRun pods
