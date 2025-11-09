@@ -73,11 +73,97 @@ func (t *TektonStrategy) Detect(ctx context.Context, client client.Client) (bool
 	return true, nil
 }
 
+// ensureTasksInNamespace copies required Tekton Tasks from openshift-pipelines namespace to the target namespace
+// This implements ADR-028: Copy Tasks to user namespace for RBAC simplicity and isolation
+func (t *TektonStrategy) ensureTasksInNamespace(ctx context.Context, namespace string) error {
+	logger := log.FromContext(ctx)
+
+	// List of Tasks to copy from openshift-pipelines namespace
+	requiredTasks := []string{
+		"git-clone",
+		"buildah",
+	}
+
+	sourceNamespace := "openshift-pipelines"
+
+	for _, taskName := range requiredTasks {
+		// Check if Task already exists in target namespace
+		existingTask := &tektonv1.Task{}
+		err := t.client.Get(ctx, client.ObjectKey{
+			Name:      taskName,
+			Namespace: namespace,
+		}, existingTask)
+
+		if err == nil {
+			// Task exists, check if it's managed by us
+			if existingTask.Labels["app.kubernetes.io/managed-by"] == "jupyter-notebook-validator-operator" {
+				logger.V(1).Info("Task already exists and is managed by operator", "task", taskName, "namespace", namespace)
+				// TODO: Check version and update if needed (Phase 3 of ADR-028)
+			} else {
+				logger.Info("Task exists but not managed by operator, skipping", "task", taskName, "namespace", namespace)
+			}
+			continue
+		}
+
+		if !errors.IsNotFound(err) {
+			return fmt.Errorf("failed to check task %s: %w", taskName, err)
+		}
+
+		// Task doesn't exist, copy it from openshift-pipelines namespace
+		logger.Info("Copying Task from openshift-pipelines to user namespace", "task", taskName, "from", sourceNamespace, "to", namespace)
+
+		// Get the source Task
+		sourceTask := &tektonv1.Task{}
+		if err := t.client.Get(ctx, client.ObjectKey{
+			Name:      taskName,
+			Namespace: sourceNamespace,
+		}, sourceTask); err != nil {
+			return fmt.Errorf("failed to get source task %s from %s: %w", taskName, sourceNamespace, err)
+		}
+
+		// Create a copy in the target namespace
+		targetTask := &tektonv1.Task{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      taskName,
+				Namespace: namespace,
+				Labels: map[string]string{
+					"app.kubernetes.io/managed-by":  "jupyter-notebook-validator-operator",
+					"mlops.redhat.com/task-type":    taskName,
+					"mlops.redhat.com/task-version": "1.0.0", // Version for future updates
+					"mlops.redhat.com/copied-from":  sourceNamespace,
+				},
+				Annotations: map[string]string{
+					"mlops.redhat.com/source-namespace": sourceNamespace,
+					"mlops.redhat.com/source-task":      taskName,
+					"mlops.redhat.com/copied-at":        time.Now().Format(time.RFC3339),
+				},
+			},
+			Spec: sourceTask.Spec,
+		}
+
+		if err := t.client.Create(ctx, targetTask); err != nil {
+			return fmt.Errorf("failed to create task %s in namespace %s: %w", taskName, namespace, err)
+		}
+
+		logger.Info("Successfully copied Task to user namespace", "task", taskName, "namespace", namespace)
+	}
+
+	return nil
+}
+
 // CreateBuild creates a Tekton TaskRun for building the notebook image
 func (t *TektonStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (*BuildInfo, error) {
+	logger := log.FromContext(ctx)
+
 	// Check if BuildConfig is provided
 	if job.Spec.PodConfig.BuildConfig == nil {
 		return nil, fmt.Errorf("buildConfig is required")
+	}
+
+	// ADR-028: Ensure required Tasks exist in user's namespace before creating Pipeline
+	logger.Info("Ensuring Tekton Tasks exist in namespace", "namespace", job.Namespace)
+	if err := t.ensureTasksInNamespace(ctx, job.Namespace); err != nil {
+		return nil, fmt.Errorf("failed to ensure tasks in namespace: %w", err)
 	}
 
 	buildConfig := job.Spec.PodConfig.BuildConfig
@@ -144,7 +230,9 @@ func (t *TektonStrategy) createBuildPipeline(job *mlopsv1alpha1.NotebookValidati
 					Name: "fetch-repository",
 					TaskRef: &tektonv1.TaskRef{
 						Name: "git-clone",
-						Kind: "ClusterTask",
+						// ADR-028: Use Task (not ClusterTask) - Tasks will be copied to user namespace
+						// For now, reference Tasks in same namespace (will be copied by ensureTasksInNamespace)
+						Kind: tektonv1.NamespacedTaskKind,
 					},
 					Params: []tektonv1.Param{
 						{Name: "url", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: "$(params.git-url)"}},
@@ -159,7 +247,8 @@ func (t *TektonStrategy) createBuildPipeline(job *mlopsv1alpha1.NotebookValidati
 					Name: "build-image",
 					TaskRef: &tektonv1.TaskRef{
 						Name: "buildah",
-						Kind: "ClusterTask",
+						// ADR-028: Use Task (not ClusterTask) - Tasks will be copied to user namespace
+						Kind: tektonv1.NamespacedTaskKind,
 					},
 					RunAfter: []string{"fetch-repository"},
 					Params: []tektonv1.Param{
