@@ -433,6 +433,35 @@ type BuildStatus struct {
 	// Strategy is the build strategy used (s2i, tekton, etc.)
 	// +optional
 	Strategy string `json:"strategy,omitempty"`
+
+	// AvailableImages lists available OpenShift AI ImageStreams (if installed)
+	// +optional
+	AvailableImages []AvailableImageInfo `json:"availableImages,omitempty"`
+
+	// RecommendedImage is the recommended image for S2I builds
+	// +optional
+	RecommendedImage string `json:"recommendedImage,omitempty"`
+}
+
+// AvailableImageInfo represents an available OpenShift AI ImageStream
+type AvailableImageInfo struct {
+	// Name is the ImageStream name
+	Name string `json:"name"`
+
+	// DisplayName is the human-readable name
+	DisplayName string `json:"displayName"`
+
+	// Description describes the image
+	Description string `json:"description"`
+
+	// ImageRef is the full image reference
+	ImageRef string `json:"imageRef"`
+
+	// S2IEnabled indicates if this is an S2I builder image
+	S2IEnabled bool `json:"s2iEnabled"`
+
+	// Tags lists available tags
+	Tags []string `json:"tags,omitempty"`
 }
 
 // ModelValidationResult represents the result of model-aware validation

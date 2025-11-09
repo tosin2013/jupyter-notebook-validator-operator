@@ -254,6 +254,14 @@ func (r *NotebookValidationJobReconciler) updateBuildStatus(ctx context.Context,
 		job.Status.BuildStatus.Strategy = job.Spec.PodConfig.BuildConfig.Strategy
 	}
 
+	// Populate available images from OpenShift AI (if installed and not already populated)
+	if len(job.Status.BuildStatus.AvailableImages) == 0 {
+		if err := r.populateAvailableImages(ctx, job); err != nil {
+			logger.V(1).Info("Could not populate available images", "error", err)
+			// Don't fail the update - this is informational only
+		}
+	}
+
 	if status == "Running" && job.Status.BuildStatus.StartTime == nil {
 		now := metav1.Now()
 		job.Status.BuildStatus.StartTime = &now
@@ -294,5 +302,49 @@ func (r *NotebookValidationJobReconciler) updateBuildStatus(ctx context.Context,
 	}
 
 	logger.Info("Build status updated", "status", status, "message", message)
+	return nil
+}
+
+// populateAvailableImages populates the available images from OpenShift AI
+func (r *NotebookValidationJobReconciler) populateAvailableImages(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) error {
+	logger := log.FromContext(ctx)
+
+	// Create OpenShift AI helper
+	aiHelper := build.NewOpenShiftAIHelper(r.Client)
+
+	// Check if OpenShift AI is installed
+	if !aiHelper.IsInstalled(ctx) {
+		logger.V(1).Info("OpenShift AI not installed, skipping image population")
+		return nil
+	}
+
+	// List S2I-enabled images
+	s2iImages, err := aiHelper.ListS2IImageStreams(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list S2I images: %w", err)
+	}
+
+	// Convert to API type
+	var availableImages []mlopsv1alpha1.AvailableImageInfo
+	for _, img := range s2iImages {
+		availableImages = append(availableImages, mlopsv1alpha1.AvailableImageInfo{
+			Name:        img.Name,
+			DisplayName: img.DisplayName,
+			Description: img.Description,
+			ImageRef:    img.ImageRef,
+			S2IEnabled:  img.S2IEnabled,
+			Tags:        img.Tags,
+		})
+	}
+
+	job.Status.BuildStatus.AvailableImages = availableImages
+
+	// Set recommended image (first S2I image, typically s2i-minimal-notebook)
+	if len(s2iImages) > 0 {
+		job.Status.BuildStatus.RecommendedImage = s2iImages[0].ImageRef
+		logger.Info("Recommended S2I image", "image", s2iImages[0].ImageRef, "displayName", s2iImages[0].DisplayName)
+	}
+
+	logger.Info("Populated available images", "count", len(availableImages))
 	return nil
 }

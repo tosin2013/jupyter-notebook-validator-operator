@@ -432,6 +432,42 @@ spec:
                 description: 'BuildStatus contains the build status (Phase 4.5: S2I
                   Build Integration)'
                 properties:
+                  availableImages:
+                    description: AvailableImages lists available OpenShift AI ImageStreams
+                      (if installed)
+                    items:
+                      description: AvailableImageInfo represents an available OpenShift
+                        AI ImageStream
+                      properties:
+                        description:
+                          description: Description describes the image
+                          type: string
+                        displayName:
+                          description: DisplayName is the human-readable name
+                          type: string
+                        imageRef:
+                          description: ImageRef is the full image reference
+                          type: string
+                        name:
+                          description: Name is the ImageStream name
+                          type: string
+                        s2iEnabled:
+                          description: S2IEnabled indicates if this is an S2I builder
+                            image
+                          type: boolean
+                        tags:
+                          description: Tags lists available tags
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - description
+                      - displayName
+                      - imageRef
+                      - name
+                      - s2iEnabled
+                      type: object
+                    type: array
                   buildName:
                     description: BuildName is the name of the build resource
                     type: string
@@ -453,6 +489,10 @@ spec:
                     - Running
                     - Complete
                     - Failed
+                    type: string
+                  recommendedImage:
+                    description: RecommendedImage is the recommended image for S2I
+                      builds
                     type: string
                   startTime:
                     description: StartTime is when the build started
