@@ -124,6 +124,29 @@ S2I is an OpenShift-native feature:
 
 ## Implementation
 
+### Development Best Practice: CRD Research First
+
+**Key Learning**: Always research the actual CRDs on the target cluster before implementing build/pipeline logic.
+
+```bash
+# Research OpenShift Build API
+oc api-resources | grep build
+oc explain buildconfig.spec --recursive
+oc explain buildconfig.spec.triggers
+oc explain build.status
+
+# Research Tekton Pipeline API
+oc api-resources | grep -E "tekton|pipeline"
+oc explain pipelinerun --recursive
+oc explain pipeline --recursive
+```
+
+**Why This Matters**:
+1. **Discover Auto-Trigger Mechanisms**: Found `ConfigChangeBuildTriggerType` for automatic build triggering
+2. **Understand API Capabilities**: Learn what the platform provides natively
+3. **Avoid Reinventing**: Don't implement what the platform already does
+4. **Correct API Usage**: Use proper subresources and trigger mechanisms
+
 ### S2I Build Workflow
 
 ```yaml
@@ -177,6 +200,45 @@ func (r *NotebookValidationJobReconciler) reconcileValidation(ctx context.Contex
 }
 ```
 
+### Automatic Build Triggering with ConfigChange
+
+**Problem**: Builds created without triggers stay in "New" status and require manual triggering.
+
+**Solution**: Add `ConfigChangeBuildTriggerType` to BuildConfig triggers.
+
+```go
+// pkg/build/s2i_strategy.go - BuildConfig with auto-trigger
+bc := &buildv1.BuildConfig{
+    ObjectMeta: metav1.ObjectMeta{
+        Name:      buildName,
+        Namespace: job.Namespace,
+    },
+    Spec: buildv1.BuildConfigSpec{
+        CommonSpec: buildv1.CommonSpec{
+            Source:   buildSource,
+            Strategy: buildStrategy,
+            Output:   buildOutput,
+        },
+        // Add ConfigChange trigger to automatically start build on creation
+        Triggers: []buildv1.BuildTriggerPolicy{
+            {
+                Type: buildv1.ConfigChangeBuildTriggerType,
+            },
+        },
+    },
+}
+```
+
+**Result**: Build automatically starts when BuildConfig is created - no manual `oc start-build` needed!
+
+**From CRD Research**:
+```bash
+$ oc explain buildconfig.spec.triggers
+...
+- ConfigChange ConfigChangeBuildTriggerType will trigger a build on an
+  initial build config creation
+```
+
 ### Build Strategy Detection
 
 ```go
@@ -185,7 +247,7 @@ func (s *S2IStrategy) Detect(ctx context.Context, client client.Client) (bool, e
     // Check if OpenShift Build API is available
     buildConfig := &buildv1.BuildConfig{}
     err := client.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, buildConfig)
-    
+
     if err != nil {
         if errors.IsNotFound(err) {
             return true, nil  // API exists, resource doesn't
@@ -195,7 +257,7 @@ func (s *S2IStrategy) Detect(ctx context.Context, client client.Client) (bool, e
         }
         return false, err
     }
-    
+
     return true, nil
 }
 ```
@@ -234,21 +296,31 @@ func (s *S2IStrategy) Detect(ctx context.Context, client client.Client) (bool, e
 - Implement build integration in controller
 - Add S2I strategy detection
 - Create sample configurations
+- Register OpenShift Build API types in scheme
 
-### Phase 3: Test and Validate (⏳ In Progress)
+### Phase 3: CRD Research and Auto-Trigger (✅ Complete)
+- Research OpenShift Build CRDs on cluster
+- Discover ConfigChange trigger mechanism
+- Implement automatic build triggering
+- Add ConfigChangeBuildTriggerType to BuildConfig
+- Test auto-trigger functionality
+
+### Phase 4: Test and Validate (⏳ In Progress)
 - Test init container approach with bitnami/git
-- Test S2I build workflow
-- Debug S2I detection issues
+- Test S2I build workflow with auto-trigger
+- Verify builds start automatically
 - Performance benchmarking
 
-### Phase 4: Documentation and Best Practices (⏳ Pending)
+### Phase 5: Documentation and Best Practices (⏳ Pending)
 - Document both approaches
 - Provide decision matrix
 - Create migration guide
 - Update samples
+- Document CRD research best practices
 
-### Phase 5: Tekton Integration (⏳ Pending)
-- Implement Tekton strategy
+### Phase 6: Tekton Integration (⏳ Pending)
+- Research Tekton Pipeline CRDs on cluster
+- Implement Tekton strategy with auto-trigger
 - Support custom pipelines
 - Advanced build scenarios
 

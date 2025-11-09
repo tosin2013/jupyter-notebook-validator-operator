@@ -116,7 +116,7 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 		logger.Info("ImageStream created successfully", "imageStreamName", buildName)
 	}
 
-	// Create BuildConfig
+	// Create BuildConfig with ConfigChange trigger for automatic build start
 	bc := &buildv1.BuildConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      buildName,
@@ -165,6 +165,12 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 					},
 				},
 			},
+			// Add ConfigChange trigger to automatically start build on creation
+			Triggers: []buildv1.BuildTriggerPolicy{
+				{
+					Type: buildv1.ConfigChangeBuildTriggerType,
+				},
+			},
 		},
 	}
 
@@ -180,32 +186,17 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 		logger.Info("BuildConfig created successfully", "buildConfigName", buildName)
 	}
 
-	// Trigger a build using BuildRequest (proper OpenShift API)
-	// This uses the BuildConfig's instantiate subresource which actually starts the build
-	buildRequest := &buildv1.BuildRequest{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      buildName,
-			Namespace: job.Namespace,
-		},
-	}
+	// BuildConfig created with ConfigChange trigger - build will start automatically
+	// The controller will use smart discovery (GetLatestBuild) to find the triggered build
 
-	logger.Info("Triggering build via BuildRequest", "buildConfigName", buildName)
-
-	// Use SubResource to call the instantiate endpoint
-	// This is equivalent to: oc start-build <buildconfig-name>
-	build := &buildv1.Build{}
-	if err := s.client.SubResource("instantiate").Create(ctx, bc, build, buildRequest); err != nil {
-		logger.Error(err, "Failed to trigger build via instantiate", "buildConfigName", buildName)
-		return nil, fmt.Errorf("failed to trigger build: %w", err)
-	}
-
-	logger.Info("Build created and triggered successfully", "buildName", build.Name, "buildConfigName", buildName)
+	logger.Info("BuildConfig created with ConfigChange trigger - build will start automatically",
+		"buildConfigName", buildName)
 
 	now := time.Now()
 	return &BuildInfo{
-		Name:      build.Name,
+		Name:      buildName, // Return BuildConfig name, controller will find actual builds
 		Status:    BuildStatusPending,
-		Message:   "Build created and started via BuildRequest",
+		Message:   "BuildConfig created with auto-trigger - build starting",
 		StartTime: &now,
 	}, nil
 }
