@@ -64,12 +64,6 @@ func (t *TektonStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Not
 	buildConfig := job.Spec.PodConfig.BuildConfig
 	buildName := fmt.Sprintf("%s-build", job.Name)
 
-	// Get base image (use default if not specified)
-	baseImage := buildConfig.BaseImage
-	if baseImage == "" {
-		baseImage = "quay.io/jupyter/minimal-notebook:latest"
-	}
-
 	// Get registry configuration from strategyConfig or use defaults
 	registry := "image-registry.openshift-image-registry.svc:5000"
 	if val, ok := buildConfig.StrategyConfig["registry"]; ok {
