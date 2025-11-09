@@ -287,6 +287,21 @@ func (r *NotebookValidationJobReconciler) reconcileValidation(ctx context.Contex
 	switch pod.Status.Phase {
 	case corev1.PodPending:
 		logger.Info("Validation pod is pending")
+
+		// ADR-019: Check if pod is stuck due to init container failures
+		// Analyze pod to detect ImagePullBackOff, SCC violations, etc.
+		analysis := analyzePodFailure(ctx, pod)
+		if analysis.Reason != FailureReasonUnknown {
+			logger.Info("Detected failure in pending pod",
+				"reason", analysis.Reason,
+				"failedContainer", analysis.FailedContainer,
+				"isInitContainer", analysis.IsInitContainer,
+				"suggestedAction", analysis.SuggestedAction)
+
+			// Treat as pod failure and handle recovery
+			return r.handlePodFailure(ctx, job, pod)
+		}
+
 		// Update active pod gauge
 		setActivePods(job.Namespace, "pending", 1)
 		setActivePods(job.Namespace, "running", 0)
@@ -335,51 +350,67 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 		"name", job.Name,
 		"podName", podName)
 
-	// Resolve Git credentials (ADR-009)
-	logger.V(1).Info("Resolving Git credentials",
-		"namespace", job.Namespace,
-		"name", job.Name)
-	creds, err := r.resolveGitCredentials(ctx, job)
-	if err != nil {
-		logger.Error(logging.SanitizeError(err), "Failed to resolve Git credentials",
+	// ADR-019: Smart Validation Pod Recovery
+	// Check if we should skip git-clone init container
+	// When using a built image (S2I/Tekton), the notebook is already in the image
+	var initContainers []corev1.Container
+
+	if shouldSkipGitClone(containerImage, job.Spec.PodConfig.ContainerImage) {
+		logger.Info("Using built image - notebook already in image, skipping git-clone init container",
+			"builtImage", containerImage,
+			"specImage", job.Spec.PodConfig.ContainerImage)
+		// No init containers needed - notebook is in the built image
+		initContainers = []corev1.Container{}
+	} else {
+		logger.Info("Using pre-built image - adding git-clone init container",
+			"image", containerImage)
+
+		// Resolve Git credentials (ADR-009)
+		logger.V(1).Info("Resolving Git credentials",
 			"namespace", job.Namespace,
 			"name", job.Name)
-		return nil, fmt.Errorf("failed to resolve Git credentials: %w", err)
-	}
-
-	logger.V(2).Info("Git credentials resolved",
-		"namespace", job.Namespace,
-		"name", job.Name,
-		"credentialType", creds.Type)
-
-	// Build Git clone init container (ADR-009)
-	logger.Info("Building Git clone init container")
-	gitCloneContainer, err := r.buildGitCloneInitContainer(ctx, job, creds)
-	if err != nil {
-		logger.Error(err, "Failed to build Git clone init container")
-		return nil, fmt.Errorf("failed to build Git clone init container: %w", err)
-	}
-
-	// Build init containers list
-	initContainers := []corev1.Container{gitCloneContainer}
-
-	// Add golden notebook init container if specified (Phase 3: Golden Notebook Comparison)
-	if job.Spec.GoldenNotebook != nil {
-		logger.Info("Building golden notebook Git clone init container")
-		goldenCreds, err := r.resolveGoldenGitCredentials(ctx, job)
+		creds, err := r.resolveGitCredentials(ctx, job)
 		if err != nil {
-			logger.Error(err, "Failed to resolve golden notebook credentials")
-			return nil, fmt.Errorf("failed to resolve golden notebook credentials: %w", err)
+			logger.Error(logging.SanitizeError(err), "Failed to resolve Git credentials",
+				"namespace", job.Namespace,
+				"name", job.Name)
+			return nil, fmt.Errorf("failed to resolve Git credentials: %w", err)
 		}
 
-		goldenCloneContainer, err := r.buildGoldenGitCloneInitContainer(ctx, job, goldenCreds)
+		logger.V(2).Info("Git credentials resolved",
+			"namespace", job.Namespace,
+			"name", job.Name,
+			"credentialType", creds.Type)
+
+		// Build Git clone init container (ADR-009)
+		logger.Info("Building Git clone init container")
+		gitCloneContainer, err := r.buildGitCloneInitContainer(ctx, job, creds)
 		if err != nil {
-			logger.Error(err, "Failed to build golden Git clone init container")
-			return nil, fmt.Errorf("failed to build golden Git clone init container: %w", err)
+			logger.Error(err, "Failed to build Git clone init container")
+			return nil, fmt.Errorf("failed to build Git clone init container: %w", err)
 		}
 
-		initContainers = append(initContainers, goldenCloneContainer)
-		logger.Info("Added golden notebook init container")
+		// Build init containers list
+		initContainers = []corev1.Container{gitCloneContainer}
+
+		// Add golden notebook init container if specified (Phase 3: Golden Notebook Comparison)
+		if job.Spec.GoldenNotebook != nil {
+			logger.Info("Building golden notebook Git clone init container")
+			goldenCreds, err := r.resolveGoldenGitCredentials(ctx, job)
+			if err != nil {
+				logger.Error(err, "Failed to resolve golden notebook credentials")
+				return nil, fmt.Errorf("failed to resolve golden notebook credentials: %w", err)
+			}
+
+			goldenCloneContainer, err := r.buildGoldenGitCloneInitContainer(ctx, job, goldenCreds)
+			if err != nil {
+				logger.Error(err, "Failed to build golden Git clone init container")
+				return nil, fmt.Errorf("failed to build golden Git clone init container: %w", err)
+			}
+
+			initContainers = append(initContainers, goldenCloneContainer)
+			logger.Info("Added golden notebook init container")
+		}
 	}
 
 	// Build pod spec

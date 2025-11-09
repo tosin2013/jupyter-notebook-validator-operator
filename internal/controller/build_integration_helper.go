@@ -8,7 +8,9 @@ import (
 
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	"github.com/tosin2013/jupyter-notebook-validator-operator/pkg/build"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -291,73 +293,112 @@ func (r *NotebookValidationJobReconciler) waitForBuildCompletion(ctx context.Con
 	}
 }
 
-// updateBuildStatus updates the build status in the job
+// updateBuildStatus updates the build status in the job with smart retry logic
+// Implements exponential backoff for Kubernetes resource version conflicts
 func (r *NotebookValidationJobReconciler) updateBuildStatus(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob, status, message, imageReference string) error {
 	logger := log.FromContext(ctx)
 
-	// Initialize build status if needed
-	if job.Status.BuildStatus == nil {
-		job.Status.BuildStatus = &mlopsv1alpha1.BuildStatus{}
-	}
+	// Retry configuration for handling resource conflicts
+	maxRetries := 5
+	baseDelay := 100 * time.Millisecond
 
-	job.Status.BuildStatus.Phase = status
-	job.Status.BuildStatus.Message = message
-	job.Status.BuildStatus.ImageReference = imageReference
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			// Exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms
+			delay := baseDelay * time.Duration(1<<uint(attempt-1))
+			logger.V(1).Info("Retrying status update after conflict", "attempt", attempt, "delay", delay)
+			time.Sleep(delay)
 
-	// Set strategy from build config if available
-	if job.Spec.PodConfig.BuildConfig != nil {
-		job.Status.BuildStatus.Strategy = job.Spec.PodConfig.BuildConfig.Strategy
-	}
-
-	// Populate available images from OpenShift AI (if installed and not already populated)
-	if len(job.Status.BuildStatus.AvailableImages) == 0 {
-		if err := r.populateAvailableImages(ctx, job); err != nil {
-			logger.V(1).Info("Could not populate available images", "error", err)
-			// Don't fail the update - this is informational only
+			// Fetch latest version of the resource
+			latestJob := &mlopsv1alpha1.NotebookValidationJob{}
+			if err := r.Get(ctx, client.ObjectKeyFromObject(job), latestJob); err != nil {
+				logger.Error(err, "Failed to fetch latest job version for retry")
+				return err
+			}
+			job = latestJob
 		}
+
+		// Initialize build status if needed
+		if job.Status.BuildStatus == nil {
+			job.Status.BuildStatus = &mlopsv1alpha1.BuildStatus{}
+		}
+
+		job.Status.BuildStatus.Phase = status
+		job.Status.BuildStatus.Message = message
+		job.Status.BuildStatus.ImageReference = imageReference
+
+		// Set strategy from build config if available
+		if job.Spec.PodConfig.BuildConfig != nil {
+			job.Status.BuildStatus.Strategy = job.Spec.PodConfig.BuildConfig.Strategy
+		}
+
+		// Populate available images from OpenShift AI (if installed and not already populated)
+		if len(job.Status.BuildStatus.AvailableImages) == 0 {
+			if err := r.populateAvailableImages(ctx, job); err != nil {
+				logger.V(1).Info("Could not populate available images", "error", err)
+				// Don't fail the update - this is informational only
+			}
+		}
+
+		if status == "Running" && job.Status.BuildStatus.StartTime == nil {
+			now := metav1.Now()
+			job.Status.BuildStatus.StartTime = &now
+		}
+
+		if status == "Complete" || status == "Failed" {
+			now := metav1.Now()
+			job.Status.BuildStatus.CompletionTime = &now
+		}
+
+		// Update condition
+		conditionType := ConditionTypeBuildStarted
+		conditionStatus := metav1.ConditionTrue
+		reason := ReasonBuildInProgress
+
+		if status == "Complete" {
+			conditionType = ConditionTypeBuildComplete
+			reason = ReasonBuildSucceeded
+		} else if status == "Failed" {
+			conditionType = ConditionTypeBuildFailed
+			conditionStatus = metav1.ConditionFalse
+			reason = ReasonBuildFailedReason
+		}
+
+		condition := metav1.Condition{
+			Type:               conditionType,
+			Status:             conditionStatus,
+			Reason:             reason,
+			Message:            message,
+			LastTransitionTime: metav1.Now(),
+		}
+
+		job.Status.Conditions = updateCondition(job.Status.Conditions, condition)
+
+		// Attempt status update
+		if err := r.Status().Update(ctx, job); err != nil {
+			// Check if this is a resource conflict error
+			if apierrors.IsConflict(err) {
+				logger.V(1).Info("Resource conflict detected, will retry", "attempt", attempt+1, "maxRetries", maxRetries)
+				if attempt < maxRetries-1 {
+					continue // Retry
+				}
+				// Max retries exceeded
+				logger.Error(err, "Failed to update build status after max retries", "attempts", maxRetries)
+				return fmt.Errorf("resource conflict after %d retries: %w", maxRetries, err)
+			}
+
+			// Non-conflict error - fail immediately
+			logger.Error(err, "Failed to update build status (non-conflict error)")
+			return err
+		}
+
+		// Success!
+		logger.Info("Build status updated successfully", "status", status, "message", message, "attempts", attempt+1)
+		return nil
 	}
 
-	if status == "Running" && job.Status.BuildStatus.StartTime == nil {
-		now := metav1.Now()
-		job.Status.BuildStatus.StartTime = &now
-	}
-
-	if status == "Complete" || status == "Failed" {
-		now := metav1.Now()
-		job.Status.BuildStatus.CompletionTime = &now
-	}
-
-	// Update condition
-	conditionType := ConditionTypeBuildStarted
-	conditionStatus := metav1.ConditionTrue
-	reason := ReasonBuildInProgress
-
-	if status == "Complete" {
-		conditionType = ConditionTypeBuildComplete
-		reason = ReasonBuildSucceeded
-	} else if status == "Failed" {
-		conditionType = ConditionTypeBuildFailed
-		conditionStatus = metav1.ConditionFalse
-		reason = ReasonBuildFailedReason
-	}
-
-	condition := metav1.Condition{
-		Type:               conditionType,
-		Status:             conditionStatus,
-		Reason:             reason,
-		Message:            message,
-		LastTransitionTime: metav1.Now(),
-	}
-
-	job.Status.Conditions = updateCondition(job.Status.Conditions, condition)
-
-	if err := r.Status().Update(ctx, job); err != nil {
-		logger.Error(err, "Failed to update build status")
-		return err
-	}
-
-	logger.Info("Build status updated", "status", status, "message", message)
-	return nil
+	// Should never reach here, but just in case
+	return fmt.Errorf("failed to update build status after %d attempts", maxRetries)
 }
 
 // populateAvailableImages populates the available images from OpenShift AI
