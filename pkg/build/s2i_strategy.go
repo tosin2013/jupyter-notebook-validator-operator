@@ -3,6 +3,7 @@ package build
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	buildv1 "github.com/openshift/api/build/v1"
@@ -11,8 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // S2IStrategy implements the Strategy interface for OpenShift Source-to-Image builds
@@ -41,10 +42,7 @@ func (s *S2IStrategy) Detect(ctx context.Context, client client.Client) (bool, e
 	// Check if BuildConfig CRD exists by trying to list BuildConfigs
 	// This is more reliable than trying to Get a specific resource
 	buildConfigList := &buildv1.BuildConfigList{}
-	err := client.List(ctx, buildConfigList, &client2.ListOptions{
-		Namespace: "default",
-		Limit:     1,
-	})
+	err := client.List(ctx, buildConfigList)
 
 	if err != nil {
 		logger.V(1).Info("S2I detection: error listing BuildConfigs",

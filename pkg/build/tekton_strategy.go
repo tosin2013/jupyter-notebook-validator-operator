@@ -3,6 +3,7 @@ package build
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
@@ -12,8 +13,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // TektonStrategy implements the Strategy interface for Tekton Pipelines
@@ -42,10 +43,7 @@ func (t *TektonStrategy) Detect(ctx context.Context, client client.Client) (bool
 	// Check if TaskRun CRD exists by trying to list TaskRuns
 	// This is more reliable than trying to Get a specific resource
 	taskRunList := &tektonv1.TaskRunList{}
-	err := client.List(ctx, taskRunList, &client2.ListOptions{
-		Namespace: "default",
-		Limit:     1,
-	})
+	err := client.List(ctx, taskRunList)
 
 	if err != nil {
 		logger.V(1).Info("Tekton detection: error listing TaskRuns",

@@ -250,7 +250,7 @@ func (r *NotebookValidationJobReconciler) updateBuildStatus(ctx context.Context,
 	job.Status.BuildStatus.ImageReference = imageReference
 
 	// Set strategy from build config if available
-	if job.Spec.PodConfig != nil && job.Spec.PodConfig.BuildConfig != nil {
+	if job.Spec.PodConfig.BuildConfig != nil {
 		job.Status.BuildStatus.Strategy = job.Spec.PodConfig.BuildConfig.Strategy
 	}
 
