@@ -230,4 +230,3 @@ func FormatImageStreamList(images []ImageStreamInfo) string {
 
 	return result
 }
-
