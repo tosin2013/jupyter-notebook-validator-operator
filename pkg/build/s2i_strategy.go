@@ -180,41 +180,32 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 		logger.Info("BuildConfig created successfully", "buildConfigName", buildName)
 	}
 
-	// Trigger a build
-	build := &buildv1.Build{
+	// Trigger a build using BuildRequest (proper OpenShift API)
+	// This uses the BuildConfig's instantiate subresource which actually starts the build
+	buildRequest := &buildv1.BuildRequest{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-1", buildName),
+			Name:      buildName,
 			Namespace: job.Namespace,
-			Labels: map[string]string{
-				"buildconfig":                          buildName,
-				"mlops.redhat.com/notebook-validation": "true",
-			},
-		},
-		Spec: buildv1.BuildSpec{
-			CommonSpec: buildv1.CommonSpec{
-				Source:   bc.Spec.Source,
-				Strategy: bc.Spec.Strategy,
-				Output:   bc.Spec.Output,
-			},
 		},
 	}
 
-	logger.Info("Triggering build", "buildName", build.Name)
-	if err := s.client.Create(ctx, build); err != nil {
-		if !errors.IsAlreadyExists(err) {
-			logger.Error(err, "Failed to trigger build", "buildName", build.Name)
-			return nil, fmt.Errorf("failed to trigger build: %w", err)
-		}
-		logger.Info("Build already exists", "buildName", build.Name)
-	} else {
-		logger.Info("Build created and triggered successfully", "buildName", build.Name)
+	logger.Info("Triggering build via BuildRequest", "buildConfigName", buildName)
+
+	// Use SubResource to call the instantiate endpoint
+	// This is equivalent to: oc start-build <buildconfig-name>
+	build := &buildv1.Build{}
+	if err := s.client.SubResource("instantiate").Create(ctx, bc, build, buildRequest); err != nil {
+		logger.Error(err, "Failed to trigger build via instantiate", "buildConfigName", buildName)
+		return nil, fmt.Errorf("failed to trigger build: %w", err)
 	}
+
+	logger.Info("Build created and triggered successfully", "buildName", build.Name, "buildConfigName", buildName)
 
 	now := time.Now()
 	return &BuildInfo{
 		Name:      build.Name,
 		Status:    BuildStatusPending,
-		Message:   "Build created and triggered",
+		Message:   "Build created and started via BuildRequest",
 		StartTime: &now,
 	}, nil
 }
