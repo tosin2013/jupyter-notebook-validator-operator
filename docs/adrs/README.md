@@ -54,6 +54,16 @@ Architectural Decision Records document important architectural decisions made d
 | [021](021-openshift-native-dashboard-strategy.md) | OpenShift-Native Dashboard Strategy | Proposed | 2025-11-08 |
 | [022](022-community-observability-contributions.md) | Community Observability Contributions | Proposed | 2025-11-08 |
 
+### Build Integration ADRs (NEW - 2025-11-09)
+
+| ADR | Title | Status | Date |
+|-----|-------|--------|------|
+| [023](023-s2i-build-integration-openshift.md) | S2I Build Integration for OpenShift | Accepted | 2025-11-08 |
+| [024](024-fallback-strategy-missing-requirements.md) | Fallback Strategy for Missing Requirements | Accepted | 2025-11-08 |
+| [025](025-community-build-methods-extension-framework.md) | Community Build Methods Extension Framework | Accepted | 2025-11-08 |
+| [026](026-smart-validation-pod-recovery.md) | Smart Validation Pod Recovery and Build Strategy Selection | Accepted | 2025-11-09 |
+| [027](027-s2i-build-strategy-for-git-integration.md) | S2I Build Strategy for Git Integration | Accepted | 2025-11-09 |
+
 ### Planned ADRs
 
 The following ADRs are planned for future documentation:
