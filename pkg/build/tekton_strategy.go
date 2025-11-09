@@ -179,19 +179,53 @@ func (t *TektonStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Not
 
 	// Create a Pipeline with git-clone + buildah tasks
 	pipeline := t.createBuildPipeline(job, buildConfig, imageRef)
-	if err := t.client.Create(ctx, pipeline); err != nil && !errors.IsAlreadyExists(err) {
-		return nil, fmt.Errorf("failed to create pipeline: %w", err)
+	if err := t.client.Create(ctx, pipeline); err != nil {
+		if !errors.IsAlreadyExists(err) {
+			// ADR-030 Phase 1: Return error instead of continuing silently
+			return nil, fmt.Errorf("failed to create pipeline: %w", err)
+		}
+		// Pipeline already exists, fetch it to ensure we have the latest version
+		logger.V(1).Info("Pipeline already exists, fetching existing", "pipeline", pipeline.Name)
+		existingPipeline := &tektonv1.Pipeline{}
+		if err := t.client.Get(ctx, client.ObjectKey{Name: pipeline.Name, Namespace: job.Namespace}, existingPipeline); err != nil {
+			return nil, fmt.Errorf("failed to get existing pipeline: %w", err)
+		}
+		pipeline = existingPipeline
 	}
+
+	// ADR-030 Phase 1: Verify Pipeline was actually created
+	verifyPipeline := &tektonv1.Pipeline{}
+	if err := t.client.Get(ctx, client.ObjectKey{Name: pipeline.Name, Namespace: job.Namespace}, verifyPipeline); err != nil {
+		return nil, fmt.Errorf("pipeline creation verification failed: %w", err)
+	}
+	logger.Info("Pipeline verified successfully", "pipeline", pipeline.Name, "namespace", job.Namespace)
 
 	// Create PipelineRun
 	pipelineRun := t.createPipelineRun(job, buildName, pipeline.Name)
 	if err := t.client.Create(ctx, pipelineRun); err != nil {
 		if !errors.IsAlreadyExists(err) {
+			// ADR-030 Phase 1: Return error instead of continuing silently
 			return nil, fmt.Errorf("failed to create pipelinerun: %w", err)
 		}
+		// PipelineRun already exists, fetch it
+		logger.V(1).Info("PipelineRun already exists, fetching existing", "pipelineRun", pipelineRun.Name)
+		existingPipelineRun := &tektonv1.PipelineRun{}
+		if err := t.client.Get(ctx, client.ObjectKey{Name: pipelineRun.Name, Namespace: job.Namespace}, existingPipelineRun); err != nil {
+			return nil, fmt.Errorf("failed to get existing pipelinerun: %w", err)
+		}
+		pipelineRun = existingPipelineRun
 	}
 
+	// ADR-030 Phase 1: Verify PipelineRun was actually created
+	verifyPipelineRun := &tektonv1.PipelineRun{}
+	if err := t.client.Get(ctx, client.ObjectKey{Name: pipelineRun.Name, Namespace: job.Namespace}, verifyPipelineRun); err != nil {
+		return nil, fmt.Errorf("pipelinerun creation verification failed: %w", err)
+	}
+	logger.Info("PipelineRun verified successfully", "pipelineRun", pipelineRun.Name, "namespace", job.Namespace)
+
+	// ADR-030 Phase 1: Only report success after verification
 	now := time.Now()
+	logger.Info("Build created successfully", "buildName", buildName, "pipeline", pipeline.Name, "pipelineRun", pipelineRun.Name)
 	return &BuildInfo{
 		Name:           pipelineRun.Name,
 		Status:         BuildStatusPending,
@@ -327,15 +361,19 @@ func (t *TektonStrategy) createPipelineRun(job *mlopsv1alpha1.NotebookValidation
 
 // GetBuildStatus returns the current build status for a Tekton TaskRun or PipelineRun
 func (t *TektonStrategy) GetBuildStatus(ctx context.Context, buildName string) (*BuildInfo, error) {
+	logger := log.FromContext(ctx)
+
 	// List all PipelineRuns with our label
 	pipelineRunList := &tektonv1.PipelineRunList{}
 	if err := t.client.List(ctx, pipelineRunList, client.MatchingLabels{"mlops.redhat.com/notebook-validation": "true"}); err != nil {
-		return nil, fmt.Errorf("failed to list pipelineruns: %w", err)
+		// ADR-030 Phase 1: Provide context about what failed
+		return nil, fmt.Errorf("failed to list pipelineruns (check RBAC permissions for pipelineruns.tekton.dev): %w", err)
 	}
 
 	// Find the PipelineRun with matching name
 	for i := range pipelineRunList.Items {
 		if pipelineRunList.Items[i].Name == buildName {
+			logger.V(1).Info("Found PipelineRun", "name", buildName)
 			return t.getPipelineRunStatus(&pipelineRunList.Items[i]), nil
 		}
 	}
@@ -343,17 +381,22 @@ func (t *TektonStrategy) GetBuildStatus(ctx context.Context, buildName string) (
 	// Try TaskRuns
 	taskRunList := &tektonv1.TaskRunList{}
 	if err := t.client.List(ctx, taskRunList, client.MatchingLabels{"mlops.redhat.com/notebook-validation": "true"}); err != nil {
-		return nil, fmt.Errorf("failed to list taskruns: %w", err)
+		// ADR-030 Phase 1: Provide context about what failed
+		return nil, fmt.Errorf("failed to list taskruns (check RBAC permissions for taskruns.tekton.dev): %w", err)
 	}
 
 	// Find the TaskRun with matching name
 	for i := range taskRunList.Items {
 		if taskRunList.Items[i].Name == buildName {
+			logger.V(1).Info("Found TaskRun", "name", buildName)
 			return t.getTaskRunStatus(&taskRunList.Items[i]), nil
 		}
 	}
 
-	return nil, fmt.Errorf("build not found: %s", buildName)
+	// ADR-030 Phase 1: Provide helpful error message with context
+	logger.V(1).Info("Build not found", "buildName", buildName, "pipelineRunCount", len(pipelineRunList.Items), "taskRunCount", len(taskRunList.Items))
+	return nil, fmt.Errorf("build not found: %s (searched %d pipelineruns and %d taskruns with label mlops.redhat.com/notebook-validation=true)",
+		buildName, len(pipelineRunList.Items), len(taskRunList.Items))
 }
 
 // getPipelineRunStatus extracts status from a PipelineRun
