@@ -3,9 +3,11 @@ package build
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -77,6 +79,7 @@ type Strategy interface {
 type Registry struct {
 	strategies map[string]Strategy
 	client     client.Client
+	scheme     *runtime.Scheme
 }
 
 // NewRegistry creates a new build strategy registry
@@ -85,6 +88,68 @@ func NewRegistry(client client.Client) *Registry {
 		strategies: make(map[string]Strategy),
 		client:     client,
 	}
+}
+
+// NewStrategyRegistry creates a new build strategy registry with all available strategies
+func NewStrategyRegistry(client client.Client, scheme *runtime.Scheme) *Registry {
+	registry := &Registry{
+		strategies: make(map[string]Strategy),
+		client:     client,
+		scheme:     scheme,
+	}
+
+	// Register all available strategies
+	registry.Register(NewS2IStrategy(client, scheme))
+	registry.Register(NewTektonStrategy(client, scheme))
+
+	return registry
+}
+
+// GetStrategy returns a build strategy by name (alias for Get for backward compatibility)
+func (r *Registry) GetStrategy(name string) Strategy {
+	strategy, _ := r.Get(name)
+	return strategy
+}
+
+// ListStrategies returns all registered strategy names
+func (r *Registry) ListStrategies() []string {
+	names := make([]string, 0, len(r.strategies))
+	for name := range r.strategies {
+		names = append(names, name)
+	}
+	return names
+}
+
+// DetectAvailableStrategies returns all available strategies in the cluster (alias for DetectAvailable)
+func (r *Registry) DetectAvailableStrategies(ctx context.Context) ([]Strategy, error) {
+	return r.DetectAvailable(ctx)
+}
+
+// SelectStrategy selects a build strategy based on configuration
+func (r *Registry) SelectStrategy(ctx context.Context, config *mlopsv1alpha1.BuildConfigSpec) (Strategy, error) {
+	if config == nil {
+		return nil, fmt.Errorf("build config is nil")
+	}
+
+	// If strategy is specified, use it
+	if config.Strategy != "" {
+		strategy := r.GetStrategy(config.Strategy)
+		if strategy == nil {
+			return nil, &StrategyNotFoundError{Name: config.Strategy}
+		}
+		return strategy, nil
+	}
+
+	// Auto-detect first available strategy
+	available, err := r.DetectAvailable(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(available) == 0 {
+		return nil, &NoStrategyAvailableError{}
+	}
+
+	return available[0], nil
 }
 
 // Register registers a build strategy

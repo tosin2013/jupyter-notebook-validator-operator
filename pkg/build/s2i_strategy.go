@@ -266,9 +266,8 @@ func (s *S2IStrategy) DeleteBuild(ctx context.Context, buildName string) error {
 
 // ValidateConfig validates the S2I build configuration
 func (s *S2IStrategy) ValidateConfig(config *mlopsv1alpha1.BuildConfigSpec) error {
-	if config.BaseImage == "" {
-		return fmt.Errorf("baseImage is required for S2I builds")
-	}
+	// BaseImage is optional - we have a default
+	// No specific validation needed for S2I
 	return nil
 }
 

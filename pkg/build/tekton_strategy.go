@@ -370,8 +370,7 @@ func (t *TektonStrategy) DeleteBuild(ctx context.Context, buildName string) erro
 
 // ValidateConfig validates the Tekton build configuration
 func (t *TektonStrategy) ValidateConfig(config *mlopsv1alpha1.BuildConfigSpec) error {
-	if config.BaseImage == "" {
-		return fmt.Errorf("baseImage is required for Tekton builds")
-	}
+	// BaseImage is optional - we have a default
+	// No specific validation needed for Tekton
 	return nil
 }
