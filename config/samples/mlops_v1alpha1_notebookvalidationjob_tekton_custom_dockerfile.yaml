@@ -10,7 +10,9 @@ spec:
     git:
       url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
       ref: "main"
-      credentialsSecret: "git-credentials"
+      # For private repositories with Tekton builds, use git-credentials-tekton secret
+      # This secret must be in Tekton basic-auth format (.gitconfig + .git-credentials)
+      credentialsSecret: "git-credentials-tekton"
     path: "notebooks/tier1-simple/01-hello-world.ipynb"
   
   podConfig:

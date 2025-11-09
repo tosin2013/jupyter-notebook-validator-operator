@@ -278,7 +278,9 @@ func (t *TektonStrategy) createBuildPipeline(job *mlopsv1alpha1.NotebookValidati
 					},
 					Workspaces: []tektonv1.WorkspacePipelineTaskBinding{
 						{Name: "output", Workspace: "shared-workspace"},
-						{Name: "ssh-directory", Workspace: "git-credentials"},
+						// ADR-031: Use basic-auth workspace for HTTPS authentication
+						// git-clone Task expects .gitconfig and .git-credentials files for HTTPS
+						{Name: "basic-auth", Workspace: "git-credentials"},
 					},
 				},
 				{
