@@ -467,11 +467,16 @@ func (t *TektonStrategy) createPipelineRun(job *mlopsv1alpha1.NotebookValidation
 				}
 
 				// Add Git credentials workspace if specified
+				// ADR-031: Tekton requires different secret format than validation pod
+				// - Tekton build: Uses git-credentials-tekton (basic-auth format with .gitconfig + .git-credentials)
+				// - Validation pod: Uses git-credentials (standard format with username + password)
 				if job.Spec.Notebook.Git.CredentialsSecret != "" {
+					// Use Tekton-specific secret format for build
+					tektonSecretName := job.Spec.Notebook.Git.CredentialsSecret + "-tekton"
 					workspaces = append(workspaces, tektonv1.WorkspaceBinding{
 						Name: "git-credentials",
 						Secret: &corev1.SecretVolumeSource{
-							SecretName: job.Spec.Notebook.Git.CredentialsSecret,
+							SecretName: tektonSecretName,
 						},
 					})
 				}
