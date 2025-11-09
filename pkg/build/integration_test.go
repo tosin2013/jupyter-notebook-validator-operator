@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 package build
@@ -8,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	buildv1 "github.com/openshift/api/build/v1"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
+	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -22,10 +23,10 @@ import (
 const (
 	// Test namespace - will be created if it doesn't exist
 	testNamespace = "notebook-validator-integration-test"
-	
+
 	// Test timeout
 	testTimeout = 10 * time.Minute
-	
+
 	// Build timeout
 	buildTimeout = 5 * time.Minute
 )
@@ -144,7 +145,7 @@ func TestIntegrationS2IDetection(t *testing.T) {
 	}
 
 	t.Logf("S2I detected: %v", detected)
-	
+
 	// On OpenShift, we expect S2I to be detected
 	// On vanilla Kubernetes, we expect false
 	if detected {
@@ -173,7 +174,7 @@ func TestIntegrationTektonDetection(t *testing.T) {
 	}
 
 	t.Logf("Tekton detected: %v", detected)
-	
+
 	if detected {
 		t.Log("✅ Tekton is available on this cluster")
 	} else {
@@ -197,7 +198,7 @@ func TestIntegrationStrategyRegistry(t *testing.T) {
 	// Test strategy listing
 	strategies := registry.ListStrategies()
 	t.Logf("Registered strategies: %v", strategies)
-	
+
 	if len(strategies) == 0 {
 		t.Error("No strategies registered")
 	}
@@ -207,7 +208,7 @@ func TestIntegrationStrategyRegistry(t *testing.T) {
 	if err != nil {
 		t.Errorf("DetectAvailableStrategies() error = %v", err)
 	}
-	
+
 	t.Logf("Available strategies: %d", len(available))
 	for _, strategy := range available {
 		t.Logf("  - %s", strategy.Name())
@@ -465,4 +466,3 @@ func TestIntegrationClusterInfo(t *testing.T) {
 		t.Logf("✅ Successfully connected to cluster (%d namespaces)", len(namespaces.Items))
 	}
 }
-

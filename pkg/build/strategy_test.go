@@ -105,10 +105,10 @@ func TestGetStrategy(t *testing.T) {
 	registry := NewStrategyRegistry(fakeClient, scheme)
 
 	tests := []struct {
-		name          string
-		strategyName  string
-		shouldExist   bool
-		expectedName  string
+		name         string
+		strategyName string
+		shouldExist  bool
+		expectedName string
 	}{
 		{"Get S2I strategy", "s2i", true, "s2i"},
 		{"Get Tekton strategy", "tekton", true, "tekton"},
@@ -162,10 +162,10 @@ func TestSelectStrategy(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name           string
-		buildConfig    *mlopsv1alpha1.BuildConfigSpec
-		expectedError  bool
-		expectedName   string
+		name          string
+		buildConfig   *mlopsv1alpha1.BuildConfigSpec
+		expectedError bool
+		expectedName  string
 	}{
 		{
 			name: "Select S2I strategy explicitly",
@@ -292,4 +292,3 @@ func TestMockStrategy(t *testing.T) {
 		t.Errorf("BuildInfo.Name = %v, want mock-build", buildInfo.Name)
 	}
 }
-

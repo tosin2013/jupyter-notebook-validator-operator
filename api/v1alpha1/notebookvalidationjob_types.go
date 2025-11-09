@@ -102,6 +102,11 @@ type PodConfigSpec struct {
 	// EnvFrom specifies sources to populate environment variables in the validation pod
 	// +optional
 	EnvFrom []EnvFromSource `json:"envFrom,omitempty"`
+
+	// BuildConfig specifies optional container image build configuration
+	// When specified, the operator will build a custom image before validation
+	// +optional
+	BuildConfig *BuildConfigSpec `json:"buildConfig,omitempty"`
 }
 
 // ResourceRequirements defines compute resource requirements
@@ -186,6 +191,51 @@ type ConfigMapEnvSource struct {
 	// Name is the name of the ConfigMap
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
+}
+
+// BuildConfigSpec defines container image build configuration
+type BuildConfigSpec struct {
+	// Enabled specifies whether to build a custom image
+	// +kubebuilder:default=false
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Strategy specifies the build strategy to use
+	// +kubebuilder:validation:Enum=s2i;tekton;kaniko;shipwright;custom
+	// +kubebuilder:default="s2i"
+	// +optional
+	Strategy string `json:"strategy,omitempty"`
+
+	// BaseImage specifies the base image for the build
+	// +kubebuilder:default="quay.io/jupyter/minimal-notebook:latest"
+	// +optional
+	BaseImage string `json:"baseImage,omitempty"`
+
+	// AutoGenerateRequirements specifies whether to auto-generate requirements.txt if missing
+	// Uses pipreqs to analyze notebook imports
+	// +kubebuilder:default=false
+	// +optional
+	AutoGenerateRequirements bool `json:"autoGenerateRequirements,omitempty"`
+
+	// RequirementsFile specifies the path to requirements.txt in the Git repository
+	// +kubebuilder:default="requirements.txt"
+	// +optional
+	RequirementsFile string `json:"requirementsFile,omitempty"`
+
+	// FallbackStrategy specifies what to do when requirements.txt is missing
+	// +kubebuilder:validation:Enum=warn;fail;auto
+	// +kubebuilder:default="warn"
+	// +optional
+	FallbackStrategy string `json:"fallbackStrategy,omitempty"`
+
+	// StrategyConfig contains strategy-specific configuration
+	// +optional
+	StrategyConfig map[string]string `json:"strategyConfig,omitempty"`
+
+	// Timeout specifies the maximum time to wait for build completion
+	// +kubebuilder:default="15m"
+	// +optional
+	Timeout string `json:"timeout,omitempty"`
 }
 
 // ComparisonConfigSpec defines advanced comparison configuration
@@ -347,6 +397,42 @@ type NotebookValidationJobStatus struct {
 	// ModelValidationResult contains the model validation result
 	// +optional
 	ModelValidationResult *ModelValidationResult `json:"modelValidationResult,omitempty"`
+
+	// BuildStatus contains the build status (Phase 4.5: S2I Build Integration)
+	// +optional
+	BuildStatus *BuildStatus `json:"buildStatus,omitempty"`
+}
+
+// BuildStatus represents the status of a container image build
+type BuildStatus struct {
+	// Phase represents the current phase of the build
+	// +kubebuilder:validation:Enum=Pending;Running;Complete;Failed
+	// +optional
+	Phase string `json:"phase,omitempty"`
+
+	// Message provides a human-readable summary of the build status
+	// +optional
+	Message string `json:"message,omitempty"`
+
+	// ImageReference is the reference to the built image
+	// +optional
+	ImageReference string `json:"imageReference,omitempty"`
+
+	// StartTime is when the build started
+	// +optional
+	StartTime *metav1.Time `json:"startTime,omitempty"`
+
+	// CompletionTime is when the build completed
+	// +optional
+	CompletionTime *metav1.Time `json:"completionTime,omitempty"`
+
+	// BuildName is the name of the build resource
+	// +optional
+	BuildName string `json:"buildName,omitempty"`
+
+	// Strategy is the build strategy used (s2i, tekton, etc.)
+	// +optional
+	Strategy string `json:"strategy,omitempty"`
 }
 
 // ModelValidationResult represents the result of model-aware validation

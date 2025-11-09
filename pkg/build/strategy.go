@@ -244,4 +244,3 @@ type NoStrategyAvailableError struct{}
 func (e *NoStrategyAvailableError) Error() string {
 	return "no build strategy available in cluster"
 }
-

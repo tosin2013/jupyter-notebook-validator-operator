@@ -1,0 +1,40 @@
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: notebookvalidationjob-s2i-sample
+  namespace: default
+spec:
+  notebook:
+    git:
+      url: "https://github.com/jupyter/notebook-examples.git"
+      ref: "main"
+    path: "examples/Notebook/What is the Jupyter Notebook.ipynb"
+  
+  podConfig:
+    # Option 1: Use pre-built image (traditional approach)
+    # containerImage: "quay.io/jupyter/minimal-notebook:latest"
+    
+    # Option 2: Build custom image with S2I (NEW - ADR-023)
+    buildConfig:
+      enabled: true
+      strategy: "s2i"
+      baseImage: "quay.io/jupyter/minimal-notebook:latest"
+      autoGenerateRequirements: false
+      requirementsFile: "requirements.txt"
+      fallbackStrategy: "warn"
+    
+    # Use pre-built image as fallback if build is disabled
+    containerImage: "quay.io/jupyter/minimal-notebook:latest"
+    
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+    
+    serviceAccountName: "notebook-validator-jupyter-notebook-validator-runner"
+  
+  timeout: "30m"
+

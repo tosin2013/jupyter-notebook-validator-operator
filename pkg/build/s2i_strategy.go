@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	buildv1 "github.com/openshift/api/build/v1"
+	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,7 +39,7 @@ func (s *S2IStrategy) Detect(ctx context.Context, client client.Client) (bool, e
 	// Check if BuildConfig CRD exists
 	buildConfig := &buildv1.BuildConfig{}
 	err := client.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, buildConfig)
-	
+
 	// If we get NotFound, the CRD exists but the resource doesn't - that's OK
 	// If we get NoKindMatchError, the CRD doesn't exist
 	if err != nil {
@@ -53,7 +53,7 @@ func (s *S2IStrategy) Detect(ctx context.Context, client client.Client) (bool, e
 		// Other errors might indicate the API is available but we can't access it
 		return false, err
 	}
-	
+
 	return true, nil
 }
 
@@ -289,4 +289,3 @@ func (s *S2IStrategy) ValidateConfig(config *mlopsv1alpha1.BuildConfigSpec) erro
 	// No specific validation needed for S2I
 	return nil
 }
-

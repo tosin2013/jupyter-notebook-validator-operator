@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
+	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -40,7 +40,7 @@ func (t *TektonStrategy) Detect(ctx context.Context, client client.Client) (bool
 	// Check if TaskRun CRD exists
 	taskRun := &tektonv1.TaskRun{}
 	err := client.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, taskRun)
-	
+
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return true, nil
@@ -50,7 +50,7 @@ func (t *TektonStrategy) Detect(ctx context.Context, client client.Client) (bool
 		}
 		return false, err
 	}
-	
+
 	return true, nil
 }
 

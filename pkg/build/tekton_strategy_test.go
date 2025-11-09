@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
+	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -37,7 +37,7 @@ func TestTektonStrategyName(t *testing.T) {
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
 	strategy := NewTektonStrategy(fakeClient, scheme)
-	
+
 	if strategy.Name() != "tekton" {
 		t.Errorf("Name() = %v, want tekton", strategy.Name())
 	}
@@ -55,7 +55,7 @@ func TestTektonStrategyDetect(t *testing.T) {
 
 	// In a test environment without real Tekton, detection should return false or error
 	detected, err := strategy.Detect(ctx, fakeClient)
-	
+
 	// We expect either false (not detected) or an error (CRD not registered)
 	if detected {
 		t.Log("Tekton detected in test environment (unexpected but not an error)")
@@ -249,7 +249,7 @@ func TestTektonStrategyCreateBuild(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			buildInfo, err := strategy.CreateBuild(ctx, tt.job)
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Error("CreateBuild() expected error, got nil")
@@ -352,4 +352,3 @@ func TestTektonStrategyDeleteBuild(t *testing.T) {
 		t.Errorf("DeleteBuild() error = %v", err)
 	}
 }
-

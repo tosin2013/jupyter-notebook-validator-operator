@@ -29,7 +29,8 @@ import (
 
 // buildPapermillValidationContainer creates the main validation container with Papermill
 // Based on ADR-008: Notebook Testing Strategy
-func (r *NotebookValidationJobReconciler) buildPapermillValidationContainer(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) corev1.Container {
+// containerImage parameter allows using a custom built image (Phase 4.5: S2I Build Integration)
+func (r *NotebookValidationJobReconciler) buildPapermillValidationContainer(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob, containerImage string) corev1.Container {
 	logger := log.FromContext(ctx)
 
 	notebookPath := job.Spec.Notebook.Path
@@ -386,9 +387,14 @@ exit $EXIT_CODE
 		resultsJSON, resultsJSON, resultsJSON,
 		notebookPath)
 
+	// Use the provided containerImage (may be built image or spec image)
+	if containerImage == "" {
+		containerImage = job.Spec.PodConfig.ContainerImage
+	}
+
 	container := corev1.Container{
 		Name:  "validator",
-		Image: job.Spec.PodConfig.ContainerImage,
+		Image: containerImage,
 		Command: []string{
 			"/bin/bash",
 			"-c",

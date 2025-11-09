@@ -1,3 +1,4 @@
+//go:build e2e
 // +build e2e
 
 package build
@@ -8,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	buildv1 "github.com/openshift/api/build/v1"
 	tektonv1 "github.com/tektoncd/pipeline/v0/pkg/apis/pipeline/v1"
+	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -298,4 +299,3 @@ func waitForBuildCompletion(ctx context.Context, strategy Strategy, buildName st
 
 	return nil, fmt.Errorf("build did not complete within timeout (%v)", timeout)
 }
-

@@ -92,6 +92,9 @@ type NotebookValidationJobReconciler struct {
 //+kubebuilder:rbac:groups=ray.io,resources=rayservices;rayclusters,verbs=get;list;watch
 //+kubebuilder:rbac:groups=machinelearning.seldon.io,resources=seldondeployments,verbs=get;list;watch
 //+kubebuilder:rbac:groups=serving.yatai.ai,resources=bentos;bentodeployments,verbs=get;list;watch
+//+kubebuilder:rbac:groups=build.openshift.io,resources=buildconfigs;builds,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=image.openshift.io,resources=imagestreams,verbs=get;list;watch;create;update;patch
+//+kubebuilder:rbac:groups=tekton.dev,resources=pipelines;pipelineruns;taskruns,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -218,7 +221,22 @@ func (r *NotebookValidationJobReconciler) reconcileValidation(ctx context.Contex
 		}
 	}
 
-	// Step 2: Check if validation pod already exists
+	// Step 2: Handle build integration if enabled (Phase 4.5: S2I Build Integration)
+	containerImage := job.Spec.PodConfig.ContainerImage
+	if isBuildEnabled(job) {
+		logger.Info("Build integration enabled, handling build workflow")
+		builtImage, err := r.handleBuildIntegration(ctx, job)
+		if err != nil {
+			logger.Error(err, "Build integration failed, falling back to container image")
+			// Don't fail the job - fall back to container image
+			// The error is already logged and status updated in handleBuildIntegration
+		} else {
+			logger.Info("Build completed successfully, using built image", "image", builtImage)
+			containerImage = builtImage
+		}
+	}
+
+	// Step 3: Check if validation pod already exists
 	podName := fmt.Sprintf("%s-validation", job.Name)
 	pod := &corev1.Pod{}
 	err := r.Get(ctx, types.NamespacedName{Name: podName, Namespace: job.Namespace}, pod)
@@ -234,8 +252,8 @@ func (r *NotebookValidationJobReconciler) reconcileValidation(ctx context.Contex
 			}
 		}
 
-		// Create the validation pod
-		pod, err := r.createValidationPod(ctx, job)
+		// Create the validation pod with the container image (built or spec)
+		pod, err := r.createValidationPod(ctx, job, containerImage)
 		if err != nil {
 			logger.Error(err, "Failed to create validation pod")
 			// Record pod creation failure
@@ -306,7 +324,8 @@ func (r *NotebookValidationJobReconciler) reconcileValidation(ctx context.Contex
 }
 
 // createValidationPod creates a pod for notebook validation
-func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (*corev1.Pod, error) {
+// containerImage parameter allows using a custom built image (Phase 4.5: S2I Build Integration)
+func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob, containerImage string) (*corev1.Pod, error) {
 	logger := log.FromContext(ctx)
 
 	podName := fmt.Sprintf("%s-validation", job.Name)
@@ -381,7 +400,7 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 			RestartPolicy:      corev1.RestartPolicyNever,
 			InitContainers:     initContainers,
 			Containers: []corev1.Container{
-				r.buildPapermillValidationContainer(ctx, job),
+				r.buildPapermillValidationContainer(ctx, job, containerImage),
 			},
 			Volumes: []corev1.Volume{
 				{

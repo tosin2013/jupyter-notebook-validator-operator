@@ -344,3 +344,138 @@ func GetPlatformDefinition(platform Platform) *PlatformDefinition {
 func ListSupportedPlatforms() []PlatformDefinition {
 	return builtInPlatforms
 }
+
+// IsOpenShift detects if the cluster is running OpenShift
+// It checks for OpenShift-specific API groups:
+// - build.openshift.io (BuildConfig, Build)
+// - image.openshift.io (ImageStream, ImageStreamTag)
+func (d *Detector) IsOpenShift(ctx context.Context) (bool, error) {
+	log := log.FromContext(ctx)
+
+	if d.discoveryClient == nil {
+		return false, fmt.Errorf("discovery client not available")
+	}
+
+	// OpenShift-specific API groups to check
+	openshiftAPIGroups := []string{
+		"build.openshift.io",
+		"image.openshift.io",
+	}
+
+	// Get all API groups
+	apiGroupList, err := d.discoveryClient.ServerGroups()
+	if err != nil {
+		log.Error(err, "Failed to get server groups")
+		return false, err
+	}
+
+	// Build a map of available API groups
+	availableGroups := make(map[string]bool)
+	for _, group := range apiGroupList.Groups {
+		availableGroups[group.Name] = true
+	}
+
+	// Check if all OpenShift API groups are present
+	foundCount := 0
+	for _, openshiftGroup := range openshiftAPIGroups {
+		if availableGroups[openshiftGroup] {
+			foundCount++
+			log.V(1).Info("Found OpenShift API group", "group", openshiftGroup)
+		}
+	}
+
+	// Consider it OpenShift if we find at least one OpenShift API group
+	// (some minimal OpenShift installations might not have all groups)
+	isOpenShift := foundCount > 0
+
+	if isOpenShift {
+		log.Info("OpenShift cluster detected", "apiGroups", foundCount)
+	} else {
+		log.V(1).Info("Not an OpenShift cluster (no OpenShift API groups found)")
+	}
+
+	return isOpenShift, nil
+}
+
+// GetOpenShiftInfo returns detailed information about the OpenShift cluster
+// Returns nil if not running on OpenShift
+func (d *Detector) GetOpenShiftInfo(ctx context.Context) (*OpenShiftInfo, error) {
+	log := log.FromContext(ctx)
+
+	isOpenShift, err := d.IsOpenShift(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if !isOpenShift {
+		return nil, nil
+	}
+
+	info := &OpenShiftInfo{
+		IsOpenShift:  true,
+		APIGroups:    []string{},
+		Capabilities: make(map[string]bool),
+	}
+
+	// Check for specific OpenShift capabilities
+	capabilities := map[string][]string{
+		"build":      {"build.openshift.io"},
+		"image":      {"image.openshift.io"},
+		"route":      {"route.openshift.io"},
+		"security":   {"security.openshift.io"},
+		"project":    {"project.openshift.io"},
+		"template":   {"template.openshift.io"},
+		"apps":       {"apps.openshift.io"},
+		"oauth":      {"oauth.openshift.io"},
+		"user":       {"user.openshift.io"},
+		"operator":   {"operator.openshift.io"},
+		"config":     {"config.openshift.io"},
+		"console":    {"console.openshift.io"},
+		"monitoring": {"monitoring.coreos.com"},
+		"serverless": {"serving.knative.dev"},
+		"pipelines":  {"tekton.dev"},
+		"gitops":     {"argoproj.io"},
+	}
+
+	// Get all API groups
+	apiGroupList, err := d.discoveryClient.ServerGroups()
+	if err != nil {
+		log.Error(err, "Failed to get server groups for OpenShift info")
+		return info, err
+	}
+
+	// Build a map of available API groups
+	availableGroups := make(map[string]bool)
+	for _, group := range apiGroupList.Groups {
+		availableGroups[group.Name] = true
+	}
+
+	// Check each capability
+	for capability, groups := range capabilities {
+		found := false
+		for _, group := range groups {
+			if availableGroups[group] {
+				found = true
+				info.APIGroups = append(info.APIGroups, group)
+				break
+			}
+		}
+		info.Capabilities[capability] = found
+	}
+
+	log.Info("OpenShift cluster information gathered",
+		"apiGroups", len(info.APIGroups),
+		"capabilities", len(info.Capabilities))
+
+	return info, nil
+}
+
+// OpenShiftInfo contains information about an OpenShift cluster
+type OpenShiftInfo struct {
+	// IsOpenShift indicates if this is an OpenShift cluster
+	IsOpenShift bool
+	// APIGroups lists the detected OpenShift API groups
+	APIGroups []string
+	// Capabilities maps capability names to availability
+	Capabilities map[string]bool
+}

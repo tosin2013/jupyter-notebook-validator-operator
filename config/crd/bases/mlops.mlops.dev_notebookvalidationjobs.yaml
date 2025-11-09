@@ -255,6 +255,60 @@ spec:
                 description: PodConfig specifies the pod configuration for validation
                   execution
                 properties:
+                  buildConfig:
+                    description: |-
+                      BuildConfig specifies optional container image build configuration
+                      When specified, the operator will build a custom image before validation
+                    properties:
+                      autoGenerateRequirements:
+                        default: false
+                        description: |-
+                          AutoGenerateRequirements specifies whether to auto-generate requirements.txt if missing
+                          Uses pipreqs to analyze notebook imports
+                        type: boolean
+                      baseImage:
+                        default: quay.io/jupyter/minimal-notebook:latest
+                        description: BaseImage specifies the base image for the build
+                        type: string
+                      enabled:
+                        default: false
+                        description: Enabled specifies whether to build a custom image
+                        type: boolean
+                      fallbackStrategy:
+                        default: warn
+                        description: FallbackStrategy specifies what to do when requirements.txt
+                          is missing
+                        enum:
+                        - warn
+                        - fail
+                        - auto
+                        type: string
+                      requirementsFile:
+                        default: requirements.txt
+                        description: RequirementsFile specifies the path to requirements.txt
+                          in the Git repository
+                        type: string
+                      strategy:
+                        default: s2i
+                        description: Strategy specifies the build strategy to use
+                        enum:
+                        - s2i
+                        - tekton
+                        - kaniko
+                        - shipwright
+                        - custom
+                        type: string
+                      strategyConfig:
+                        additionalProperties:
+                          type: string
+                        description: StrategyConfig contains strategy-specific configuration
+                        type: object
+                      timeout:
+                        default: 15m
+                        description: Timeout specifies the maximum time to wait for
+                          build completion
+                        type: string
+                    type: object
                   containerImage:
                     description: ContainerImage is the container image to use for
                       validation
@@ -374,6 +428,41 @@ spec:
             description: NotebookValidationJobStatus defines the observed state of
               NotebookValidationJob
             properties:
+              buildStatus:
+                description: 'BuildStatus contains the build status (Phase 4.5: S2I
+                  Build Integration)'
+                properties:
+                  buildName:
+                    description: BuildName is the name of the build resource
+                    type: string
+                  completionTime:
+                    description: CompletionTime is when the build completed
+                    format: date-time
+                    type: string
+                  imageReference:
+                    description: ImageReference is the reference to the built image
+                    type: string
+                  message:
+                    description: Message provides a human-readable summary of the
+                      build status
+                    type: string
+                  phase:
+                    description: Phase represents the current phase of the build
+                    enum:
+                    - Pending
+                    - Running
+                    - Complete
+                    - Failed
+                    type: string
+                  startTime:
+                    description: StartTime is when the build started
+                    format: date-time
+                    type: string
+                  strategy:
+                    description: Strategy is the build strategy used (s2i, tekton,
+                      etc.)
+                    type: string
+                type: object
               comparisonResult:
                 description: ComparisonResult contains the golden notebook comparison
                   result
