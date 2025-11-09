@@ -15,11 +15,11 @@ The Jupyter Notebook Validator Operator is a Kubernetes-native operator that aut
 
 ## Project Status
 
-**Current Phase:** Phase 4.5 - S2I Build Integration 🔄 IN PROGRESS (40% complete)
-**Overall Progress:** 97% complete (Architecture, Planning, Foundation, Core Logic, Golden Comparison, Credential Management, Advanced Comparison, Comprehensive Logging, ADR Documentation, ESO Integration, and Model-Aware Validation)
-**Last Major Milestone:** Build Strategy Framework Complete - S2I and Tekton implementations ready (2025-01-08)
-**Current Blocker:** Go module dependency conflicts (k8s.io version compatibility)
-**Next Milestone:** Resolve dependencies and complete build integration (Phase 4.5.3)
+**Current Phase:** Phase 5 - CI/CD Testing Strategy 🔄 IN PROGRESS (30% complete)
+**Overall Progress:** 98% complete (Architecture, Planning, Foundation, Core Logic, Golden Comparison, Credential Management, Advanced Comparison, Comprehensive Logging, ADR Documentation, ESO Integration, Model-Aware Validation, and Tekton Build Integration)
+**Last Major Milestone:** ADR-031 Tekton Build Complete - Full end-to-end workflow verified (2025-11-09)
+**Current Focus:** CI/CD testing infrastructure (ADR-032, ADR-033)
+**Next Milestone:** Implement GitHub Actions workflows and proceed to observability (Phase 6)
 
 **OpenShift Cluster:** ✅ Available at `https://api.cluster-c4r4z.c4r4z.sandbox5156.opentlc.com:6443`
 **CRD Installed:** ✅ notebookvalidationjobs.mlops.mlops.dev
@@ -41,6 +41,14 @@ All architectural decisions are documented in 25 comprehensive ADRs:
 - **ADR-009:** Hybrid secret management - Native Secrets/ESO/Sealed Secrets with HTTPS+SSH auth
 - **ADR-010:** Three-pillar observability - Structured logs, Prometheus metrics, Kubernetes Conditions
 - **ADR-011:** Three-tier error handling - Transient/Retriable/Terminal with exponential backoff
+
+### Tekton Build Integration (ADR-027, ADR-031) - NEW
+- **ADR-027:** S2I Build Strategy for Git Integration - Automatic image building with S2I
+- **ADR-031:** Tekton Build Dockerfile vs Base Image Support - Auto-generated and custom Dockerfiles
+
+### CI/CD Testing Strategy (ADR-032, ADR-033) - NEW
+- **ADR-032:** GitHub Actions CI Testing Against Kubernetes 1.31.10 - KinD-based unit/integration tests
+- **ADR-033:** End-to-End Testing Against Live OpenShift Cluster - Full workflow validation
 
 ### Output Comparison (ADR-012 to ADR-013)
 - **ADR-012:** Release and CI/CD Strategy - GitHub Actions, multi-version testing, automated releases
@@ -863,7 +871,43 @@ Model-aware validation addresses critical gaps in ML/AI notebook workflows:
 - ✅ Integration tests: 8 tests, all passing on real cluster
 - ✅ E2E test infrastructure created
 
-##### 4.5.4 Requirements.txt Fallback Strategy (ADR-024)
+##### 4.5.4 ADR-031: Tekton Build Implementation ✅ COMPLETE (2025-11-09)
+- [x] Create ADR-031: Tekton Build Dockerfile vs Base Image Support ✅
+  - [x] Document auto-generated Dockerfile from baseImage
+  - [x] Document custom Dockerfile support
+  - [x] Define CRD schema for build configuration
+- [x] Implement Phase 1: Inline Dockerfile generation ✅
+  - [x] Auto-generate Dockerfile from baseImage
+  - [x] Conditional requirements.txt handling
+  - [x] S2I-compatible paths (/opt/app-root/src/)
+  - **Commit:** `3c95bc7` - feat: ADR-031 Phase 1 - Inline Dockerfile generation
+- [x] Implement Phase 2: Custom Dockerfile support ✅
+  - [x] Support custom Dockerfile path
+  - [x] Fix PVC permissions (fsGroup: 65532)
+  - **Commit:** `7d4fbd8` - feat: ADR-031 Phase 2 - Custom Dockerfile + fsGroup
+- [x] Fix git authentication issues ✅
+  - [x] Change from ssh-directory to basic-auth workspace
+  - [x] Separate credentials for build vs validation
+  - **Commits:** `2f0ce75`, `ac87925`, `36454e6`
+- [x] Fix Dockerfile generation syntax ✅
+  - [x] Conditional requirements.txt handling in shell script
+  - **Commit:** `b9e1bf3`
+- [x] Fix validation pod security context ✅
+  - [x] Explicit RunAsUser: 1001 for git-clone
+  - **Commit:** `b878c3d`
+- [x] Fix notebook path mismatch ✅
+  - [x] Change Dockerfile to copy to /opt/app-root/src/ (S2I standard)
+  - **Commit:** `42c8f40`
+- [x] Complete end-to-end testing ✅
+  - [x] Tekton build: 4m52s (fetch → generate → build)
+  - [x] Validation pod: Git-clone succeeded, notebook found
+  - [x] Notebook execution: 4/4 cells succeeded (100% success rate)
+  - [x] NotebookValidationJob: Phase = Succeeded
+  - **Operator Image:** `quay.io/takinosh/jupyter-notebook-validator-operator:release-4.18-42c8f40`
+
+**ADR-031 Status:** ✅ COMPLETE - All 10 commits verified, full end-to-end workflow tested
+
+##### 4.5.5 Requirements.txt Fallback Strategy (ADR-024) - DEFERRED
 - [ ] Implement pipreqs integration
   - [ ] Add pipreqs to S2I builder image
   - [ ] Create init container for requirements generation
@@ -880,7 +924,9 @@ Model-aware validation addresses critical gaps in ML/AI notebook workflows:
   - [ ] Link to documentation
   - [ ] Suggest enabling autoGenerateRequirements
 
-##### 4.5.5 Controller Integration
+**Note:** Deferred to post-4.18 release. ADR-031 implementation handles requirements.txt correctly.
+
+##### 4.5.6 Controller Integration - DEFERRED
 - [ ] Update reconciliation loop
   - [ ] Check for `buildConfig` in spec
   - [ ] Detect OpenShift platform
@@ -894,7 +940,9 @@ Model-aware validation addresses critical gaps in ML/AI notebook workflows:
   - [ ] `ConditionTypeBuildFailed`
   - [ ] Update CR status with build progress
 
-##### 4.5.6 Community Build Strategy Framework (ADR-025)
+**Note:** Deferred to post-4.18 release. ADR-031 Tekton implementation is complete and tested.
+
+##### 4.5.7 Community Build Strategy Framework (ADR-025) - DEFERRED
 - [ ] Define `BuildStrategy` interface
   - [ ] `Name()` - Strategy name
   - [ ] `Detect()` - Check if strategy available
@@ -910,7 +958,9 @@ Model-aware validation addresses critical gaps in ML/AI notebook workflows:
   - [ ] Contribution guidelines
   - [ ] Reference implementations (Tekton, Kaniko)
 
-##### 4.5.7 Documentation
+**Note:** Framework exists in `pkg/build/strategy.go`. Community contribution deferred to post-4.18 release.
+
+##### 4.5.8 Documentation - DEFERRED
 - [ ] Create `docs/S2I_BUILD_INTEGRATION.md`
   - [ ] Overview and benefits
   - [ ] Prerequisites (OpenShift cluster, registry access)
@@ -929,7 +979,9 @@ Model-aware validation addresses critical gaps in ML/AI notebook workflows:
   - [ ] Shipwright (community)
   - [ ] Decision tree for strategy selection
 
-##### 4.5.8 Examples and Testing ✅ COMPLETE
+**Note:** ADR-031 provides comprehensive documentation. Additional docs deferred to post-4.18 release.
+
+##### 4.5.9 Examples and Testing ✅ COMPLETE
 - [x] Create sample CRD manifests ✅
   - [x] `config/samples/mlops_v1alpha1_notebookvalidationjob_s2i.yaml`
   - [x] `config/samples/mlops_v1alpha1_notebookvalidationjob_s2i_autogen.yaml`
@@ -1061,11 +1113,135 @@ Model-aware validation addresses critical gaps in ML/AI notebook workflows:
 4. **Developer Experience Dashboard** - User productivity metrics (🔴 NEEDS CONTRIBUTOR)
 5. **Advanced Model Validation Dashboard** - ML-specific visualizations (🔴 NEEDS CONTRIBUTOR)
 
-### Phase 5: Packaging & Distribution (Weeks 5-6)
+### Phase 5: CI/CD Testing Infrastructure (Weeks 5-6) - NEW
 
-**Status:** ⏸️ Not Started  
-**Objective:** Create OLM bundle, Helm chart, and distribution packages  
-**Based on:** ADR-004 (Packaging), ADR-007 (Distribution)
+**Status:** 🔄 IN PROGRESS (30% complete - 2025-11-09)
+**Objective:** Implement comprehensive CI/CD testing strategy with two-tier approach
+**Based on:** ADR-031 (Tekton Build), ADR-032 (GitHub Actions CI), ADR-033 (E2E Testing)
+
+#### Background and Motivation
+
+After completing ADR-031 (Tekton Build Integration) with full end-to-end success, we need robust CI/CD testing to:
+- **Prevent Regressions**: Catch API compatibility issues before production
+- **Accelerate Development**: Fast feedback loops for developers
+- **Ensure Quality**: Validate complete workflows on real OpenShift clusters
+- **Enable Confidence**: Automated testing for every PR and merge
+
+**Two-Tier Testing Strategy:**
+1. **Tier 1**: Unit & Integration tests on KinD (Kubernetes v1.31.10) - Fast feedback (~5 min)
+2. **Tier 2**: E2E tests on live OpenShift 4.18 cluster - Full validation (~15 min)
+
+#### Tasks
+
+##### 5.1 ADR Documentation ✅ COMPLETE (2025-11-09)
+- [x] Create ADR-032: GitHub Actions CI Testing Against Kubernetes 1.31.10 ✅
+  - [x] Document KinD cluster setup pinned to Kubernetes v1.31.10
+  - [x] Ensure API compatibility with OpenShift 4.18.21
+  - [x] Define workflow configuration
+  - [x] Document implementation plan
+  - **Commit:** `ef5271a` - docs: Add ADR-032 and ADR-033 for CI/CD testing strategy
+- [x] Create ADR-033: End-to-End Testing Against Live OpenShift Cluster ✅
+  - [x] Document E2E testing on live OpenShift 4.18 cluster
+  - [x] Integrate external test notebook repository
+  - [x] Define OpenShift token authentication via GitHub Secrets
+  - [x] Document complete workflow with test execution and cleanup
+  - **Commit:** `ef5271a` - docs: Add ADR-032 and ADR-033 for CI/CD testing strategy
+- [x] Update docs/INTEGRATION_TESTING.md ✅
+  - [x] Add references to ADR-032 and ADR-033
+  - [x] Add two-tier testing strategy section
+  - [x] Add complete GitHub Actions workflow examples
+  - [x] Add GitHub Secrets configuration instructions
+  - [x] Add token setup and rotation procedures
+  - **Commit:** `ef5271a` - docs: Add ADR-032 and ADR-033 for CI/CD testing strategy
+
+##### 5.2 GitHub Actions Workflows - IN PROGRESS
+- [ ] Create `.github/workflows/ci-unit-tests.yaml` (Tier 1)
+  - [ ] Setup KinD cluster with Kubernetes v1.31.10
+  - [ ] Install operator dependencies
+  - [ ] Run unit tests (`make test`)
+  - [ ] Run integration tests
+  - [ ] Upload test results and coverage
+  - [ ] Trigger on: PR, push to main/release branches
+- [ ] Create `.github/workflows/e2e-openshift.yaml` (Tier 2)
+  - [ ] Login to OpenShift cluster using GitHub Secret
+  - [ ] Install operator from latest image
+  - [ ] Clone test notebooks repository
+  - [ ] Run Tier 1 tests (simple notebooks)
+  - [ ] Run Tier 2 tests (intermediate notebooks)
+  - [ ] Run Tier 3 tests (complex notebooks)
+  - [ ] Collect results and logs
+  - [ ] Cleanup resources
+  - [ ] Trigger on: PR (manual approval), push to main/release branches
+
+##### 5.3 GitHub Secrets Configuration
+- [ ] Configure OpenShift authentication secrets
+  - [ ] `OPENSHIFT_TOKEN`: Service account token with cluster-admin
+  - [ ] `OPENSHIFT_SERVER`: OpenShift API server URL
+  - [ ] Document token creation procedure
+  - [ ] Document 90-day rotation policy
+- [ ] Configure test repository access
+  - [ ] `TEST_REPO_TOKEN`: GitHub PAT for test notebooks repository
+  - [ ] Document repository access requirements
+
+##### 5.4 Test Notebooks Integration
+- [ ] Integrate external test notebooks repository
+  - [ ] Repository: `https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks`
+  - [ ] Tier 1: Simple notebooks (<30s, <100Mi)
+  - [ ] Tier 2: Intermediate notebooks (1-5min, <500Mi)
+  - [ ] Tier 3: Complex notebooks (5-15min, <2Gi)
+- [ ] Create test execution scripts
+  - [ ] `scripts/run-tier1-tests.sh`
+  - [ ] `scripts/run-tier2-tests.sh`
+  - [ ] `scripts/run-tier3-tests.sh`
+  - [ ] `scripts/collect-test-results.sh`
+
+##### 5.5 Testing and Validation
+- [ ] Test Tier 1 workflow on PR
+  - [ ] Verify KinD cluster setup
+  - [ ] Verify unit tests run
+  - [ ] Verify integration tests run
+  - [ ] Verify test results uploaded
+- [ ] Test Tier 2 workflow on PR
+  - [ ] Verify OpenShift login
+  - [ ] Verify operator installation
+  - [ ] Verify test notebooks execution
+  - [ ] Verify results collection
+  - [ ] Verify cleanup
+
+**Dependencies:**
+- Phase 4.5 complete (Tekton build integration) ✅
+- ADR-031 complete (Tekton build verified) ✅
+- OpenShift cluster available ✅
+- Test notebooks repository available ✅
+
+**Success Criteria:**
+- ✅ ADR-032 and ADR-033 documented
+- ✅ docs/INTEGRATION_TESTING.md updated
+- ⏳ Tier 1 workflow implemented and tested
+- ⏳ Tier 2 workflow implemented and tested
+- ⏳ GitHub Secrets configured
+- ⏳ Test notebooks integrated
+- ⏳ All workflows run on every PR
+- ⏳ Test results visible in GitHub Actions
+
+**Timeline:**
+- Week 1: ADR documentation and workflow design ✅ COMPLETE
+- Week 2: Implement Tier 1 workflow (KinD-based)
+- Week 3: Implement Tier 2 workflow (OpenShift E2E)
+- Week 4: Testing, refinement, and documentation
+
+**Next Steps:**
+1. Implement `.github/workflows/ci-unit-tests.yaml`
+2. Implement `.github/workflows/e2e-openshift.yaml`
+3. Configure GitHub Secrets
+4. Test workflows on PR
+5. Proceed to Phase 6 (Observability)
+
+### Phase 6: Observability Enhancement (Weeks 7-8)
+
+**Status:** ⏸️ Not Started
+**Objective:** Implement comprehensive observability with Prometheus metrics and Grafana dashboards
+**Based on:** ADR-010 (Observability), ADR-021 (OpenShift Dashboards), ADR-022 (Community Contributions)
 
 **Tasks:**
 - [ ] Create OLM bundle
@@ -1097,47 +1273,46 @@ Model-aware validation addresses critical gaps in ML/AI notebook workflows:
 - Prometheus scrapes metrics
 - Grafana dashboard displays metrics
 
-### Phase 6: Testing & CI/CD (Weeks 6-7)
+### Phase 7: Packaging & Distribution (Weeks 9-10)
 
-**Status:** ⏸️ Not Started  
-**Objective:** Implement comprehensive testing and CI/CD pipelines  
-**Based on:** ADR-006 (Testing), ADR-008 (Notebook Testing), ADR-014 (CI/CD - to be created)
+**Status:** ⏸️ Not Started
+**Objective:** Create OLM bundle, Helm chart, and distribution packages
+**Based on:** ADR-004 (Packaging), ADR-007 (Distribution)
 
 **Tasks:**
-- [ ] Create ADR-014: CI/CD Pipeline Integration
-- [ ] Implement unit tests
-  - [ ] Controller reconciliation logic
-  - [ ] Secret resolution
-  - [ ] Error classification
-  - [ ] Status condition updates
-- [ ] Implement integration tests
-  - [ ] End-to-end validation workflow
-  - [ ] Git clone with real repositories
-  - [ ] Pod orchestration
-  - [ ] Golden comparison
-- [ ] Implement e2e tests with test notebooks
-  - [ ] Tier 1 notebooks (simple)
-  - [ ] Tier 2 notebooks (intermediate)
-  - [ ] Tier 3 notebooks (complex)
-- [ ] Set up GitHub Actions CI/CD
-  - [ ] Build and test on PR
-  - [ ] Multi-version test matrix (OpenShift 4.18, 4.19, 4.20, K8s 1.25+)
-  - [ ] Container image build and push
-  - [ ] OLM bundle validation
+- [ ] Create OLM bundle
+  - [ ] Generate ClusterServiceVersion (CSV)
+  - [ ] Define operator metadata
+  - [ ] Create bundle manifests
+  - [ ] Test bundle installation with OLM
+- [ ] Create Helm chart
+  - [ ] Define Chart.yaml and values.yaml
+  - [ ] Parameterize deployment configuration
+  - [ ] Add Helm hooks for upgrades
+  - [ ] Test Helm installation
+- [ ] Create raw Kustomize manifests
+  - [ ] Base manifests
+  - [ ] Overlays for different environments
+- [ ] Set up ServiceMonitor for Prometheus
+- [ ] Create Grafana dashboard JSON
+- [ ] Create alerting rules YAML
+- [ ] Document installation procedures
 - [ ] Set up automated releases
   - [ ] GitHub Releases
   - [ ] Container image tagging
   - [ ] Bundle versioning
 
 **Dependencies:**
-- Phase 5 complete
-- GitHub Actions configured
+- Phase 5 complete (CI/CD testing)
+- Phase 6 complete (Observability)
+- OLM installed on test cluster
 
 **Success Criteria:**
-- All unit tests pass
-- Integration tests pass on OpenShift 4.18
-- E2e tests pass with all three notebook tiers
-- CI/CD pipeline runs on every PR
+- OLM bundle installs successfully on OpenShift 4.18
+- Helm chart installs successfully on Kubernetes 1.25+
+- Kustomize manifests deploy successfully
+- Prometheus scrapes metrics
+- Grafana dashboard displays metrics
 - Automated releases work
 
 ### Phase 7: Multi-Version Support (Weeks 7-8)
