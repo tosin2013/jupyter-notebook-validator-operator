@@ -56,8 +56,8 @@ func (r *NotebookValidationJob) Default() {
 	// - Users can grant additional permissions to "default" SA if needed
 	// - Future enhancement: implement annotation-based injection for custom SAs
 	if r.Spec.PodConfig.ServiceAccountName == "" {
-		notebookvalidationjoblog.Info("injecting default ServiceAccount", 
-			"name", r.Name, 
+		notebookvalidationjoblog.Info("injecting default ServiceAccount",
+			"name", r.Name,
 			"namespace", r.Namespace,
 			"serviceAccount", "default")
 		r.Spec.PodConfig.ServiceAccountName = "default"
