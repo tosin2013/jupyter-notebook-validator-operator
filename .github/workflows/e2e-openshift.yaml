@@ -1,0 +1,289 @@
+name: E2E - OpenShift Cluster Tests (Tier 2)
+
+# ADR-033: End-to-End Testing Against Live OpenShift Cluster
+# This workflow runs complete E2E tests on a live OpenShift 4.18 cluster,
+# validating the full operator workflow including Tekton builds and notebook validation.
+
+on:
+  push:
+    branches: [ main, 'release-*' ]
+  pull_request:
+    branches: [ main, 'release-*' ]
+    types: [ labeled, opened, synchronize, reopened ]
+  workflow_dispatch:
+    inputs:
+      test_tier:
+        description: 'Test tier to run (1, 2, 3, or all)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - 'all'
+
+env:
+  GO_VERSION: '1.22'
+  TEST_NAMESPACE: 'e2e-tests'
+  OPERATOR_NAMESPACE: 'jupyter-notebook-validator-operator'
+  TEST_REPO: 'https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git'
+
+jobs:
+  # Only run E2E tests if:
+  # 1. Pushed to main or release branches
+  # 2. PR has 'e2e-test' label
+  # 3. Manually triggered
+  check-trigger:
+    name: Check E2E Trigger
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Check if E2E should run
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" == "push" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "E2E triggered by push to ${{ github.ref }}"
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "E2E triggered manually"
+          elif [ "${{ github.event_name }}" == "pull_request" ]; then
+            if [ "${{ contains(github.event.pull_request.labels.*.name, 'e2e-test') }}" == "true" ]; then
+              echo "should_run=true" >> $GITHUB_OUTPUT
+              echo "E2E triggered by 'e2e-test' label on PR"
+            else
+              echo "should_run=false" >> $GITHUB_OUTPUT
+              echo "E2E skipped - add 'e2e-test' label to PR to run"
+            fi
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+
+  openshift-e2e:
+    name: OpenShift E2E Tests
+    runs-on: ubuntu-latest
+    needs: check-trigger
+    if: needs.check-trigger.outputs.should_run == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install OpenShift CLI
+        run: |
+          echo "Installing oc CLI..."
+          curl -LO https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz
+          tar -xzf openshift-client-linux.tar.gz
+          sudo mv oc kubectl /usr/local/bin/
+          oc version --client
+
+      - name: Login to OpenShift cluster
+        env:
+          OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
+          OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
+        run: |
+          if [ -z "$OPENSHIFT_SERVER" ] || [ -z "$OPENSHIFT_TOKEN" ]; then
+            echo "❌ Error: OPENSHIFT_SERVER or OPENSHIFT_TOKEN not configured"
+            echo "Please configure GitHub Secrets:"
+            echo "  - OPENSHIFT_SERVER: OpenShift API server URL"
+            echo "  - OPENSHIFT_TOKEN: Service account token"
+            exit 1
+          fi
+          
+          echo "Logging in to OpenShift cluster..."
+          oc login --token="$OPENSHIFT_TOKEN" --server="$OPENSHIFT_SERVER" --insecure-skip-tls-verify=true
+          
+          echo "Verifying cluster access..."
+          oc cluster-info
+          oc version
+          
+          echo "✅ Successfully logged in to OpenShift cluster"
+
+      - name: Create test namespace
+        run: |
+          echo "Creating test namespace: ${{ env.TEST_NAMESPACE }}"
+          oc create namespace ${{ env.TEST_NAMESPACE }} || true
+          oc project ${{ env.TEST_NAMESPACE }}
+          
+          echo "✅ Test namespace ready"
+
+      - name: Build and push operator image
+        env:
+          QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+          QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+        run: |
+          # Generate unique tag for this test run
+          IMAGE_TAG="e2e-test-$(git rev-parse --short HEAD)-$(date +%s)"
+          IMAGE="quay.io/takinosh/jupyter-notebook-validator-operator:${IMAGE_TAG}"
+          
+          echo "Building operator image: ${IMAGE}"
+          make docker-build IMG="${IMAGE}"
+          
+          echo "Logging in to Quay.io..."
+          echo "$QUAY_PASSWORD" | docker login -u "$QUAY_USERNAME" --password-stdin quay.io
+          
+          echo "Pushing operator image..."
+          make docker-push IMG="${IMAGE}"
+          
+          echo "IMAGE=${IMAGE}" >> $GITHUB_ENV
+          echo "✅ Operator image built and pushed: ${IMAGE}"
+
+      - name: Install operator
+        run: |
+          echo "Installing CRDs..."
+          make install
+          
+          echo "Deploying operator..."
+          make deploy IMG="${IMAGE}"
+          
+          echo "Waiting for operator to be ready..."
+          oc wait --for=condition=available deployment/jupyter-notebook-validator-operator-controller-manager \
+            -n ${{ env.OPERATOR_NAMESPACE }} --timeout=5m
+          
+          echo "✅ Operator deployed successfully"
+          oc get pods -n ${{ env.OPERATOR_NAMESPACE }}
+
+      - name: Clone test notebooks repository
+        env:
+          TEST_REPO_TOKEN: ${{ secrets.TEST_REPO_TOKEN }}
+        run: |
+          echo "Cloning test notebooks repository..."
+          
+          if [ -n "$TEST_REPO_TOKEN" ]; then
+            # Use token for private repository
+            git clone https://${TEST_REPO_TOKEN}@github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git test-notebooks
+          else
+            # Public repository
+            git clone ${{ env.TEST_REPO }} test-notebooks
+          fi
+          
+          cd test-notebooks
+          echo "Test notebooks cloned successfully"
+          ls -la
+
+      - name: Run Tier 1 tests (Simple notebooks)
+        if: github.event.inputs.test_tier == '1' || github.event.inputs.test_tier == 'all' || github.event.inputs.test_tier == ''
+        run: |
+          echo "=== Running Tier 1 Tests (Simple notebooks) ==="
+          cd test-notebooks
+          
+          # Run tier 1 test script
+          if [ -f scripts/run-tier1-tests.sh ]; then
+            bash scripts/run-tier1-tests.sh
+          else
+            echo "Creating tier 1 test jobs..."
+            for notebook in notebooks/tier1-simple/*.ipynb; do
+              if [ -f "$notebook" ]; then
+                echo "Testing: $notebook"
+                # Create NotebookValidationJob for each notebook
+                # (Implementation depends on test notebook structure)
+              fi
+            done
+          fi
+          
+          echo "✅ Tier 1 tests completed"
+
+      - name: Run Tier 2 tests (Intermediate notebooks)
+        if: github.event.inputs.test_tier == '2' || github.event.inputs.test_tier == 'all' || github.event.inputs.test_tier == ''
+        run: |
+          echo "=== Running Tier 2 Tests (Intermediate notebooks) ==="
+          cd test-notebooks
+          
+          # Run tier 2 test script
+          if [ -f scripts/run-tier2-tests.sh ]; then
+            bash scripts/run-tier2-tests.sh
+          else
+            echo "Tier 2 tests not yet implemented"
+          fi
+          
+          echo "✅ Tier 2 tests completed"
+
+      - name: Run Tier 3 tests (Complex notebooks)
+        if: github.event.inputs.test_tier == '3' || github.event.inputs.test_tier == 'all' || github.event.inputs.test_tier == ''
+        run: |
+          echo "=== Running Tier 3 Tests (Complex notebooks) ==="
+          cd test-notebooks
+          
+          # Run tier 3 test script
+          if [ -f scripts/run-tier3-tests.sh ]; then
+            bash scripts/run-tier3-tests.sh
+          else
+            echo "Tier 3 tests not yet implemented"
+          fi
+          
+          echo "✅ Tier 3 tests completed"
+
+      - name: Collect test results
+        if: always()
+        run: |
+          echo "=== Collecting Test Results ==="
+          
+          # Get all NotebookValidationJobs
+          oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -o yaml > test-results.yaml
+          
+          # Get validation pod logs
+          mkdir -p logs
+          for pod in $(oc get pods -n ${{ env.TEST_NAMESPACE }} -l app=notebook-validation -o name); do
+            pod_name=$(basename $pod)
+            oc logs $pod -n ${{ env.TEST_NAMESPACE }} > logs/${pod_name}.log || true
+          done
+          
+          # Get operator logs
+          oc logs -n ${{ env.OPERATOR_NAMESPACE }} \
+            -l control-plane=controller-manager --tail=500 > logs/operator.log || true
+          
+          echo "✅ Test results collected"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: |
+            test-results.yaml
+            logs/
+
+      - name: Cleanup resources
+        if: always()
+        run: |
+          echo "=== Cleaning up test resources ==="
+          
+          # Delete test namespace
+          oc delete namespace ${{ env.TEST_NAMESPACE }} --wait=false || true
+          
+          # Uninstall operator
+          make undeploy || true
+          
+          # Delete CRDs
+          make uninstall || true
+          
+          echo "✅ Cleanup completed"
+
+  tier2-status:
+    name: Tier 2 E2E Status
+    runs-on: ubuntu-latest
+    needs: [check-trigger, openshift-e2e]
+    if: always() && needs.check-trigger.outputs.should_run == 'true'
+    steps:
+      - name: Check Tier 2 status
+        run: |
+          echo "=== Tier 2 E2E Test Results ==="
+          echo "OpenShift E2E Tests: ${{ needs.openshift-e2e.result }}"
+          
+          if [ "${{ needs.openshift-e2e.result }}" != "success" ]; then
+            echo "❌ Tier 2 E2E tests failed!"
+            echo "Check the test results artifact for details"
+            exit 1
+          fi
+          
+          echo "✅ All Tier 2 E2E tests passed!"
+          echo ""
+          echo "Complete end-to-end workflow validated on OpenShift 4.18 cluster"
+

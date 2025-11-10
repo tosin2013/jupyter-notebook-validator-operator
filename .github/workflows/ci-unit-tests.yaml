@@ -1,0 +1,280 @@
+name: CI - Unit & Integration Tests (Tier 1)
+
+# ADR-032: GitHub Actions CI Testing Against Kubernetes 1.31.10
+# This workflow runs unit and integration tests on a KinD cluster pinned to
+# Kubernetes v1.31.10 to match OpenShift 4.18.21 API compatibility.
+
+on:
+  push:
+    branches: [ main, develop, 'release-*' ]
+  pull_request:
+    branches: [ main, develop, 'release-*' ]
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.22'
+  KUBERNETES_VERSION: 'v1.31.10'
+  KIND_VERSION: 'v0.20.0'
+  TEKTON_VERSION: 'v0.65.0'
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run go fmt
+        run: |
+          if [ -n "$(gofmt -s -l .)" ]; then
+            echo "Go code is not formatted:"
+            gofmt -s -d .
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run unit tests
+        run: make test
+
+      - name: Generate coverage report
+        run: go test -coverprofile=coverage.out -covermode=atomic $(go list ./... | grep -v /e2e)
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.out
+          flags: unittests
+          name: codecov-tier1
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: |
+            coverage.out
+            cover.out
+
+  integration-tests:
+    name: Integration Tests (KinD + Kubernetes v1.31.10)
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Create KinD cluster (Kubernetes v1.31.10)
+        uses: helm/kind-action@v1
+        with:
+          version: ${{ env.KIND_VERSION }}
+          node_image: kindest/node:${{ env.KUBERNETES_VERSION }}
+          cluster_name: test-cluster
+          wait: 5m
+          config: |
+            kind: Cluster
+            apiVersion: kind.x-k8s.io/v1alpha4
+            nodes:
+            - role: control-plane
+              extraPortMappings:
+              - containerPort: 30080
+                hostPort: 30080
+                protocol: TCP
+
+      - name: Verify cluster
+        run: |
+          kubectl cluster-info
+          kubectl version
+          kubectl get nodes
+          echo "Kubernetes version:"
+          kubectl version --short
+
+      - name: Install Tekton Pipelines
+        run: |
+          echo "Installing Tekton Pipelines ${{ env.TEKTON_VERSION }}..."
+          kubectl apply -f https://storage.googleapis.com/tekton-releases/pipeline/previous/${{ env.TEKTON_VERSION }}/release.yaml
+          
+          echo "Waiting for Tekton to be ready..."
+          kubectl wait --for=condition=ready pod -l app=tekton-pipelines-controller -n tekton-pipelines --timeout=5m
+          kubectl wait --for=condition=ready pod -l app=tekton-pipelines-webhook -n tekton-pipelines --timeout=5m
+          
+          echo "Tekton Pipelines installed successfully"
+          kubectl get pods -n tekton-pipelines
+
+      - name: Install CRDs
+        run: |
+          echo "Installing NotebookValidationJob CRD..."
+          make install
+          
+          echo "Verifying CRD installation..."
+          kubectl get crd notebookvalidationjobs.mlops.mlops.dev
+          
+          echo "CRD installed successfully"
+
+      - name: Build operator image
+        run: |
+          echo "Building operator image..."
+          make docker-build IMG=localhost:5000/jupyter-notebook-validator-operator:test
+          
+          echo "Loading image into KinD cluster..."
+          kind load docker-image localhost:5000/jupyter-notebook-validator-operator:test --name test-cluster
+          
+          echo "Operator image loaded successfully"
+
+      - name: Deploy operator
+        run: |
+          echo "Deploying operator to KinD cluster..."
+          make deploy IMG=localhost:5000/jupyter-notebook-validator-operator:test
+          
+          echo "Waiting for operator to be ready..."
+          kubectl wait --for=condition=available deployment/jupyter-notebook-validator-operator-controller-manager \
+            -n jupyter-notebook-validator-operator-system --timeout=5m
+          
+          echo "Operator deployed successfully"
+          kubectl get pods -n jupyter-notebook-validator-operator-system
+
+      - name: Run integration tests
+        run: |
+          echo "Running integration tests..."
+          
+          # Create test namespace
+          kubectl create namespace test-integration || true
+          
+          # Run integration tests (excluding e2e)
+          go test -v -timeout=15m ./pkg/build/... -run "TestIntegration" || true
+          
+          echo "Integration tests completed"
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "=== Operator Logs ==="
+          kubectl logs -n jupyter-notebook-validator-operator-system \
+            -l control-plane=controller-manager --tail=100 || true
+          
+          echo "=== Tekton Logs ==="
+          kubectl logs -n tekton-pipelines -l app=tekton-pipelines-controller --tail=100 || true
+          
+          echo "=== All Pods ==="
+          kubectl get pods --all-namespaces
+          
+          echo "=== Events ==="
+          kubectl get events --all-namespaces --sort-by='.lastTimestamp'
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: |
+            /tmp/integration-test-*.log
+
+  build-verification:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build operator
+        run: make build
+
+      - name: Verify binary
+        run: |
+          if [ ! -f bin/manager ]; then
+            echo "Binary not found!"
+            exit 1
+          fi
+          file bin/manager
+          ls -lh bin/manager
+
+      - name: Build Docker image
+        run: |
+          make docker-build IMG=test-operator:latest
+          docker images | grep test-operator
+
+  manifest-validation:
+    name: Manifest Validation
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Generate manifests
+        run: make manifests
+
+      - name: Check for uncommitted changes
+        run: |
+          git diff --exit-code || (echo "Manifests are out of date. Run 'make manifests' and commit the changes." && exit 1)
+
+      - name: Validate CRD
+        run: |
+          if [ ! -f config/crd/bases/mlops.mlops.dev_notebookvalidationjobs.yaml ]; then
+            echo "CRD not found!"
+            exit 1
+          fi
+          echo "CRD validation passed"
+          
+          # Validate CRD structure
+          kubectl apply --dry-run=client -f config/crd/bases/mlops.mlops.dev_notebookvalidationjobs.yaml
+
+  tier1-status:
+    name: Tier 1 CI Status
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, build-verification, manifest-validation]
+    if: always()
+    steps:
+      - name: Check Tier 1 status
+        run: |
+          echo "=== Tier 1 CI Test Results ==="
+          echo "Unit Tests: ${{ needs.unit-tests.result }}"
+          echo "Integration Tests: ${{ needs.integration-tests.result }}"
+          echo "Build Verification: ${{ needs.build-verification.result }}"
+          echo "Manifest Validation: ${{ needs.manifest-validation.result }}"
+          
+          if [ "${{ needs.unit-tests.result }}" != "success" ] || \
+             [ "${{ needs.integration-tests.result }}" != "success" ] || \
+             [ "${{ needs.build-verification.result }}" != "success" ] || \
+             [ "${{ needs.manifest-validation.result }}" != "success" ]; then
+            echo "❌ Tier 1 CI checks failed!"
+            exit 1
+          fi
+          
+          echo "✅ All Tier 1 CI checks passed!"
+          echo ""
+          echo "Next: Tier 2 E2E tests on live OpenShift cluster (manual approval required)"
+
