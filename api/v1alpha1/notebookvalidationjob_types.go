@@ -91,7 +91,9 @@ type PodConfigSpec struct {
 	Resources *ResourceRequirements `json:"resources,omitempty"`
 
 	// ServiceAccountName is the name of the ServiceAccount to use for the validation pod
-	// +kubebuilder:default="notebook-validator-jupyter-notebook-validator-runner"
+	// Defaults to "default" which exists in all namespaces
+	// The mutating webhook will inject this default if not specified
+	// +kubebuilder:default="default"
 	// +optional
 	ServiceAccountName string `json:"serviceAccountName,omitempty"`
 

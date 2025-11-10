@@ -415,9 +415,11 @@ spec:
                         type: object
                     type: object
                   serviceAccountName:
-                    default: notebook-validator-jupyter-notebook-validator-runner
-                    description: ServiceAccountName is the name of the ServiceAccount
-                      to use for the validation pod
+                    default: default
+                    description: |-
+                      ServiceAccountName is the name of the ServiceAccount to use for the validation pod
+                      Defaults to "default" which exists in all namespaces
+                      The mutating webhook will inject this default if not specified
                     type: string
                 required:
                 - containerImage
