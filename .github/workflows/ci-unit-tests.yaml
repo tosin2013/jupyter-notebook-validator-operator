@@ -156,13 +156,13 @@ jobs:
         run: |
           echo "Deploying operator to KinD cluster..."
           make deploy IMG=localhost:5000/jupyter-notebook-validator-operator:test
-          
+
           echo "Waiting for operator to be ready..."
-          kubectl wait --for=condition=available deployment/jupyter-notebook-validator-operator-controller-manager \
-            -n jupyter-notebook-validator-operator-system --timeout=5m
-          
+          kubectl wait --for=condition=available deployment/notebook-validator-controller-manager \
+            -n jupyter-notebook-validator-operator --timeout=5m
+
           echo "Operator deployed successfully"
-          kubectl get pods -n jupyter-notebook-validator-operator-system
+          kubectl get pods -n jupyter-notebook-validator-operator
 
       - name: Run integration tests
         run: |
@@ -180,15 +180,15 @@ jobs:
         if: failure()
         run: |
           echo "=== Operator Logs ==="
-          kubectl logs -n jupyter-notebook-validator-operator-system \
+          kubectl logs -n jupyter-notebook-validator-operator \
             -l control-plane=controller-manager --tail=100 || true
-          
+
           echo "=== Tekton Logs ==="
           kubectl logs -n tekton-pipelines -l app=tekton-pipelines-controller --tail=100 || true
-          
+
           echo "=== All Pods ==="
           kubectl get pods --all-namespaces
-          
+
           echo "=== Events ==="
           kubectl get events --all-namespaces --sort-by='.lastTimestamp'
 
