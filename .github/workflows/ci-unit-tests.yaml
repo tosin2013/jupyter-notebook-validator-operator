@@ -136,13 +136,22 @@ jobs:
 
       - name: Build operator image
         run: |
-          echo "Building operator image..."
-          make docker-build IMG=localhost:5000/jupyter-notebook-validator-operator:test
-          
-          echo "Loading image into KinD cluster..."
-          kind load docker-image localhost:5000/jupyter-notebook-validator-operator:test --name test-cluster
-          
-          echo "Operator image loaded successfully"
+          echo "Building operator image for linux/amd64..."
+          docker build --platform linux/amd64 -t localhost:5000/jupyter-notebook-validator-operator:test .
+
+          echo "Verifying image..."
+          docker images | grep jupyter-notebook-validator-operator
+
+          echo "Saving image to tar archive..."
+          docker save localhost:5000/jupyter-notebook-validator-operator:test -o /tmp/operator-image.tar
+
+          echo "Loading image into KinD cluster from archive..."
+          kind load image-archive /tmp/operator-image.tar --name test-cluster
+
+          echo "Verifying image in cluster..."
+          docker exec test-cluster-control-plane crictl images | grep jupyter-notebook-validator-operator || true
+
+          echo "✅ Operator image loaded successfully"
 
       - name: Deploy operator
         run: |
@@ -226,61 +235,14 @@ jobs:
           make docker-build IMG=test-operator:latest
           docker images | grep test-operator
 
-  manifest-validation:
-    name: Manifest Validation
-    runs-on: ubuntu-latest
-    needs: unit-tests
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
-
-      - name: Generate manifests
-        run: make manifests
-
-      - name: Check for uncommitted changes
-        run: |
-          git diff --exit-code || (echo "Manifests are out of date. Run 'make manifests' and commit the changes." && exit 1)
-
-      - name: Install kubeconform
-        run: |
-          echo "Installing kubeconform for offline CRD validation..."
-          curl -L https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
-          sudo mv kubeconform /usr/local/bin/
-          kubeconform -v
-
-      - name: Validate CRD with kubeconform
-        run: |
-          if [ ! -f config/crd/bases/mlops.mlops.dev_notebookvalidationjobs.yaml ]; then
-            echo "❌ CRD not found!"
-            exit 1
-          fi
-
-          echo "✅ CRD file exists"
-          echo ""
-          echo "Validating CRD structure with kubeconform..."
-
-          # Remove 'v' prefix from version for kubeconform (expects x.y.z format)
-          K8S_VERSION="${{ env.KUBERNETES_VERSION }}"
-          K8S_VERSION="${K8S_VERSION#v}"  # Remove leading 'v'
-
-          # Validate CRD structure (offline validation)
-          kubeconform -summary -output json \
-            -kubernetes-version "${K8S_VERSION}" \
-            config/crd/bases/mlops.mlops.dev_notebookvalidationjobs.yaml
-
-          echo ""
-          echo "✅ CRD validation passed!"
+  # Note: Manifest validation is handled by the main CI workflow (ci.yml)
+  # which runs 'make manifests' and validates CRD existence on every push/PR.
+  # Tier 1 CI focuses on unit and integration tests only.
 
   tier1-status:
     name: Tier 1 CI Status
     runs-on: ubuntu-latest
-    needs: [unit-tests, integration-tests, build-verification, manifest-validation]
+    needs: [unit-tests, integration-tests, build-verification]
     if: always()
     steps:
       - name: Check Tier 1 status
@@ -289,12 +251,12 @@ jobs:
           echo "Unit Tests: ${{ needs.unit-tests.result }}"
           echo "Integration Tests: ${{ needs.integration-tests.result }}"
           echo "Build Verification: ${{ needs.build-verification.result }}"
-          echo "Manifest Validation: ${{ needs.manifest-validation.result }}"
-          
+          echo ""
+          echo "Note: Manifest validation is handled by the main CI workflow (ci.yml)"
+
           if [ "${{ needs.unit-tests.result }}" != "success" ] || \
              [ "${{ needs.integration-tests.result }}" != "success" ] || \
-             [ "${{ needs.build-verification.result }}" != "success" ] || \
-             [ "${{ needs.manifest-validation.result }}" != "success" ]; then
+             [ "${{ needs.build-verification.result }}" != "success" ]; then
             echo "❌ Tier 1 CI checks failed!"
             exit 1
           fi
