@@ -81,6 +81,20 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
+      - name: Create KinD config file
+        run: |
+          cat > /tmp/kind-config.yaml <<EOF
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          nodes:
+          - role: control-plane
+            extraPortMappings:
+            - containerPort: 30080
+              hostPort: 30080
+              protocol: TCP
+          EOF
+          cat /tmp/kind-config.yaml
+
       - name: Create KinD cluster (Kubernetes v1.31.10)
         uses: helm/kind-action@v1
         with:
@@ -88,15 +102,7 @@ jobs:
           node_image: kindest/node:${{ env.KUBERNETES_VERSION }}
           cluster_name: test-cluster
           wait: 5m
-          config: |
-            kind: Cluster
-            apiVersion: kind.x-k8s.io/v1alpha4
-            nodes:
-            - role: control-plane
-              extraPortMappings:
-              - containerPort: 30080
-                hostPort: 30080
-                protocol: TCP
+          config: /tmp/kind-config.yaml
 
       - name: Verify cluster
         run: |
@@ -241,16 +247,31 @@ jobs:
         run: |
           git diff --exit-code || (echo "Manifests are out of date. Run 'make manifests' and commit the changes." && exit 1)
 
-      - name: Validate CRD
+      - name: Install kubeconform
+        run: |
+          echo "Installing kubeconform for offline CRD validation..."
+          curl -L https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin/
+          kubeconform -v
+
+      - name: Validate CRD with kubeconform
         run: |
           if [ ! -f config/crd/bases/mlops.mlops.dev_notebookvalidationjobs.yaml ]; then
-            echo "CRD not found!"
+            echo "❌ CRD not found!"
             exit 1
           fi
-          echo "CRD validation passed"
-          
-          # Validate CRD structure
-          kubectl apply --dry-run=client -f config/crd/bases/mlops.mlops.dev_notebookvalidationjobs.yaml
+
+          echo "✅ CRD file exists"
+          echo ""
+          echo "Validating CRD structure with kubeconform..."
+
+          # Validate CRD structure (offline validation)
+          kubeconform -summary -output json \
+            -kubernetes-version ${{ env.KUBERNETES_VERSION }} \
+            config/crd/bases/mlops.mlops.dev_notebookvalidationjobs.yaml
+
+          echo ""
+          echo "✅ CRD validation passed!"
 
   tier1-status:
     name: Tier 1 CI Status
