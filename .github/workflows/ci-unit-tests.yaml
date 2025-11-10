@@ -142,14 +142,13 @@ jobs:
           echo "Verifying image..."
           docker images | grep jupyter-notebook-validator-operator
 
-          echo "Saving image to tar archive..."
-          docker save localhost:5000/jupyter-notebook-validator-operator:test -o /tmp/operator-image.tar
-
-          echo "Loading image into KinD cluster from archive..."
-          kind load image-archive /tmp/operator-image.tar --name test-cluster
+          echo "Loading image directly into KinD node..."
+          # Use docker exec to import image directly into containerd
+          docker save localhost:5000/jupyter-notebook-validator-operator:test | \
+            docker exec -i test-cluster-control-plane ctr -n=k8s.io images import -
 
           echo "Verifying image in cluster..."
-          docker exec test-cluster-control-plane crictl images | grep jupyter-notebook-validator-operator || true
+          docker exec test-cluster-control-plane crictl images | grep jupyter-notebook-validator-operator
 
           echo "✅ Operator image loaded successfully"
 
