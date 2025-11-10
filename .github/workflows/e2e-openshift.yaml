@@ -150,12 +150,72 @@ jobs:
           echo "✅ Operator deployed successfully"
           oc get pods -n ${{ env.OPERATOR_NAMESPACE }}
 
+      - name: Setup validation runner RBAC
+        run: |
+          echo "Creating validation runner ServiceAccount and RBAC in test namespace..."
+
+          # Create ServiceAccount
+          cat <<EOF | oc apply -f -
+          apiVersion: v1
+          kind: ServiceAccount
+          metadata:
+            name: jupyter-notebook-validator-runner
+            namespace: ${{ env.TEST_NAMESPACE }}
+            labels:
+              app.kubernetes.io/name: jupyter-notebook-validator-operator
+              app.kubernetes.io/component: validation-runner
+          EOF
+
+          # Create Role
+          cat <<EOF | oc apply -f -
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: Role
+          metadata:
+            name: jupyter-notebook-validator-runner-role
+            namespace: ${{ env.TEST_NAMESPACE }}
+            labels:
+              app.kubernetes.io/name: jupyter-notebook-validator-operator
+              app.kubernetes.io/component: validation-runner
+          rules:
+            # Allow reading secrets for Git credentials
+            - apiGroups: [""]
+              resources: ["secrets"]
+              verbs: ["get", "list"]
+            # Allow reading configmaps for configuration
+            - apiGroups: [""]
+              resources: ["configmaps"]
+              verbs: ["get", "list"]
+          EOF
+
+          # Create RoleBinding
+          cat <<EOF | oc apply -f -
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata:
+            name: jupyter-notebook-validator-runner-rolebinding
+            namespace: ${{ env.TEST_NAMESPACE }}
+            labels:
+              app.kubernetes.io/name: jupyter-notebook-validator-operator
+              app.kubernetes.io/component: validation-runner
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: Role
+            name: jupyter-notebook-validator-runner-role
+          subjects:
+            - kind: ServiceAccount
+              name: jupyter-notebook-validator-runner
+              namespace: ${{ env.TEST_NAMESPACE }}
+          EOF
+
+          echo "✅ Validation runner RBAC configured"
+          oc get serviceaccount jupyter-notebook-validator-runner -n ${{ env.TEST_NAMESPACE }}
+
       - name: Clone test notebooks repository
         env:
           TEST_REPO_TOKEN: ${{ secrets.TEST_REPO_TOKEN }}
         run: |
           echo "Cloning test notebooks repository..."
-          
+
           if [ -n "$TEST_REPO_TOKEN" ]; then
             # Use token for private repository
             git clone https://${TEST_REPO_TOKEN}@github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git test-notebooks
@@ -163,7 +223,7 @@ jobs:
             # Public repository
             git clone ${{ env.TEST_REPO }} test-notebooks
           fi
-          
+
           cd test-notebooks
           echo "Test notebooks cloned successfully"
           ls -la
