@@ -137,14 +137,14 @@ jobs:
       - name: Build operator image
         run: |
           echo "Building operator image for linux/amd64..."
-          docker build --platform linux/amd64 -t localhost:5000/jupyter-notebook-validator-operator:test .
+          docker build --platform linux/amd64 -t jupyter-notebook-validator-operator:test .
 
           echo "Verifying image..."
           docker images | grep jupyter-notebook-validator-operator
 
           echo "Loading image directly into KinD node..."
           # Use docker exec to import image directly into containerd
-          docker save localhost:5000/jupyter-notebook-validator-operator:test | \
+          docker save jupyter-notebook-validator-operator:test | \
             docker exec -i test-cluster-control-plane ctr -n=k8s.io images import -
 
           echo "Verifying image in cluster..."
@@ -155,7 +155,12 @@ jobs:
       - name: Deploy operator
         run: |
           echo "Deploying operator to KinD cluster..."
-          make deploy IMG=localhost:5000/jupyter-notebook-validator-operator:test
+          make deploy IMG=jupyter-notebook-validator-operator:test
+
+          echo "Patching deployment to use imagePullPolicy: Never..."
+          kubectl patch deployment notebook-validator-controller-manager \
+            -n jupyter-notebook-validator-operator \
+            -p '{"spec":{"template":{"spec":{"containers":[{"name":"manager","imagePullPolicy":"Never"}]}}}}'
 
           echo "Waiting for operator to be ready..."
           kubectl wait --for=condition=available deployment/notebook-validator-controller-manager \
