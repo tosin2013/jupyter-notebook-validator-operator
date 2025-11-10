@@ -110,7 +110,7 @@ jobs:
           kubectl version
           kubectl get nodes
           echo "Kubernetes version:"
-          kubectl version --short
+          kubectl version -o json | jq -r '.serverVersion.gitVersion'
 
       - name: Install Tekton Pipelines
         run: |
@@ -265,9 +265,13 @@ jobs:
           echo ""
           echo "Validating CRD structure with kubeconform..."
 
+          # Remove 'v' prefix from version for kubeconform (expects x.y.z format)
+          K8S_VERSION="${{ env.KUBERNETES_VERSION }}"
+          K8S_VERSION="${K8S_VERSION#v}"  # Remove leading 'v'
+
           # Validate CRD structure (offline validation)
           kubeconform -summary -output json \
-            -kubernetes-version ${{ env.KUBERNETES_VERSION }} \
+            -kubernetes-version "${K8S_VERSION}" \
             config/crd/bases/mlops.mlops.dev_notebookvalidationjobs.yaml
 
           echo ""
