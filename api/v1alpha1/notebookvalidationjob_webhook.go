@@ -97,4 +97,3 @@ func (r *NotebookValidationJob) ValidateDelete() (admission.Warnings, error) {
 	// TODO(user): fill in your validation logic upon object deletion.
 	return nil, nil
 }
-
