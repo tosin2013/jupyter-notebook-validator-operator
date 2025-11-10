@@ -144,7 +144,7 @@ jobs:
           make deploy IMG="${IMAGE}"
           
           echo "Waiting for operator to be ready..."
-          oc wait --for=condition=available deployment/jupyter-notebook-validator-operator-controller-manager \
+          oc wait --for=condition=available deployment/notebook-validator-controller-manager \
             -n ${{ env.OPERATOR_NAMESPACE }} --timeout=5m
           
           echo "✅ Operator deployed successfully"
