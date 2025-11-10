@@ -135,80 +135,42 @@ jobs:
           echo "IMAGE=${IMAGE}" >> $GITHUB_ENV
           echo "✅ Operator image built and pushed: ${IMAGE}"
 
+      - name: Install cert-manager
+        run: |
+          echo "Installing cert-manager..."
+
+          # Install cert-manager using kubectl
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml
+
+          echo "Waiting for cert-manager to be ready..."
+          kubectl wait --for=condition=available deployment/cert-manager \
+            -n cert-manager --timeout=5m
+          kubectl wait --for=condition=available deployment/cert-manager-webhook \
+            -n cert-manager --timeout=5m
+          kubectl wait --for=condition=available deployment/cert-manager-cainjector \
+            -n cert-manager --timeout=5m
+
+          echo "✅ cert-manager installed successfully"
+          kubectl get pods -n cert-manager
+
       - name: Install operator
         run: |
           echo "Installing CRDs..."
           make install
-          
-          echo "Deploying operator..."
+
+          echo "Deploying operator with webhook support..."
           make deploy IMG="${IMAGE}"
-          
+
           echo "Waiting for operator to be ready..."
           oc wait --for=condition=available deployment/notebook-validator-controller-manager \
             -n ${{ env.OPERATOR_NAMESPACE }} --timeout=5m
-          
-          echo "✅ Operator deployed successfully"
+
+          echo "Verifying webhook certificate..."
+          oc get certificate -n ${{ env.OPERATOR_NAMESPACE }}
+          oc get secret webhook-server-cert -n ${{ env.OPERATOR_NAMESPACE }}
+
+          echo "✅ Operator deployed successfully with webhook"
           oc get pods -n ${{ env.OPERATOR_NAMESPACE }}
-
-      - name: Setup validation runner RBAC
-        run: |
-          echo "Creating validation runner ServiceAccount and RBAC in test namespace..."
-
-          # Create ServiceAccount
-          cat <<EOF | oc apply -f -
-          apiVersion: v1
-          kind: ServiceAccount
-          metadata:
-            name: jupyter-notebook-validator-runner
-            namespace: ${{ env.TEST_NAMESPACE }}
-            labels:
-              app.kubernetes.io/name: jupyter-notebook-validator-operator
-              app.kubernetes.io/component: validation-runner
-          EOF
-
-          # Create Role
-          cat <<EOF | oc apply -f -
-          apiVersion: rbac.authorization.k8s.io/v1
-          kind: Role
-          metadata:
-            name: jupyter-notebook-validator-runner-role
-            namespace: ${{ env.TEST_NAMESPACE }}
-            labels:
-              app.kubernetes.io/name: jupyter-notebook-validator-operator
-              app.kubernetes.io/component: validation-runner
-          rules:
-            # Allow reading secrets for Git credentials
-            - apiGroups: [""]
-              resources: ["secrets"]
-              verbs: ["get", "list"]
-            # Allow reading configmaps for configuration
-            - apiGroups: [""]
-              resources: ["configmaps"]
-              verbs: ["get", "list"]
-          EOF
-
-          # Create RoleBinding
-          cat <<EOF | oc apply -f -
-          apiVersion: rbac.authorization.k8s.io/v1
-          kind: RoleBinding
-          metadata:
-            name: jupyter-notebook-validator-runner-rolebinding
-            namespace: ${{ env.TEST_NAMESPACE }}
-            labels:
-              app.kubernetes.io/name: jupyter-notebook-validator-operator
-              app.kubernetes.io/component: validation-runner
-          roleRef:
-            apiGroup: rbac.authorization.k8s.io
-            kind: Role
-            name: jupyter-notebook-validator-runner-role
-          subjects:
-            - kind: ServiceAccount
-              name: jupyter-notebook-validator-runner
-              namespace: ${{ env.TEST_NAMESPACE }}
-          EOF
-
-          echo "✅ Validation runner RBAC configured"
-          oc get serviceaccount jupyter-notebook-validator-runner -n ${{ env.TEST_NAMESPACE }}
 
       - name: Clone test notebooks repository
         env:
