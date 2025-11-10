@@ -14,7 +14,7 @@ on:
 env:
   GO_VERSION: '1.22'
   KUBERNETES_VERSION: 'v1.30.13'
-  KIND_VERSION: 'v0.20.0'
+  KIND_VERSION: 'v0.24.0'  # Upgraded from v0.20.0 to fix containerd snapshotter bug
   TEKTON_VERSION: 'v0.65.0'
 
 jobs:
