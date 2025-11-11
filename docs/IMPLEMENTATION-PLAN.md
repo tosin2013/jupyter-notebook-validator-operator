@@ -1,6 +1,6 @@
 <!-- AUTO-UPDATED IMPLEMENTATION PLAN -->
 <!-- This file is automatically updated based on ADRs and project conversations -->
-<!-- Last Updated: 2025-11-08 -->
+<!-- Last Updated: 2025-11-11 -->
 <!-- Update Frequency: As project progresses and new decisions are made -->
 
 # Implementation Plan: Jupyter Notebook Validator Operator
@@ -15,11 +15,11 @@ The Jupyter Notebook Validator Operator is a Kubernetes-native operator that aut
 
 ## Project Status
 
-**Current Phase:** Phase 5 - CI/CD Testing Strategy 🔄 IN PROGRESS (30% complete)
+**Current Phase:** Phase 5 - CI/CD Testing Strategy 🔄 IN PROGRESS (70% complete)
 **Overall Progress:** 98% complete (Architecture, Planning, Foundation, Core Logic, Golden Comparison, Credential Management, Advanced Comparison, Comprehensive Logging, ADR Documentation, ESO Integration, Model-Aware Validation, and Tekton Build Integration)
-**Last Major Milestone:** ADR-031 Tekton Build Complete - Full end-to-end workflow verified (2025-11-09)
-**Current Focus:** CI/CD testing infrastructure (ADR-032, ADR-033)
-**Next Milestone:** Implement GitHub Actions workflows and proceed to observability (Phase 6)
+**Last Major Milestone:** Test Repository Reorganization Complete - All notebooks reorganized into tier structure (2025-11-10)
+**Current Focus:** Kind testing infrastructure and GitHub Actions workflows (ADR-032, ADR-034)
+**Next Milestone:** Implement Kind testing scripts and GitHub Actions CI/CD workflows, then proceed to observability (Phase 6)
 
 **OpenShift Cluster:** ✅ Available at `https://api.cluster-c4r4z.c4r4z.sandbox5156.opentlc.com:6443`
 **CRD Installed:** ✅ notebookvalidationjobs.mlops.mlops.dev
@@ -27,7 +27,7 @@ The Jupyter Notebook Validator Operator is a Kubernetes-native operator that aut
 
 ## Architecture Decisions Summary
 
-All architectural decisions are documented in 25 comprehensive ADRs:
+All architectural decisions are documented in 36 comprehensive ADRs:
 
 ### Core Architecture (ADR-001 to ADR-011)
 - **ADR-001:** Operator SDK v1.32.0+ with Go 1.21+ - Standard project layout with Kubebuilder
@@ -42,13 +42,17 @@ All architectural decisions are documented in 25 comprehensive ADRs:
 - **ADR-010:** Three-pillar observability - Structured logs, Prometheus metrics, Kubernetes Conditions
 - **ADR-011:** Three-tier error handling - Transient/Retriable/Terminal with exponential backoff
 
-### Tekton Build Integration (ADR-027, ADR-031) - NEW
-- **ADR-027:** S2I Build Strategy for Git Integration - Automatic image building with S2I
-- **ADR-031:** Tekton Build Dockerfile vs Base Image Support - Auto-generated and custom Dockerfiles
+### Tekton Build Integration (ADR-028, ADR-031) - PRIMARY BUILD METHOD
+- **ADR-028:** Tekton Task Strategy - Custom Tasks vs Cluster Tasks (Accepted)
+- **ADR-031:** Tekton Build Dockerfile vs Base Image Support - Primary build method (Supersedes ADR-027)
+- **ADR-027:** S2I Build Strategy (Superseded - fallback option only)
 
-### CI/CD Testing Strategy (ADR-032, ADR-033) - NEW
+### CI/CD Testing Strategy (ADR-032, ADR-033, ADR-034, ADR-035, ADR-036) - NEW
 - **ADR-032:** GitHub Actions CI Testing Against Kubernetes 1.31.10 - KinD-based unit/integration tests
 - **ADR-033:** End-to-End Testing Against Live OpenShift Cluster - Full workflow validation
+- **ADR-034:** Dual Testing Strategy with Kind and OpenShift - Local Kind for Tier 1, OpenShift for all tiers
+- **ADR-035:** Test Tier Organization and Scope - Three-tier test organization (Simple/Intermediate/Complex)
+- **ADR-036:** Private Test Repository Strategy - Private repo for authentication testing with future public repo plan
 
 ### Output Comparison (ADR-012 to ADR-013)
 - **ADR-012:** Release and CI/CD Strategy - GitHub Actions, multi-version testing, automated releases
@@ -69,10 +73,13 @@ All architectural decisions are documented in 25 comprehensive ADRs:
 - **ADR-021:** OpenShift-Native Dashboard Strategy - ConfigMap-based dashboards for OpenShift Console
 - **ADR-022:** Community Observability Contributions - Framework for community dashboard contributions
 
-### Build and Dependency Management (ADR-023 to ADR-025) - NEW
-- **ADR-023:** Strategy for Source-to-Image (S2I) Build Integration on OpenShift - Automatic image building with S2I
+### Build and Dependency Management (ADR-024 to ADR-025, ADR-028, ADR-031) - CURRENT
+- **ADR-031:** Tekton Build Strategy - Primary build method with Dockerfile and base image support (Accepted)
+- **ADR-028:** Tekton Task Strategy - Custom Tasks vs Cluster Tasks (Accepted)
 - **ADR-024:** Fallback Strategy for Notebooks Missing requirements.txt - Multi-tiered dependency detection
 - **ADR-025:** Community-Contributed Build Methods and Extension Framework - Pluggable build strategies
+- **ADR-023:** S2I Build Integration (ARCHIVED - duplicate of ADR-027)
+- **ADR-027:** S2I Build Strategy (Superseded by ADR-031 - fallback option only)
 
 ## Implementation Phases
 
@@ -1115,9 +1122,9 @@ Model-aware validation addresses critical gaps in ML/AI notebook workflows:
 
 ### Phase 5: CI/CD Testing Infrastructure (Weeks 5-6) - NEW
 
-**Status:** 🔄 IN PROGRESS (30% complete - 2025-11-09)
-**Objective:** Implement comprehensive CI/CD testing strategy with two-tier approach
-**Based on:** ADR-031 (Tekton Build), ADR-032 (GitHub Actions CI), ADR-033 (E2E Testing)
+**Status:** 🔄 IN PROGRESS (60% complete - 2025-11-11)
+**Objective:** Implement comprehensive CI/CD testing strategy with dual testing environments
+**Based on:** ADR-032 (GitHub Actions CI), ADR-033 (E2E Testing), ADR-034 (Dual Testing), ADR-035 (Test Tier Organization), ADR-036 (Private Test Repository)
 
 #### Background and Motivation
 
@@ -1127,9 +1134,14 @@ After completing ADR-031 (Tekton Build Integration) with full end-to-end success
 - **Ensure Quality**: Validate complete workflows on real OpenShift clusters
 - **Enable Confidence**: Automated testing for every PR and merge
 
-**Two-Tier Testing Strategy:**
-1. **Tier 1**: Unit & Integration tests on KinD (Kubernetes v1.31.10) - Fast feedback (~5 min)
-2. **Tier 2**: E2E tests on live OpenShift 4.18 cluster - Full validation (~15 min)
+**Dual Testing Strategy:**
+1. **Kind (Local)**: Tier 1 tests only - Fast feedback for developers (< 2 min)
+2. **OpenShift (CI/CD)**: All tiers (1, 2, 3) - Comprehensive validation (10-15 min)
+
+**Test Tier Organization:**
+- **Tier 1**: Simple validation (< 30s) - Basic notebook execution, no builds, no models
+- **Tier 2**: Intermediate complexity (1-5 min) - S2I/Tekton builds, dependencies, model training
+- **Tier 3**: Complex integration (5-30 min) - Model inference, external secrets, KServe/OpenShift AI
 
 #### Tasks
 
@@ -1153,81 +1165,135 @@ After completing ADR-031 (Tekton Build Integration) with full end-to-end success
   - [x] Add GitHub Secrets configuration instructions
   - [x] Add token setup and rotation procedures
   - **Commit:** `ef5271a` - docs: Add ADR-032 and ADR-033 for CI/CD testing strategy
+- [x] Create ADR-034: Dual Testing Strategy with Kind and OpenShift ✅ (2025-11-11)
+  - [x] Document Kind for local Tier 1 testing
+  - [x] Document OpenShift for comprehensive all-tier testing
+  - [x] Define test tier mapping (which tiers run where)
+  - [x] Document developer workflow and CI/CD integration
+- [x] Create ADR-035: Test Tier Organization and Scope ✅ (2025-11-11)
+  - [x] Define three test tiers (Simple/Intermediate/Complex)
+  - [x] Document tier boundaries and infrastructure requirements
+  - [x] Plan test repository reorganization
+  - [x] Define naming conventions and directory structure
+- [x] Create ADR-036: Private Test Repository Strategy ✅ (2025-11-11)
+  - [x] Document private repository for authentication testing
+  - [x] Plan user documentation for replicating testing approach
+  - [x] Define future public repository strategy (Phase 3)
+  - [x] Document authentication testing workflow
+- [x] Update ADR-033 with test tier organization details ✅ (2025-11-11)
+  - [x] Add references to ADR-034, ADR-035, ADR-036
+  - [x] Update test coverage section with tier details
+  - [x] Update workflow steps with infrastructure setup
 
-##### 5.2 GitHub Actions Workflows - IN PROGRESS
-- [ ] Create `.github/workflows/ci-unit-tests.yaml` (Tier 1)
-  - [ ] Setup KinD cluster with Kubernetes v1.31.10
-  - [ ] Install operator dependencies
-  - [ ] Run unit tests (`make test`)
-  - [ ] Run integration tests
-  - [ ] Upload test results and coverage
-  - [ ] Trigger on: PR, push to main/release branches
-- [ ] Create `.github/workflows/e2e-openshift.yaml` (Tier 2)
-  - [ ] Login to OpenShift cluster using GitHub Secret
-  - [ ] Install operator from latest image
-  - [ ] Clone test notebooks repository
-  - [ ] Run Tier 1 tests (simple notebooks)
-  - [ ] Run Tier 2 tests (intermediate notebooks)
-  - [ ] Run Tier 3 tests (complex notebooks)
-  - [ ] Collect results and logs
-  - [ ] Cleanup resources
-  - [ ] Trigger on: PR (manual approval), push to main/release branches
+##### 5.2 Test Repository Reorganization ✅ COMPLETE (2025-11-10)
+- [x] Reorganize test notebooks into proper tiers ✅
+  - [x] Move `model-training/train-sentiment-model.ipynb` → `notebooks/tier2-intermediate/01-train-sentiment-model.ipynb` ✅
+  - [x] Move `model-validation/kserve/model-inference-kserve.ipynb` → `notebooks/tier3-complex/01-model-inference-kserve.ipynb` ✅
+  - [x] Move `model-validation/openshift-ai/sentiment-analysis-test.ipynb` → `notebooks/tier3-complex/02-sentiment-analysis-test.ipynb` ✅
+  - [x] Move `eso-integration/*.ipynb` → `notebooks/tier3-complex/03-05-*.ipynb` ✅
+  - [x] Delete empty directories (`model-training/`, `model-validation/`, `eso-integration/`) ✅
+- [x] Update test scripts with new paths ✅
+  - [x] Update `scripts/run-tier1-tests.sh` to reference `notebooks/tier1-simple/` ✅
+  - [x] Update `scripts/run-tier2-tests.sh` to reference `notebooks/tier2-intermediate/` ✅
+  - [x] Update `scripts/run-tier3-tests.sh` to reference `notebooks/tier3-complex/` ✅
+- [x] Update test repository README.md ✅
+  - [x] Document new tier structure ✅
+  - [x] Update notebook descriptions ✅
+  - [x] Add tier execution time estimates ✅
+  - [x] Document infrastructure requirements per tier ✅
+- **Commit:** `21b9395` - Reorganize test notebooks into tier structure (ADR-034, ADR-035)
+- **Repository:** https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks/commit/21b9395
 
-##### 5.3 GitHub Secrets Configuration
+##### 5.3 Kind Testing Infrastructure - NOT STARTED
+- [ ] Create `scripts/test-local-kind.sh`
+  - [ ] Setup Kind cluster with Kubernetes 1.31.10
+  - [ ] Install cert-manager for webhooks
+  - [ ] Deploy operator to Kind cluster
+  - [ ] Create test namespace and git credentials
+  - [ ] Run Tier 1 tests only
+  - [ ] Cleanup Kind cluster
+- [ ] Document Kind setup in `docs/DEVELOPMENT.md`
+  - [ ] Prerequisites (Kind, kubectl, operator dependencies)
+  - [ ] Local testing workflow
+  - [ ] Troubleshooting guide
+  - [ ] Performance expectations (< 2 min for Tier 1)
+- [ ] Test Kind workflow locally
+  - [ ] Verify Tier 1 tests pass on Kind
+  - [ ] Validate git authentication works
+  - [ ] Ensure cleanup works properly
+  - [ ] Document any platform-specific issues
+
+##### 5.4 GitHub Actions Workflows - IN PROGRESS
+- [ ] Create `.github/workflows/e2e-tests.yaml` (Dual testing strategy)
+  - [ ] **Job 1: tier1-kind** (Fast feedback - 2-3 min)
+    - [ ] Setup Kind cluster with Kubernetes v1.31.10
+    - [ ] Install cert-manager for webhooks
+    - [ ] Deploy operator to Kind
+    - [ ] Create test namespace and git credentials
+    - [ ] Run Tier 1 tests only (simple notebooks)
+    - [ ] Upload test results
+    - [ ] Cleanup Kind cluster
+    - [ ] Trigger on: Every PR, push to main/release branches
+  - [ ] **Job 2: all-tiers-openshift** (Comprehensive - 10-15 min)
+    - [ ] Login to OpenShift cluster using GitHub Secret
+    - [ ] Create test namespace
+    - [ ] Deploy operator from latest image
+    - [ ] Setup test infrastructure (SCC, models)
+    - [ ] Run Tier 1 tests (simple notebooks)
+    - [ ] Run Tier 2 tests (build integration)
+    - [ ] Run Tier 3 tests (model inference)
+    - [ ] Collect results and logs
+    - [ ] Cleanup resources
+    - [ ] Trigger on: Every PR, push to main/release branches
+
+##### 5.5 GitHub Secrets Configuration
 - [ ] Configure OpenShift authentication secrets
   - [ ] `OPENSHIFT_TOKEN`: Service account token with cluster-admin
   - [ ] `OPENSHIFT_SERVER`: OpenShift API server URL
   - [ ] Document token creation procedure
   - [ ] Document 90-day rotation policy
 - [ ] Configure test repository access
+  - [ ] `TEST_REPO_USERNAME`: GitHub username for private test repository
   - [ ] `TEST_REPO_TOKEN`: GitHub PAT for test notebooks repository
   - [ ] Document repository access requirements
 
-##### 5.4 Test Notebooks Integration
-- [ ] Integrate external test notebooks repository
-  - [ ] Repository: `https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks`
-  - [ ] Tier 1: Simple notebooks (<30s, <100Mi)
-  - [ ] Tier 2: Intermediate notebooks (1-5min, <500Mi)
-  - [ ] Tier 3: Complex notebooks (5-15min, <2Gi)
-- [ ] Create test execution scripts
-  - [ ] `scripts/run-tier1-tests.sh`
-  - [ ] `scripts/run-tier2-tests.sh`
-  - [ ] `scripts/run-tier3-tests.sh`
-  - [ ] `scripts/collect-test-results.sh`
-
-##### 5.5 Testing and Validation
-- [ ] Test Tier 1 workflow on PR
-  - [ ] Verify KinD cluster setup
-  - [ ] Verify unit tests run
-  - [ ] Verify integration tests run
+##### 5.6 Testing and Validation
+- [ ] Test Kind workflow locally
+  - [ ] Run `./scripts/test-local-kind.sh`
+  - [ ] Verify Tier 1 tests pass
+  - [ ] Verify execution time < 2 minutes
+  - [ ] Verify cleanup works
+- [ ] Test GitHub Actions workflows on PR
+  - [ ] Verify tier1-kind job runs and passes
+  - [ ] Verify all-tiers-openshift job runs and passes
+  - [ ] Verify both jobs can run in parallel
   - [ ] Verify test results uploaded
-- [ ] Test Tier 2 workflow on PR
-  - [ ] Verify OpenShift login
-  - [ ] Verify operator installation
-  - [ ] Verify test notebooks execution
-  - [ ] Verify results collection
-  - [ ] Verify cleanup
+  - [ ] Verify cleanup executes on failure
 
 **Dependencies:**
 - Phase 4.5 complete (Tekton build integration) ✅
 - ADR-031 complete (Tekton build verified) ✅
+- ADR-034, ADR-035, ADR-036 complete (Testing strategy documented) ✅
 - OpenShift cluster available ✅
 - Test notebooks repository available ✅
+- Kind installed locally for development
 
 **Success Criteria:**
-- ✅ ADR-032 and ADR-033 documented
+- ✅ ADR-032, ADR-033, ADR-034, ADR-035, ADR-036 documented
 - ✅ docs/INTEGRATION_TESTING.md updated
-- ⏳ Tier 1 workflow implemented and tested
-- ⏳ Tier 2 workflow implemented and tested
+- ✅ Test tier organization defined
+- ⏳ Test repository reorganized
+- ⏳ Kind testing infrastructure implemented
+- ⏳ GitHub Actions workflows implemented (dual strategy)
 - ⏳ GitHub Secrets configured
-- ⏳ Test notebooks integrated
 - ⏳ All workflows run on every PR
 - ⏳ Test results visible in GitHub Actions
+- ⏳ Local Kind testing documented
 
 **Timeline:**
-- Week 1: ADR documentation and workflow design ✅ COMPLETE
-- Week 2: Implement Tier 1 workflow (KinD-based)
-- Week 3: Implement Tier 2 workflow (OpenShift E2E)
+- Week 1: ADR documentation and testing strategy ✅ COMPLETE (2025-11-11)
+- Week 2: Test repository reorganization and Kind infrastructure
+- Week 3: GitHub Actions workflows implementation
 - Week 4: Testing, refinement, and documentation
 
 **Next Steps:**
