@@ -429,13 +429,9 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 		Spec: corev1.PodSpec{
 			ServiceAccountName: job.Spec.PodConfig.ServiceAccountName,
 			RestartPolicy:      corev1.RestartPolicyNever,
-			// ADR-005: OpenShift Compatibility - Set fsGroup to ensure volumes are writable
-			// OpenShift assigns random UIDs, so we need fsGroup to make emptyDir volumes writable
-			SecurityContext: &corev1.PodSecurityContext{
-				// Use a non-root group that OpenShift will allow
-				// The actual UID will be assigned by OpenShift from the namespace range
-				FSGroup: int64Ptr(0), // Group 0 is allowed and makes volumes writable
-			},
+			// ADR-005: OpenShift Compatibility - SecurityContext is intentionally omitted
+			// OpenShift automatically assigns appropriate UID/GID/fsGroup from namespace ranges
+			// Explicitly setting fsGroup (even to 0) causes SCC violations
 			InitContainers: initContainers,
 			Containers: []corev1.Container{
 				r.buildPapermillValidationContainer(ctx, job, containerImage),
