@@ -54,9 +54,10 @@ func getGitImage() string {
 	if platform == "openshift" || os.Getenv("OPENSHIFT_BUILD_NAMESPACE") != "" {
 		// Running on OpenShift - use Red Hat's OpenShift Pipelines git-init image
 		// This image is built for OpenShift and works with arbitrary UIDs (SCC requirement)
-		// Note: This requires access to registry.redhat.io (usually available in OpenShift)
-		// Alternative: gcr.io/tekton-releases/github.com/tektoncd/pipeline/cmd/git-init:latest
-		return "registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:latest"
+		// Note: Red Hat registry does not support :latest tag, must use explicit version
+		// Using v1.15 which is compatible with OpenShift 4.18
+		// Alternative: gcr.io/tekton-releases/github.com/tektoncd/pipeline/cmd/git-init:v0.60.0
+		return "registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:v1.15"
 	}
 
 	// Priority 3: Default to bitnami/git for vanilla Kubernetes

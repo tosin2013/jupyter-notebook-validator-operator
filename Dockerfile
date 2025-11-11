@@ -1,6 +1,6 @@
 # Build the manager binary
 ARG GO_VERSION=1.22
-FROM golang:${GO_VERSION} AS builder
+FROM docker.io/library/golang:${GO_VERSION} AS builder
 ARG TARGETOS
 ARG TARGETARCH
 
