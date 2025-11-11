@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -35,6 +36,32 @@ type GitCredentials struct {
 	Username string // For HTTPS
 	Password string // For HTTPS (token or password)
 	SSHKey   string // For SSH (private key)
+}
+
+// getGitImage returns the appropriate Git container image based on the platform
+// ADR-005: OpenShift Compatibility - Platform-specific Git images
+func getGitImage() string {
+	// Priority 1: Check for manual override via environment variable
+	// This allows users to specify their own git image if needed
+	if gitImage := os.Getenv("GIT_INIT_IMAGE"); gitImage != "" {
+		return gitImage
+	}
+
+	// Priority 2: Check if running on OpenShift
+	// OpenShift detection: Check for OPENSHIFT_BUILD_NAMESPACE or use a deployment-set env var
+	// The operator deployment should set PLATFORM=openshift when deployed on OpenShift
+	platform := os.Getenv("PLATFORM")
+	if platform == "openshift" || os.Getenv("OPENSHIFT_BUILD_NAMESPACE") != "" {
+		// Running on OpenShift - use Red Hat's OpenShift Pipelines git-init image
+		// This image is built for OpenShift and works with arbitrary UIDs (SCC requirement)
+		// Note: This requires access to registry.redhat.io (usually available in OpenShift)
+		// Alternative: gcr.io/tekton-releases/github.com/tektoncd/pipeline/cmd/git-init:latest
+		return "registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:latest"
+	}
+
+	// Priority 3: Default to bitnami/git for vanilla Kubernetes
+	// bitnami/git runs as non-root user (UID 1001) which is more secure for standard K8s
+	return "bitnami/git:latest"
 }
 
 // resolveGitCredentials reads and parses Git credentials from a Kubernetes Secret
@@ -194,13 +221,13 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 	}
 
 	// Build init container
-	// ADR-005: OpenShift Compatibility - use alpine/git which works with random UIDs
-	// alpine/git runs as root but allows writing to any directory, making it compatible
-	// with OpenShift's random UID assignment (the files are written to emptyDir volumes
-	// which are accessible by the assigned UID)
+	// ADR-005: OpenShift Compatibility - use platform-specific git image
+	// OpenShift: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:latest
+	// Kubernetes: bitnami/git:latest
+	// Override: GIT_INIT_IMAGE environment variable
 	initContainer := corev1.Container{
 		Name:  "git-clone",
-		Image: "alpine/git:latest",
+		Image: getGitImage(),
 		Command: []string{
 			"/bin/bash",
 			"-c",
@@ -393,13 +420,13 @@ func (r *NotebookValidationJobReconciler) buildGoldenGitCloneInitContainer(ctx c
 	}
 
 	// Build init container
-	// ADR-005: OpenShift Compatibility - use alpine/git which works with random UIDs
-	// alpine/git runs as root but allows writing to any directory, making it compatible
-	// with OpenShift's random UID assignment (the files are written to emptyDir volumes
-	// which are accessible by the assigned UID)
+	// ADR-005: OpenShift Compatibility - use platform-specific git image
+	// OpenShift: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:latest
+	// Kubernetes: bitnami/git:latest
+	// Override: GIT_INIT_IMAGE environment variable
 	initContainer := corev1.Container{
 		Name:  "golden-git-clone",
-		Image: "alpine/git:latest",
+		Image: getGitImage(),
 		Command: []string{
 			"/bin/bash",
 			"-c",

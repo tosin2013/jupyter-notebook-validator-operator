@@ -55,6 +55,11 @@ spec:
         image: controller:latest
         imagePullPolicy: Always
         name: manager
+        env:
+        - name: PLATFORM
+          value: "openshift"  # Set to "kubernetes" for vanilla K8s, or override via kustomize
+        - name: GIT_INIT_IMAGE
+          value: ""  # Optional: Override git image (empty = use platform default)
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
