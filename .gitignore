@@ -42,3 +42,16 @@ docs/POD_LOG_COLLECTION_COMPLETE.md
 docs/PAPERMILL_INTEGRATION_COMPLETE.md
 docs/TEST_NOTEBOOKS_DEPLOYMENT_SUMMARY.md
 .golangci.yml
+
+# Environment variables and secrets
+.env
+.env.*
+
+# Test artifacts and logs
+*.log
+test-notebooks/
+helm/
+
+# Temporary files
+*.tmp
+*.bak

@@ -320,3 +320,33 @@ catalog-build: opm ## Build a catalog image.
 .PHONY: catalog-push
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
+
+##@ Git Operations
+
+.PHONY: git-push-rebuild
+git-push-rebuild: ## Commit changes and push to GitHub to trigger automated rebuild
+	@echo "📝 Committing changes..."
+	@if [ -z "$$(git status --porcelain)" ]; then \
+		echo "⚠️  No changes to commit"; \
+		exit 1; \
+	fi
+	@if [ -z "$(MSG)" ]; then \
+		echo "❌ Error: MSG variable is required"; \
+		echo "Usage: make git-push-rebuild MSG='your commit message'"; \
+		exit 1; \
+	fi
+	git add -A
+	git commit -m "$(MSG)"
+	@echo "🚀 Pushing to GitHub (will trigger automated rebuild)..."
+	git push origin $$(git branch --show-current)
+	@echo "✅ Pushed successfully!"
+	@echo "📦 GitHub Actions will build and push image to quay.io/takinosh/jupyter-notebook-validator-operator:latest"
+	@echo "🔗 Check build status: https://github.com/$$(git remote get-url origin | sed 's/.*github.com[:/]\(.*\)\.git/\1/')/actions"
+
+.PHONY: git-status
+git-status: ## Show git status and current branch
+	@echo "📊 Git Status:"
+	@git status
+	@echo ""
+	@echo "🌿 Current branch: $$(git branch --show-current)"
+	@echo "🔗 Remote: $$(git remote get-url origin)"

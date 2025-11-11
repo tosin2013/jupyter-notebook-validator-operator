@@ -302,6 +302,12 @@ func (t *TektonStrategy) createBuildPipeline(job *mlopsv1alpha1.NotebookValidati
 								{
 									Name:  "check-and-generate-dockerfile",
 									Image: "registry.access.redhat.com/ubi9/ubi-minimal:latest",
+									// Fix: Run as non-root user to comply with OpenShift restricted-v2 SCC
+									// The PipelineRun has runAsNonRoot=true from fsGroup security context
+									SecurityContext: &corev1.SecurityContext{
+										RunAsNonRoot: func() *bool { b := true; return &b }(),
+										RunAsUser:    func() *int64 { uid := int64(65532); return &uid }(), // Standard non-root user
+									},
 									Script: `#!/bin/sh
 set -e
 
