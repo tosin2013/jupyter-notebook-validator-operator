@@ -212,9 +212,8 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 		},
 		SecurityContext: &corev1.SecurityContext{
 			RunAsNonRoot: boolPtr(true),
-			// ADR-005: OpenShift Compatibility - explicitly set RunAsUser to bitnami/git's non-root UID
-			// bitnami/git:latest runs as UID 1001 by default
-			RunAsUser:                int64Ptr(1001),
+			// ADR-005: OpenShift Compatibility - RunAsUser is intentionally omitted
+			// to allow OpenShift to assign a UID from the namespace's allocated range
 			AllowPrivilegeEscalation: boolPtr(false),
 			Capabilities: &corev1.Capabilities{
 				Drop: []corev1.Capability{"ALL"},
@@ -410,9 +409,8 @@ func (r *NotebookValidationJobReconciler) buildGoldenGitCloneInitContainer(ctx c
 		},
 		SecurityContext: &corev1.SecurityContext{
 			RunAsNonRoot: boolPtr(true),
-			// ADR-005: OpenShift Compatibility - explicitly set RunAsUser to bitnami/git's non-root UID
-			// bitnami/git:latest runs as UID 1001 by default
-			RunAsUser:                int64Ptr(1001),
+			// ADR-005: OpenShift Compatibility - RunAsUser is intentionally omitted
+			// to allow OpenShift to assign a UID from the namespace's allocated range
 			AllowPrivilegeEscalation: boolPtr(false),
 			Capabilities: &corev1.Capabilities{
 				Drop: []corev1.Capability{"ALL"},
