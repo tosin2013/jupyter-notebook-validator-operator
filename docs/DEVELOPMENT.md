@@ -352,10 +352,10 @@ ERROR: failed to create cluster: running kind with rootless provider requires se
 ./scripts/test-local-kind.sh
 ```
 
-**Solution 2: Use Podman in rootful mode**
+**Solution 2: Use Podman in rootful mode (works immediately)**
 ```bash
-# Run Podman as root (requires sudo)
-sudo podman ps
+# Run Kind with Podman in rootful mode (recommended if delegation fails)
+./scripts/test-local-kind.sh --podman-rootful
 
 # Create Kind cluster with sudo
 sudo KIND_EXPERIMENTAL_PROVIDER=podman kind create cluster --name test

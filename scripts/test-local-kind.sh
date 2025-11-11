@@ -22,8 +22,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CLUSTER_NAME="${KIND_CLUSTER_NAME:-jupyter-validator-test}"
-KUBERNETES_VERSION="${KUBERNETES_VERSION:-v1.31.10}"
-KIND_NODE_IMAGE="kindest/node:${KUBERNETES_VERSION}"
+KUBERNETES_VERSION="${KUBERNETES_VERSION:-v1.31.12}"
+KIND_NODE_IMAGE="kindest/node:${KUBERNETES_VERSION}@sha256:0f5cc49c5e73c0c2bb6e2df56e7df189240d83cf94edfa30946482eb08ec57d2"
 TEST_NAMESPACE="${TEST_NAMESPACE:-e2e-tests}"
 OPERATOR_NAMESPACE="${OPERATOR_NAMESPACE:-jupyter-notebook-validator-operator}"
 TEST_REPO_URL="${TEST_REPO_URL:-https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git}"
@@ -31,6 +31,7 @@ TEST_REPO_REF="${TEST_REPO_REF:-main}"
 SKIP_CLEANUP=false
 CLEANUP_ONLY=false
 INSTALL_KIND_ONLY=false
+PODMAN_ROOTFUL=false
 KIND_VERSION="${KIND_VERSION:-v0.20.0}"
 
 # Colors for output
@@ -55,14 +56,19 @@ while [[ $# -gt 0 ]]; do
             INSTALL_KIND_ONLY=true
             shift
             ;;
+        --podman-rootful)
+            PODMAN_ROOTFUL=true
+            shift
+            ;;
         --help)
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --skip-cleanup    Keep Kind cluster after tests (for debugging)"
-            echo "  --cleanup-only    Only cleanup existing cluster and exit"
-            echo "  --install-kind    Only install Kind and exit"
-            echo "  --help            Show this help message"
+            echo "  --skip-cleanup      Keep Kind cluster after tests (for debugging)"
+            echo "  --cleanup-only      Only cleanup existing cluster and exit"
+            echo "  --install-kind      Only install Kind and exit"
+            echo "  --podman-rootful    Use Podman in rootful mode (requires sudo)"
+            echo "  --help              Show this help message"
             echo ""
             echo "Environment Variables:"
             echo "  KIND_CLUSTER_NAME      Cluster name (default: jupyter-validator-test)"
@@ -238,9 +244,15 @@ check_prerequisites() {
 # Cleanup existing cluster
 cleanup_cluster() {
     log_info "Cleaning up existing Kind cluster: $CLUSTER_NAME"
-    
-    if kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
-        kind delete cluster --name "$CLUSTER_NAME"
+
+    # Determine if we need sudo for Podman rootful mode
+    local KIND_CMD="kind"
+    if [[ "$PODMAN_ROOTFUL" == "true" ]]; then
+        KIND_CMD="sudo KIND_EXPERIMENTAL_PROVIDER=podman /usr/local/bin/kind"
+    fi
+
+    if $KIND_CMD get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
+        $KIND_CMD delete cluster --name "$CLUSTER_NAME"
         log_success "Cluster deleted: $CLUSTER_NAME"
     else
         log_info "No existing cluster found: $CLUSTER_NAME"
@@ -250,24 +262,33 @@ cleanup_cluster() {
 # Create Kind cluster
 create_cluster() {
     log_info "Creating Kind cluster: $CLUSTER_NAME (Kubernetes $KUBERNETES_VERSION)"
-    
+
+    # Determine if we need sudo for Podman rootful mode
+    local KIND_CMD="kind"
+    local KUBECTL_CMD="kubectl"
+    if [[ "$PODMAN_ROOTFUL" == "true" ]]; then
+        KIND_CMD="sudo KIND_EXPERIMENTAL_PROVIDER=podman /usr/local/bin/kind"
+        KUBECTL_CMD="sudo kubectl"
+        log_info "Using Podman in rootful mode (with sudo)"
+    fi
+
     # Create Kind cluster with specific Kubernetes version
-    kind create cluster \
+    $KIND_CMD create cluster \
         --name "$CLUSTER_NAME" \
         --image "$KIND_NODE_IMAGE" \
         --wait 60s
-    
+
     # Verify cluster is ready
-    kubectl cluster-info --context "kind-${CLUSTER_NAME}"
-    
+    $KUBECTL_CMD cluster-info --context "kind-${CLUSTER_NAME}"
+
     # Verify Kubernetes version
-    local k8s_version=$(kubectl version --short 2>/dev/null | grep "Server Version" | awk '{print $3}')
+    local k8s_version=$($KUBECTL_CMD version --short 2>/dev/null | grep "Server Version" | awk '{print $3}')
     log_info "Kubernetes version: $k8s_version"
-    
+
     if [[ "$k8s_version" != "$KUBERNETES_VERSION" ]]; then
         log_warning "Kubernetes version mismatch: expected $KUBERNETES_VERSION, got $k8s_version"
     fi
-    
+
     log_success "Kind cluster created successfully"
 }
 
