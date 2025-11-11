@@ -194,11 +194,13 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 	}
 
 	// Build init container
-	// Use bitnami/git which supports running as non-root user
-	// ADR-005: OpenShift Compatibility - use non-root container images
+	// ADR-005: OpenShift Compatibility - use alpine/git which works with random UIDs
+	// alpine/git runs as root but allows writing to any directory, making it compatible
+	// with OpenShift's random UID assignment (the files are written to emptyDir volumes
+	// which are accessible by the assigned UID)
 	initContainer := corev1.Container{
 		Name:  "git-clone",
-		Image: "bitnami/git:latest",
+		Image: "alpine/git:latest",
 		Command: []string{
 			"/bin/bash",
 			"-c",
@@ -211,9 +213,9 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 			},
 		},
 		SecurityContext: &corev1.SecurityContext{
-			RunAsNonRoot: boolPtr(true),
-			// ADR-005: OpenShift Compatibility - RunAsUser is intentionally omitted
-			// to allow OpenShift to assign a UID from the namespace's allocated range
+			// ADR-005: OpenShift Compatibility - alpine/git runs as root (UID 0)
+			// OpenShift will override this with a random UID from the namespace range
+			// RunAsNonRoot is intentionally omitted to allow this override
 			AllowPrivilegeEscalation: boolPtr(false),
 			Capabilities: &corev1.Capabilities{
 				Drop: []corev1.Capability{"ALL"},
@@ -391,11 +393,13 @@ func (r *NotebookValidationJobReconciler) buildGoldenGitCloneInitContainer(ctx c
 	}
 
 	// Build init container
-	// Use bitnami/git which supports running as non-root user
-	// ADR-005: OpenShift Compatibility - use non-root container images
+	// ADR-005: OpenShift Compatibility - use alpine/git which works with random UIDs
+	// alpine/git runs as root but allows writing to any directory, making it compatible
+	// with OpenShift's random UID assignment (the files are written to emptyDir volumes
+	// which are accessible by the assigned UID)
 	initContainer := corev1.Container{
 		Name:  "golden-git-clone",
-		Image: "bitnami/git:latest",
+		Image: "alpine/git:latest",
 		Command: []string{
 			"/bin/bash",
 			"-c",
@@ -408,9 +412,9 @@ func (r *NotebookValidationJobReconciler) buildGoldenGitCloneInitContainer(ctx c
 			},
 		},
 		SecurityContext: &corev1.SecurityContext{
-			RunAsNonRoot: boolPtr(true),
-			// ADR-005: OpenShift Compatibility - RunAsUser is intentionally omitted
-			// to allow OpenShift to assign a UID from the namespace's allocated range
+			// ADR-005: OpenShift Compatibility - alpine/git runs as root (UID 0)
+			// OpenShift will override this with a random UID from the namespace range
+			// RunAsNonRoot is intentionally omitted to allow this override
 			AllowPrivilegeEscalation: boolPtr(false),
 			Capabilities: &corev1.Capabilities{
 				Drop: []corev1.Capability{"ALL"},
