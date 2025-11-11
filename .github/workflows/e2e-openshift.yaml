@@ -23,6 +23,13 @@ on:
           - '3'
           - 'all'
 
+# Concurrency control: Only one E2E test run per branch at a time
+# This prevents multiple workflow runs from interfering with each other
+# when using the same OpenShift cluster and namespaces
+concurrency:
+  group: e2e-openshift-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   GO_VERSION: '1.22'
   TEST_NAMESPACE: 'e2e-tests'

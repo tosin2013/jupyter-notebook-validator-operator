@@ -11,6 +11,12 @@ on:
     branches: [ main, develop, 'release-*' ]
   workflow_dispatch:
 
+# Concurrency control: Only one CI test run per branch at a time
+# This prevents resource conflicts when multiple commits are pushed quickly
+concurrency:
+  group: ci-tier1-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   GO_VERSION: '1.22'
   KUBERNETES_VERSION: 'v1.30.13'
