@@ -152,10 +152,32 @@ jobs:
 
           echo "✅ Operator image loaded successfully"
 
+      - name: Install cert-manager
+        run: |
+          echo "Installing cert-manager..."
+
+          # Install cert-manager using kubectl
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml
+
+          echo "Waiting for cert-manager to be ready..."
+          kubectl wait --for=condition=available deployment/cert-manager \
+            -n cert-manager --timeout=5m
+          kubectl wait --for=condition=available deployment/cert-manager-webhook \
+            -n cert-manager --timeout=5m
+          kubectl wait --for=condition=available deployment/cert-manager-cainjector \
+            -n cert-manager --timeout=5m
+
+          echo "✅ cert-manager installed successfully"
+          kubectl get pods -n cert-manager
+
       - name: Deploy operator
         run: |
           echo "Deploying operator to KinD cluster..."
           make deploy IMG=jupyter-notebook-validator-operator:test
+
+          echo "Verifying webhook certificate..."
+          kubectl get certificate -n jupyter-notebook-validator-operator
+          kubectl get secret webhook-server-cert -n jupyter-notebook-validator-operator
 
           echo "Patching deployment to use imagePullPolicy: Never..."
           kubectl patch deployment notebook-validator-controller-manager \
