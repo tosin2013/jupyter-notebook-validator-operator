@@ -207,18 +207,18 @@ check_prerequisites() {
     fi
 
     # Check container runtime (Docker or Podman)
-    local runtime=$(detect_container_runtime)
-    if [ "$runtime" = "none" ]; then
+    CONTAINER_RUNTIME=$(detect_container_runtime)
+    if [ "$CONTAINER_RUNTIME" = "none" ]; then
         log_error "No container runtime found (Docker or Podman required)"
         log_info "Install instructions:"
         log_info "  Docker:  https://docs.docker.com/get-docker/"
         log_info "  Podman:  https://podman.io/getting-started/installation"
         exit 1
     else
-        log_info "Container runtime detected: $runtime"
+        log_info "Container runtime detected: $CONTAINER_RUNTIME"
 
         # Configure Kind for Podman if needed
-        if [ "$runtime" = "podman" ]; then
+        if [ "$CONTAINER_RUNTIME" = "podman" ]; then
             configure_kind_podman
         fi
     fi
@@ -295,96 +295,142 @@ create_cluster() {
 # Install cert-manager
 install_cert_manager() {
     log_info "Installing cert-manager for webhooks..."
-    
-    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
-    
+
+    # Determine kubectl command based on rootful mode
+    local KUBECTL_CMD="kubectl"
+    if [[ "$PODMAN_ROOTFUL" == "true" ]]; then
+        KUBECTL_CMD="sudo kubectl"
+    fi
+
+    $KUBECTL_CMD apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
+
     # Wait for cert-manager to be ready
     log_info "Waiting for cert-manager to be ready..."
-    kubectl wait --for=condition=Available --timeout=300s \
+    $KUBECTL_CMD wait --for=condition=Available --timeout=300s \
         -n cert-manager deployment/cert-manager \
         deployment/cert-manager-cainjector \
         deployment/cert-manager-webhook
-    
+
     log_success "cert-manager installed successfully"
 }
 
 # Deploy operator
 deploy_operator() {
     log_info "Deploying Jupyter Notebook Validator Operator..."
-    
+
     cd "$PROJECT_ROOT"
-    
+
+    # Determine kubectl command based on rootful mode
+    local KUBECTL_CMD="kubectl"
+    if [[ "$PODMAN_ROOTFUL" == "true" ]]; then
+        KUBECTL_CMD="sudo kubectl"
+    fi
+
     # Build and load operator image into Kind
     log_info "Building operator image..."
-    make docker-build IMG=jupyter-notebook-validator-operator:test
-    
+    log_info "Container runtime: $CONTAINER_RUNTIME"
+    log_info "Podman rootful: $PODMAN_ROOTFUL"
+
+    # Determine container tool based on runtime and rootful mode
+    local KIND_LOAD_CMD="kind load docker-image"
+
+    if [[ "$CONTAINER_RUNTIME" == "podman" ]]; then
+        if [[ "$PODMAN_ROOTFUL" == "true" ]]; then
+            KIND_LOAD_CMD="sudo KIND_EXPERIMENTAL_PROVIDER=podman /usr/local/bin/kind load docker-image"
+            # For rootful mode, we need to build with sudo
+            log_info "Building with sudo podman..."
+            sudo podman build -t jupyter-notebook-validator-operator:test .
+        else
+            KIND_LOAD_CMD="kind load docker-image"
+            # For rootless mode, use make with CONTAINER_TOOL
+            log_info "Building with podman (rootless)..."
+            CONTAINER_TOOL=podman make docker-build IMG=jupyter-notebook-validator-operator:test
+        fi
+    else
+        # Docker mode
+        log_info "Building with docker..."
+        CONTAINER_TOOL=docker make docker-build IMG=jupyter-notebook-validator-operator:test
+    fi
+
     log_info "Loading image into Kind cluster..."
-    kind load docker-image jupyter-notebook-validator-operator:test --name "$CLUSTER_NAME"
+    $KIND_LOAD_CMD jupyter-notebook-validator-operator:test --name "$CLUSTER_NAME"
     
     # Deploy operator using kustomize
     log_info "Deploying operator manifests..."
     cd config/manager && kustomize edit set image controller=jupyter-notebook-validator-operator:test
     cd "$PROJECT_ROOT"
-    
-    kubectl apply -k config/default
-    
+
+    $KUBECTL_CMD apply -k config/default
+
     # Wait for operator to be ready
     log_info "Waiting for operator to be ready..."
-    kubectl wait --for=condition=Available --timeout=300s \
+    $KUBECTL_CMD wait --for=condition=Available --timeout=300s \
         -n "$OPERATOR_NAMESPACE" deployment/jupyter-notebook-validator-operator-controller-manager
-    
+
     log_success "Operator deployed successfully"
 }
 
 # Setup test environment
 setup_test_environment() {
     log_info "Setting up test environment..."
-    
+
+    # Determine kubectl command based on rootful mode
+    local KUBECTL_CMD="kubectl"
+    if [[ "$PODMAN_ROOTFUL" == "true" ]]; then
+        KUBECTL_CMD="sudo kubectl"
+    fi
+
     # Create test namespace
-    kubectl create namespace "$TEST_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
-    
+    $KUBECTL_CMD create namespace "$TEST_NAMESPACE" --dry-run=client -o yaml | $KUBECTL_CMD apply -f -
+
     # Create git credentials secret (if credentials are available)
     if [ -n "$GIT_USERNAME" ] && [ -n "$GIT_TOKEN" ]; then
         log_info "Creating git credentials secret..."
-        kubectl create secret generic git-https-credentials \
+        $KUBECTL_CMD create secret generic git-https-credentials \
             --from-literal=username="$GIT_USERNAME" \
             --from-literal=password="$GIT_TOKEN" \
             -n "$TEST_NAMESPACE" \
-            --dry-run=client -o yaml | kubectl apply -f -
+            --dry-run=client -o yaml | $KUBECTL_CMD apply -f -
     else
         log_warning "GIT_USERNAME or GIT_TOKEN not set - skipping git credentials"
         log_info "Set these environment variables to test private repository access"
     fi
-    
+
     # Create service account for validation pods
-    kubectl create serviceaccount jupyter-notebook-validator-runner \
+    $KUBECTL_CMD create serviceaccount jupyter-notebook-validator-runner \
         -n "$TEST_NAMESPACE" \
-        --dry-run=client -o yaml | kubectl apply -f -
-    
+        --dry-run=client -o yaml | $KUBECTL_CMD apply -f -
+
     log_success "Test environment setup complete"
 }
 
 # Run Tier 1 tests
 run_tier1_tests() {
     log_info "Running Tier 1 tests (simple notebooks, < 30s each)..."
-    
+
+    # Determine kubectl command based on rootful mode
+    local KUBECTL_CMD="kubectl"
+    if [[ "$PODMAN_ROOTFUL" == "true" ]]; then
+        KUBECTL_CMD="sudo kubectl"
+    fi
+
     local tier1_notebooks=(
         "notebooks/tier1-simple/01-hello-world.ipynb"
         "notebooks/tier1-simple/02-basic-math.ipynb"
         "notebooks/tier1-simple/03-data-validation.ipynb"
     )
-    
+
     local failed_tests=()
     local passed_tests=()
-    
+
     for notebook in "${tier1_notebooks[@]}"; do
         local notebook_name=$(basename "$notebook" .ipynb)
         local job_name="tier1-${notebook_name}"
-        
+
         log_info "Testing: $notebook"
-        
+
         # Create NotebookValidationJob
-        cat <<EOF | kubectl apply -f -
+        cat <<EOF | $KUBECTL_CMD apply -f -
 apiVersion: mlops.mlops.dev/v1alpha1
 kind: NotebookValidationJob
 metadata:
@@ -408,8 +454,8 @@ EOF
         local interval=5
         
         while [ $elapsed -lt $timeout ]; do
-            local phase=$(kubectl get notebookvalidationjob "$job_name" -n "$TEST_NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
-            
+            local phase=$($KUBECTL_CMD get notebookvalidationjob "$job_name" -n "$TEST_NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+
             case "$phase" in
                 "Succeeded")
                     log_success "✅ Test passed: $notebook"
@@ -418,7 +464,7 @@ EOF
                     ;;
                 "Failed")
                     log_error "❌ Test failed: $notebook"
-                    kubectl get notebookvalidationjob "$job_name" -n "$TEST_NAMESPACE" -o yaml
+                    $KUBECTL_CMD get notebookvalidationjob "$job_name" -n "$TEST_NAMESPACE" -o yaml
                     failed_tests+=("$notebook")
                     break
                     ;;
