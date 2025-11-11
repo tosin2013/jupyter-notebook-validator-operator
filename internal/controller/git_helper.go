@@ -52,11 +52,11 @@ func getGitImage() string {
 	// The operator deployment should set PLATFORM=openshift when deployed on OpenShift
 	platform := os.Getenv("PLATFORM")
 	if platform == "openshift" || os.Getenv("OPENSHIFT_BUILD_NAMESPACE") != "" {
-		// Running on OpenShift - use alpine/git which works with arbitrary UIDs
-		// Alpine/git runs as root but OpenShift overrides the UID to match namespace range
-		// This is compatible with OpenShift SCC restricted-v2 policy
-		// Note: This is a simple, publicly accessible image that works reliably
-		return "alpine/git:latest"
+		// Running on OpenShift - use the exact same git-init image that OpenShift Pipelines uses
+		// This image is referenced by SHA256 digest (Red Hat best practice)
+		// Discovered from: oc get task git-clone -n openshift-pipelines -o yaml
+		// This ensures compatibility with OpenShift SCC and works with arbitrary UIDs
+		return "registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:4fabae1312c1aaf8a57bd2de63bd040956faa0c728453f2a4b4002705fba0f0c"
 	}
 
 	// Priority 3: Default to bitnami/git for vanilla Kubernetes
