@@ -15,17 +15,18 @@ The Jupyter Notebook Validator Operator is a Kubernetes-native operator that aut
 
 ## Project Status
 
-**Current Phase:** Phase 5 - CI/CD Testing Strategy 🔄 IN PROGRESS (75% complete)
+**Current Phase:** Phase 5 - CI/CD Testing Strategy 🔄 IN PROGRESS (80% complete)
 **Overall Progress:** 98% complete (Architecture, Planning, Foundation, Core Logic, Golden Comparison, Credential Management, Advanced Comparison, Comprehensive Logging, ADR Documentation, ESO Integration, Model-Aware Validation, Tekton Build Integration, and Local Testing)
-**Last Major Milestone:** OpenShift testing completed - All Tier 1 and Tier 2 tests passed (2025-11-14)
-**Current Focus:** ✅ **LOCAL TESTING COMPLETE** - Ready for git push and GitHub Actions implementation
-**Next Milestone:** Push changes to git, then implement GitHub Actions workflows
+**Last Major Milestone:** OpenShift Tier 2 testing completed with critical bug fixes (2025-11-14)
+**Current Focus:** ✅ **TIER 2 TESTING COMPLETE** - Fixed 4 critical bugs, ready for Tier 3 testing
+**Next Milestone:** Test Tier 3 notebooks (KServe model inference and credential injection)
 
-**✅ ALL TESTING COMPLETE - READY FOR GIT PUSH:**
+**✅ ALL LOCAL TESTING COMPLETE - CHANGES PUSHED TO GIT:**
 1. ✅ Disk space added - 98GB available (was 5.9GB)
 2. ✅ Kind test PASSED (operator deployment + Tier 1 tests: 3/3 notebooks succeeded)
 3. ✅ OpenShift test PASSED (Tier 1: 3/3 tests + Tier 2: 1/1 test = 4/4 total, 100% success rate)
 4. ✅ All test results documented and verified (docs/KIND-TEST-RESULTS.md, docs/OPENSHIFT-TEST-RESULTS.md)
+5. ✅ Critical bugs fixed and pushed to git (validation script, kernel metadata, dependencies, build caching)
 
 **OpenShift Cluster:** ✅ Available at `https://api.cluster-c4r4z.c4r4z.sandbox5156.opentlc.com:6443`
 **CRD Installed:** ✅ notebookvalidationjobs.mlops.mlops.dev
@@ -1284,10 +1285,40 @@ After completing ADR-031 (Tekton Build Integration) with full end-to-end success
     - [x] 02-basic-math.ipynb ✅ (4/4 cells, ~10s)
     - [x] 03-data-validation.ipynb ✅ (3/3 cells, ~10s)
   - [x] Run Tier 2 tests (build integration, 1-5 min) ✅ **1/1 PASSED (100%)**
-    - [x] 01-train-sentiment-model.ipynb ✅ (12/12 cells, ~6 min total: 5 min build + 39s validation)
+    - [x] 01-train-sentiment-model.ipynb ✅ (12/12 cells, ~5.5 min total: 4.5 min build + 1 min validation)
   - [x] Verify all tests pass with current code changes ✅ **4/4 tests passed (100%)**
   - [x] Collect logs and verify no errors ✅
   - [x] Cleanup test resources ✅
+
+**Critical Bugs Fixed During Testing:**
+1. **Validation Script False Positive Bug** ✅
+   - **Problem:** Script reported success even when Papermill failed
+   - **Root Cause:** Bash pipeline `papermill ... | tee ...` checked exit code of `tee`, not `papermill`
+   - **Solution:** Added `set -o pipefail` to validation script
+   - **File:** `internal/controller/papermill_helper.go` (line 64)
+   - **Commit:** `487b58e` - fix: Add set -o pipefail to validation script
+
+2. **Missing Notebook Kernel Metadata** ✅
+   - **Problem:** Tier 2 and Tier 3 notebooks had empty metadata, causing "No kernel name found" error
+   - **Root Cause:** Notebooks created without proper Jupyter kernel metadata
+   - **Solution:** Added `kernelspec` and `language_info` metadata to all notebooks
+   - **Files:** All Tier 2 and Tier 3 notebooks
+   - **Commits:**
+     - `2959ee9` - fix: Add kernel metadata to Tier 2 sentiment model notebook
+     - `603171d` - fix: Add kernel metadata to all Tier 3 notebooks
+
+3. **Missing scikit-learn Dependency** ✅
+   - **Problem:** Tier 2 notebook failed with "ModuleNotFoundError: No module named 'sklearn'"
+   - **Root Cause:** requirements.txt missing scikit-learn package
+   - **Solution:** Added `scikit-learn>=1.3.0` to requirements.txt
+   - **File:** `requirements.txt`
+   - **Commit:** `fbb7fcf` - fix: Add scikit-learn to requirements for Tier 2 sentiment model training
+
+4. **Tekton Build Caching Old Commits** ✅
+   - **Problem:** Tekton builds were using old commit (21b9395) instead of latest changes
+   - **Root Cause:** PipelineRun not deleted between test runs
+   - **Solution:** Delete PipelineRun before creating new NotebookValidationJob
+   - **Workaround:** `oc delete pipelinerun <name>` before each test
 
 **Testing Commands:**
 ```bash
