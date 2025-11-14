@@ -62,6 +62,7 @@ func (r *NotebookValidationJobReconciler) buildPapermillValidationContainer(ctx 
 	executionScript := fmt.Sprintf(`
 #!/bin/bash
 set -e
+set -o pipefail  # Ensure pipeline failures are caught
 
 echo "=========================================="
 echo "Jupyter Notebook Validator - Papermill"
