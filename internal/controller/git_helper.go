@@ -155,6 +155,10 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 		cloneCommand = fmt.Sprintf(`
 			set -e
 			echo "Cloning repository (anonymous)..."
+			# Disable all credential helpers and prompting
+			git config --global credential.helper ""
+			export GIT_TERMINAL_PROMPT=0
+			export GIT_ASKPASS=/bin/true
 			git clone --depth 1 --branch %s %s /workspace/repo
 			echo "Clone successful"
 			ls -la /workspace/repo

@@ -1,9 +1,10 @@
 # ADR-033: End-to-End Testing Against Live OpenShift Cluster
 
-**Status**: Proposed  
-**Date**: 2025-11-09  
-**Authors**: Sophia (AI Assistant), User Feedback  
-**Related**: ADR-032 (CI Testing), ADR-031 (Tekton Build), ADR-027 (S2I Build), ADR-023 (S2I Integration)
+**Status**: Accepted
+**Date**: 2025-11-09
+**Updated**: 2025-11-11 (Added test tier organization)
+**Authors**: Sophia (AI Assistant), User Feedback
+**Related**: ADR-032 (CI Testing), ADR-034 (Dual Testing), ADR-035 (Test Tier Organization), ADR-036 (Private Test Repository)
 
 ## Context
 
@@ -28,13 +29,27 @@ Local KinD testing cannot replicate OpenShift-specific features:
 
 ### Test Notebook Repository
 
-External test suite: `https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks`
+External test suite: `https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks` (private)
 
-**Test Coverage**:
-- Tier 1 (Simple): Basic notebook execution
-- Tier 2 (Intermediate): Notebooks with dependencies
-- Tier 3 (Advanced): Model training and validation
-- Tier 4 (Complex): Multi-notebook workflows
+**Test Coverage** (See ADR-035 for detailed tier organization):
+
+#### Tier 1: Simple Validation (< 30 seconds)
+- **Environment**: Kind + OpenShift
+- **Infrastructure**: None (no builds, no models)
+- **Notebooks**: 4 notebooks (hello-world, basic-math, data-validation, error-test)
+- **Purpose**: Basic notebook execution and validation
+
+#### Tier 2: Intermediate Complexity (1-5 minutes)
+- **Environment**: OpenShift only
+- **Infrastructure**: S2I/Tekton builds, custom images
+- **Notebooks**: 4+ notebooks (model training, data preprocessing, feature engineering)
+- **Purpose**: Build integration and dependency management
+
+#### Tier 3: Complex Integration (5-30 minutes)
+- **Environment**: OpenShift only
+- **Infrastructure**: Deployed models (KServe/OpenShift AI), External Secrets Operator
+- **Notebooks**: 5+ notebooks (model inference, external secrets integration)
+- **Purpose**: Model inference and external integrations
 
 ## Decision
 
@@ -102,17 +117,27 @@ jobs:
           git clone https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git
           cd jupyter-notebook-validator-test-notebooks
 
-      - name: Run Tier 1 tests (Simple)
+      - name: Setup test infrastructure
         run: |
-          ./scripts/run-e2e-tests.sh tier1
+          # Grant SCC for Tekton builds (Tier 2)
+          oc adm policy add-scc-to-user pipelines-scc -z pipeline -n jupyter-notebook-validator-e2e-${{ github.run_id }}
 
-      - name: Run Tier 2 tests (Intermediate)
-        run: |
-          ./scripts/run-e2e-tests.sh tier2
+          # Deploy test models for Tier 3
+          cd ../jupyter-notebook-validator-test-notebooks/deployments
+          ./setup-models.sh
 
-      - name: Run Tier 3 tests (Advanced)
+      - name: Run Tier 1 tests (Simple - no builds)
         run: |
-          ./scripts/run-e2e-tests.sh tier3
+          cd ../jupyter-notebook-validator-test-notebooks
+          ./scripts/run-tier1-tests.sh
+
+      - name: Run Tier 2 tests (Intermediate - with builds)
+        run: |
+          ./scripts/run-tier2-tests.sh
+
+      - name: Run Tier 3 tests (Complex - with models)
+        run: |
+          ./scripts/run-tier3-tests.sh
 
       - name: Collect test results
         if: always()
@@ -237,12 +262,13 @@ oc get notebookvalidationjob <name> -o jsonpath='{.status.phase}'
 
 ## References
 
-- [Test Notebooks Repository](https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks)
+- [Test Notebooks Repository](https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks) (private)
 - [OpenShift CI/CD Best Practices](https://docs.openshift.com/container-platform/4.18/cicd/index.html)
 - [GitHub Actions OpenShift Integration](https://github.com/redhat-actions)
 - ADR-032: GitHub Actions CI Testing Against Kubernetes 1.31.10
-- ADR-031: Tekton Build Dockerfile vs Base Image Support
-- ADR-027: S2I Build Strategy for Git Integration
+- ADR-034: Dual Testing Strategy with Kind and OpenShift
+- ADR-035: Test Tier Organization and Scope
+- ADR-036: Private Test Repository Strategy
 
 ## Notes
 

@@ -332,28 +332,44 @@ deploy_operator() {
     log_info "Podman rootful: $PODMAN_ROOTFUL"
 
     # Determine container tool based on runtime and rootful mode
-    local KIND_LOAD_CMD="kind load docker-image"
-
     if [[ "$CONTAINER_RUNTIME" == "podman" ]]; then
         if [[ "$PODMAN_ROOTFUL" == "true" ]]; then
-            KIND_LOAD_CMD="sudo KIND_EXPERIMENTAL_PROVIDER=podman /usr/local/bin/kind load docker-image"
             # For rootful mode, we need to build with sudo
             log_info "Building with sudo podman..."
             sudo podman build -t jupyter-notebook-validator-operator:test .
+
+            # Remove any existing tar file
+            sudo rm -f /tmp/operator-image.tar
+
+            # Save image to tar file
+            log_info "Saving image to tar file..."
+            sudo podman save -o /tmp/operator-image.tar localhost/jupyter-notebook-validator-operator:test
+            sudo chmod 644 /tmp/operator-image.tar
+
+            # Load image directly into Kind node using ctr
+            log_info "Loading image into Kind node..."
+            sudo podman exec -i "$CLUSTER_NAME-control-plane" ctr -n k8s.io images import /dev/stdin < /tmp/operator-image.tar
+
+            # Cleanup tar file
+            sudo rm -f /tmp/operator-image.tar
         else
-            KIND_LOAD_CMD="kind load docker-image"
             # For rootless mode, use make with CONTAINER_TOOL
             log_info "Building with podman (rootless)..."
             CONTAINER_TOOL=podman make docker-build IMG=jupyter-notebook-validator-operator:test
+
+            # Load image into Kind (image is in user's Podman storage)
+            log_info "Loading image into Kind cluster (rootless mode)..."
+            kind load docker-image jupyter-notebook-validator-operator:test --name "$CLUSTER_NAME"
         fi
     else
         # Docker mode
         log_info "Building with docker..."
         CONTAINER_TOOL=docker make docker-build IMG=jupyter-notebook-validator-operator:test
-    fi
 
-    log_info "Loading image into Kind cluster..."
-    $KIND_LOAD_CMD jupyter-notebook-validator-operator:test --name "$CLUSTER_NAME"
+        # Load image into Kind (image is in Docker storage)
+        log_info "Loading image into Kind cluster (docker mode)..."
+        kind load docker-image jupyter-notebook-validator-operator:test --name "$CLUSTER_NAME"
+    fi
     
     # Deploy operator using kustomize
     log_info "Deploying operator manifests..."

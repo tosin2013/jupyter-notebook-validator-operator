@@ -16,16 +16,16 @@ The Jupyter Notebook Validator Operator is a Kubernetes-native operator that aut
 ## Project Status
 
 **Current Phase:** Phase 5 - CI/CD Testing Strategy 🔄 IN PROGRESS (75% complete)
-**Overall Progress:** 95% complete (Architecture, Planning, Foundation, Core Logic, Golden Comparison, Credential Management, Advanced Comparison, Comprehensive Logging, ADR Documentation, ESO Integration, Model-Aware Validation, and Tekton Build Integration)
-**Last Major Milestone:** Kind testing script updated with Podman support - cluster creation and cert-manager verified (2025-11-11)
-**Current Focus:** ⚠️ **LOCAL TESTING REQUIRED BEFORE GIT PUSH** - Complete Kind and OpenShift testing
-**Next Milestone:** Complete local testing (Kind + OpenShift), then implement GitHub Actions workflows
+**Overall Progress:** 98% complete (Architecture, Planning, Foundation, Core Logic, Golden Comparison, Credential Management, Advanced Comparison, Comprehensive Logging, ADR Documentation, ESO Integration, Model-Aware Validation, Tekton Build Integration, and Local Testing)
+**Last Major Milestone:** OpenShift testing completed - All Tier 1 and Tier 2 tests passed (2025-11-14)
+**Current Focus:** ✅ **LOCAL TESTING COMPLETE** - Ready for git push and GitHub Actions implementation
+**Next Milestone:** Push changes to git, then implement GitHub Actions workflows
 
-**⚠️ CRITICAL: DO NOT PUSH TO GIT UNTIL:**
-1. ✅ Add disk space (~10GB free in /var/tmp)
-2. ⏳ Kind test passes completely (operator deployment + Tier 1 tests)
-3. ⏳ OpenShift test passes (Tier 1 + Tier 2 tests)
-4. ⏳ All test results documented and verified
+**✅ ALL TESTING COMPLETE - READY FOR GIT PUSH:**
+1. ✅ Disk space added - 98GB available (was 5.9GB)
+2. ✅ Kind test PASSED (operator deployment + Tier 1 tests: 3/3 notebooks succeeded)
+3. ✅ OpenShift test PASSED (Tier 1: 3/3 tests + Tier 2: 1/1 test = 4/4 total, 100% success rate)
+4. ✅ All test results documented and verified (docs/KIND-TEST-RESULTS.md, docs/OPENSHIFT-TEST-RESULTS.md)
 
 **OpenShift Cluster:** ✅ Available at `https://api.cluster-c4r4z.c4r4z.sandbox5156.opentlc.com:6443`
 **CRD Installed:** ✅ notebookvalidationjobs.mlops.mlops.dev
@@ -1210,7 +1210,7 @@ After completing ADR-031 (Tekton Build Integration) with full end-to-end success
 - **Commit:** `21b9395` - Reorganize test notebooks into tier structure (ADR-034, ADR-035)
 - **Repository:** https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks/commit/21b9395
 
-##### 5.3 Kind Testing Infrastructure - IN PROGRESS (2025-11-11)
+##### 5.3 Kind Testing Infrastructure ✅ COMPLETE (2025-11-14)
 - [x] Create `scripts/test-local-kind.sh` ✅
   - [x] Setup Kind cluster with Kubernetes 1.31.12 ✅ (matches OpenShift 4.18.21)
   - [x] Install cert-manager for webhooks ✅
@@ -1220,10 +1220,10 @@ After completing ADR-031 (Tekton Build Integration) with full end-to-end success
   - [x] Fix container runtime detection (global variable) ✅
   - [x] Add proper Podman build support ✅
   - [x] Update all kubectl commands for rootful mode ✅
-  - [ ] **BLOCKED:** Deploy operator to Kind cluster (needs disk space)
-  - [ ] **BLOCKED:** Create test namespace and git credentials (needs disk space)
-  - [ ] **BLOCKED:** Run Tier 1 tests only (needs disk space)
-  - [ ] Cleanup Kind cluster
+  - [x] Deploy operator to Kind cluster ✅
+  - [x] Create test namespace and git credentials ✅
+  - [x] Run Tier 1 tests only ✅ (3/3 notebooks passed)
+  - [ ] Cleanup Kind cluster (manual cleanup for now)
 - [x] Document Kind setup in `docs/DEVELOPMENT.md` ✅
   - [x] Prerequisites (Kind, kubectl, operator dependencies) ✅
   - [x] Local testing workflow ✅
@@ -1231,22 +1231,38 @@ After completing ADR-031 (Tekton Build Integration) with full end-to-end success
   - [x] Performance expectations (< 2 min for Tier 1) ✅
   - [x] Docker vs Podman documentation ✅
   - [x] Podman rootless mode configuration ✅
-- [ ] **Test Kind workflow locally (BEFORE GIT PUSH)** ⚠️ REQUIRED
+- [x] **Test Kind workflow locally (BEFORE GIT PUSH)** ✅ COMPLETE
   - [x] Kind installation verified ✅
   - [x] Podman runtime detected and configured ✅
   - [x] Cluster creation successful ✅
   - [x] cert-manager installation successful ✅
-  - [ ] **TODO:** Operator image builds successfully with Podman
-  - [ ] **TODO:** Operator deploys and becomes ready
-  - [ ] **TODO:** Test namespace and credentials created
-  - [ ] **TODO:** All 3 Tier 1 tests execute and pass
-  - [ ] **TODO:** Cluster cleanup works properly
+  - [x] Operator image builds successfully with Podman ✅
+  - [x] Operator deploys and becomes ready ✅
+  - [x] Test namespace and credentials created ✅
+  - [x] All 3 Tier 1 tests execute and pass ✅
+  - [ ] Cluster cleanup works properly (manual cleanup for now)
+
+**Test Results (2025-11-14):**
+- **Test 1 (01-hello-world.ipynb):** ✅ PASSED - 4/4 cells succeeded (100%)
+- **Test 2 (02-basic-math.ipynb):** ✅ PASSED - 4/4 cells succeeded (100%)
+- **Test 3 (03-data-validation.ipynb):** ✅ PASSED - 3/3 cells succeeded (100%)
+- **Total Execution Time:** ~90 seconds for all 3 tests
+- **Platform:** Kubernetes 1.31.12 on Kind with Podman rootful mode
 
 **Current Status:**
 - **Commits:** 3fedc83 (Kubernetes v1.31.12 + --podman-rootful), 0a465c3 (Podman build support)
-- **Disk Space:** 5.9GB available, need ~10GB for operator image build
-- **Blocked On:** Insufficient disk space in /var/tmp for Golang base image (~850MB) + build artifacts (~1.5GB)
-- **Script Status:** Ready and tested up to operator deployment step
+- **Disk Space:** 98GB available (was 5.9GB - disk space added)
+- **Git Init Image:** Fixed to use `bitnami/git:latest` for Kubernetes platform
+- **Authentication:** Private test repository requires GitHub PAT (git-credentials secret)
+- **Script Status:** Fully functional and tested end-to-end
+
+**Key Fixes Applied:**
+- Updated `internal/controller/git_helper.go` to use `bitnami/git:latest` for Kubernetes
+- Added credential helper disabling for anonymous clones
+- Fixed image loading into Kind using tar export/import method
+- Set `PLATFORM=kubernetes` environment variable in operator deployment
+- Created `git-credentials` secret with valid GitHub PAT
+- Updated test paths to match repository structure (`notebooks/tier1-simple/`)
 
 **Notes:**
 - Kind v0.20.0 installed successfully
@@ -1254,24 +1270,24 @@ After completing ADR-031 (Tekton Build Integration) with full end-to-end success
 - Podman rootful mode working correctly with `--podman-rootful` flag
 - Container runtime detection fixed (global variable)
 - All kubectl commands updated to use sudo in rootful mode
-- **⚠️ DO NOT PUSH TO GIT until local Kind test passes completely**
+- **✅ Kind testing COMPLETE - Ready for OpenShift testing**
 
-##### 5.3.1 OpenShift Testing (Local) - NOT STARTED ⚠️ REQUIRED BEFORE GIT PUSH
-- [ ] **Test operator deployment on OpenShift cluster (BEFORE GIT PUSH)** ⚠️ REQUIRED
-  - [ ] **TODO:** Verify OpenShift cluster access (`oc cluster-info`)
-  - [ ] **TODO:** Build and push operator image to registry
-  - [ ] **TODO:** Deploy operator to OpenShift test namespace
-  - [ ] **TODO:** Verify operator pod is running and ready
-  - [ ] **TODO:** Create test namespace and credentials
-  - [ ] **TODO:** Run Tier 1 tests (simple notebooks, < 30s each)
-    - [ ] 01-hello-world.ipynb
-    - [ ] 02-basic-math.ipynb
-    - [ ] 03-data-validation.ipynb
-  - [ ] **TODO:** Run Tier 2 tests (build integration, 1-5 min)
-    - [ ] 01-train-sentiment-model.ipynb (requires S2I/Tekton build)
-  - [ ] **TODO:** Verify all tests pass with current code changes
-  - [ ] **TODO:** Collect logs and verify no errors
-  - [ ] **TODO:** Cleanup test resources
+##### 5.3.1 OpenShift Testing (Local) ✅ COMPLETE (2025-11-14)
+- [x] **Test operator deployment on OpenShift cluster** ✅ COMPLETE
+  - [x] Verify OpenShift cluster access (`oc cluster-info`) ✅
+  - [x] Build and push operator image to registry ✅ (`quay.io/takinosh/jupyter-notebook-validator-operator:test-tier2-v3`)
+  - [x] Deploy operator to OpenShift test namespace ✅
+  - [x] Verify operator pod is running and ready ✅
+  - [x] Create test namespace and credentials ✅ (namespace: e2e-tests)
+  - [x] Run Tier 1 tests (simple notebooks, < 30s each) ✅ **3/3 PASSED (100%)**
+    - [x] 01-hello-world.ipynb ✅ (4/4 cells, ~10s)
+    - [x] 02-basic-math.ipynb ✅ (4/4 cells, ~10s)
+    - [x] 03-data-validation.ipynb ✅ (3/3 cells, ~10s)
+  - [x] Run Tier 2 tests (build integration, 1-5 min) ✅ **1/1 PASSED (100%)**
+    - [x] 01-train-sentiment-model.ipynb ✅ (12/12 cells, ~6 min total: 5 min build + 39s validation)
+  - [x] Verify all tests pass with current code changes ✅ **4/4 tests passed (100%)**
+  - [x] Collect logs and verify no errors ✅
+  - [x] Cleanup test resources ✅
 
 **Testing Commands:**
 ```bash
@@ -1300,10 +1316,34 @@ make undeploy
 - No errors in operator logs
 - Resources cleanup successfully
 
+**Technical Issues Resolved:**
+
+1. **Tekton PVC Creation Issue**
+   - **Problem:** PipelineRun's `volumeClaimTemplate` not creating PVCs automatically
+   - **Root Cause:** OpenShift Tekton has `DisableAffinityAssistant: true`
+   - **Solution:** Changed to use pre-created PVC `tier2-build-workspace` with `PersistentVolumeClaim` reference
+   - **File:** `pkg/build/tekton_strategy.go` (lines 514-522)
+
+2. **OpenShift SCC for fsGroup**
+   - **Problem:** PipelineRun failed with "65532 is not an allowed group"
+   - **Root Cause:** Code explicitly set `fsGroup: 65532`, but `pipelines-scc` requires using namespace's default UID range
+   - **Solution:** Removed explicit `fsGroup` setting to let OpenShift assign it automatically
+   - **File:** `pkg/build/tekton_strategy.go` (lines 479-496)
+
+3. **Missing Image Reference**
+   - **Problem:** Validation pod creation failed with "spec.containers[0].image: Required value"
+   - **Root Cause:** `getPipelineRunStatus()` didn't extract `ImageReference` from PipelineRun parameters
+   - **Solution:** Added code to extract `image-reference` parameter from PipelineRun spec
+   - **File:** `pkg/build/tekton_strategy.go` (lines 604-612)
+
+**Test Results Documentation:**
+- ✅ `docs/KIND-TEST-RESULTS.md` - Complete Kind testing results
+- ✅ `docs/OPENSHIFT-TEST-RESULTS.md` - Complete OpenShift testing results
+
 **Notes:**
-- OpenShift cluster already available (verified with `oc cluster-info`)
+- OpenShift cluster: https://api.cluster-c4r4z.c4r4z.sandbox5156.opentlc.com:6443 (OpenShift 4.18.21)
 - Test repository: https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks
-- **⚠️ DO NOT PUSH TO GIT until OpenShift tests pass**
+- **✅ ALL TESTS PASSED - Ready for git push**
 
 ##### 5.4 GitHub Actions Workflows - BLOCKED (Waiting for local tests)
 - [ ] Create `.github/workflows/e2e-tests.yaml` (Dual testing strategy)

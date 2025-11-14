@@ -54,6 +54,14 @@ rules:
   - get
   - list
 - apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - create
+  - get
+  - list
+- apiGroups:
   - apps
   resources:
   - deployments

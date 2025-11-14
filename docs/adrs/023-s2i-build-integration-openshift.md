@@ -1,10 +1,15 @@
 # ADR-023: Strategy for Source-to-Image (S2I) Build Integration on OpenShift
 
 ## Status
-Proposed
+**ARCHIVED** - Duplicate of ADR-027. See ADR-027 for the accepted S2I build strategy.
 
 ## Date
 2025-01-08
+**Archived**: 2025-11-10
+
+## Superseded By
+- **ADR-027**: S2I Build Strategy for Git Integration (accepted implementation)
+- **ADR-031**: Tekton Build Strategy (current primary build method)
 
 ## Context
 

@@ -6,12 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tektoncd/pipeline/pkg/apis/pipeline/pod"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -152,6 +150,52 @@ func (t *TektonStrategy) ensureTasksInNamespace(ctx context.Context, namespace s
 	return nil
 }
 
+// ensurePipelineServiceAccount ensures the pipeline ServiceAccount exists in the namespace
+// The buildah task requires privileged access, so we need to use a ServiceAccount with pipelines-scc
+func (t *TektonStrategy) ensurePipelineServiceAccount(ctx context.Context, namespace string) error {
+	logger := log.FromContext(ctx)
+
+	// Check if pipeline ServiceAccount already exists
+	sa := &corev1.ServiceAccount{}
+	err := t.client.Get(ctx, client.ObjectKey{
+		Name:      "pipeline",
+		Namespace: namespace,
+	}, sa)
+
+	if err == nil {
+		// ServiceAccount exists
+		logger.V(1).Info("pipeline ServiceAccount already exists", "namespace", namespace)
+		return nil
+	}
+
+	if !errors.IsNotFound(err) {
+		return fmt.Errorf("failed to check pipeline ServiceAccount: %w", err)
+	}
+
+	// ServiceAccount doesn't exist, create it
+	logger.Info("Creating pipeline ServiceAccount", "namespace", namespace)
+	newSA := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pipeline",
+			Namespace: namespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/managed-by": "jupyter-notebook-validator-operator",
+				"app.kubernetes.io/component":  "tekton-build",
+			},
+		},
+	}
+
+	if err := t.client.Create(ctx, newSA); err != nil {
+		return fmt.Errorf("failed to create pipeline ServiceAccount: %w", err)
+	}
+
+	logger.Info("Successfully created pipeline ServiceAccount", "namespace", namespace)
+	logger.Info("NOTE: The pipeline ServiceAccount needs pipelines-scc to run buildah tasks. " +
+		"Please ensure it has the necessary SCC: oc adm policy add-scc-to-user pipelines-scc -z pipeline -n " + namespace)
+
+	return nil
+}
+
 // CreateBuild creates a Tekton TaskRun for building the notebook image
 func (t *TektonStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (*BuildInfo, error) {
 	logger := log.FromContext(ctx)
@@ -165,6 +209,12 @@ func (t *TektonStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Not
 	logger.Info("Ensuring Tekton Tasks exist in namespace", "namespace", job.Namespace)
 	if err := t.ensureTasksInNamespace(ctx, job.Namespace); err != nil {
 		return nil, fmt.Errorf("failed to ensure tasks in namespace: %w", err)
+	}
+
+	// Ensure pipeline ServiceAccount exists with proper SCC for buildah
+	logger.Info("Ensuring pipeline ServiceAccount exists", "namespace", job.Namespace)
+	if err := t.ensurePipelineServiceAccount(ctx, job.Namespace); err != nil {
+		return nil, fmt.Errorf("failed to ensure pipeline ServiceAccount: %w", err)
 	}
 
 	buildConfig := job.Spec.PodConfig.BuildConfig
@@ -303,7 +353,6 @@ func (t *TektonStrategy) createBuildPipeline(job *mlopsv1alpha1.NotebookValidati
 									Name:  "check-and-generate-dockerfile",
 									Image: "registry.access.redhat.com/ubi9/ubi-minimal:latest",
 									// Fix: Run as non-root user to comply with OpenShift restricted-v2 SCC
-									// The PipelineRun has runAsNonRoot=true from fsGroup security context
 									SecurityContext: &corev1.SecurityContext{
 										RunAsNonRoot: func() *bool { b := true; return &b }(),
 										RunAsUser:    func() *int64 { uid := int64(65532); return &uid }(), // Standard non-root user
@@ -425,9 +474,6 @@ func (t *TektonStrategy) createPipelineRun(job *mlopsv1alpha1.NotebookValidation
 		dockerfilePath = job.Spec.PodConfig.BuildConfig.Dockerfile
 	}
 
-	// ADR-031: Fix PVC permissions with fsGroup
-	fsGroup := int64(65532) // Standard non-root user group for Tekton
-
 	return &tektonv1.PipelineRun{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      buildName,
@@ -441,13 +487,10 @@ func (t *TektonStrategy) createPipelineRun(job *mlopsv1alpha1.NotebookValidation
 			PipelineRef: &tektonv1.PipelineRef{
 				Name: pipelineName,
 			},
-			// ADR-031: Add podTemplate with fsGroup for PVC permissions
+			// ADR-031: Use pipeline ServiceAccount which has pipelines-scc for buildah
+			// Let OpenShift assign fsGroup automatically based on namespace UID range
 			TaskRunTemplate: tektonv1.PipelineTaskRunTemplate{
-				PodTemplate: &pod.Template{
-					SecurityContext: &corev1.PodSecurityContext{
-						FSGroup: &fsGroup,
-					},
-				},
+				ServiceAccountName: "pipeline",
 			},
 			Params: []tektonv1.Param{
 				{Name: "git-url", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: job.Spec.Notebook.Git.URL}},
@@ -461,15 +504,8 @@ func (t *TektonStrategy) createPipelineRun(job *mlopsv1alpha1.NotebookValidation
 				workspaces := []tektonv1.WorkspaceBinding{
 					{
 						Name: "shared-workspace",
-						VolumeClaimTemplate: &corev1.PersistentVolumeClaim{
-							Spec: corev1.PersistentVolumeClaimSpec{
-								AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-								Resources: corev1.VolumeResourceRequirements{
-									Requests: corev1.ResourceList{
-										corev1.ResourceStorage: *resource.NewQuantity(1*1024*1024*1024, resource.BinarySI),
-									},
-								},
-							},
+						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+							ClaimName: "tier2-build-workspace",
 						},
 					},
 				}
@@ -563,6 +599,15 @@ func (t *TektonStrategy) getPipelineRunStatus(pr *tektonv1.PipelineRun) *BuildIn
 	}
 	if pr.Status.CompletionTime != nil {
 		info.CompletionTime = &pr.Status.CompletionTime.Time
+	}
+
+	// ADR-031: Extract image reference from PipelineRun parameters
+	// The image-reference parameter contains the built image location
+	for _, param := range pr.Spec.Params {
+		if param.Name == "image-reference" {
+			info.ImageReference = param.Value.StringVal
+			break
+		}
 	}
 
 	return info

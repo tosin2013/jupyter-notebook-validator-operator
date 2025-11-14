@@ -1,7 +1,12 @@
-# ADR-016: S2I Build Strategy for Git Integration
+# ADR-027: S2I Build Strategy for Git Integration
+
+**Status**: Superseded by ADR-031 (Tekton is now primary build method)
+**Date**: 2025-01-08
+**Updated**: 2025-11-10
+**Related**: ADR-009 (Secret Management), ADR-023 (S2I Build - Archived), ADR-028 (Tekton Task Strategy), ADR-031 (Tekton Build - Primary)
 
 ## Status
-Proposed
+**Superseded** - ADR-031 (Tekton Build) is now the primary build method. S2I remains supported as a fallback option.
 
 ## Context
 
