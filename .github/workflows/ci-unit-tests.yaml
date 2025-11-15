@@ -182,7 +182,11 @@ jobs:
           echo "Deploying operator to KinD cluster..."
           make deploy IMG=jupyter-notebook-validator-operator:test
 
-          echo "Verifying webhook certificate..."
+          echo "Waiting for webhook certificate to be ready..."
+          kubectl wait --for=condition=ready certificate/notebook-validator-serving-cert \
+            -n jupyter-notebook-validator-operator --timeout=2m
+
+          echo "Verifying webhook certificate secret..."
           kubectl get certificate -n jupyter-notebook-validator-operator
           kubectl get secret webhook-server-cert -n jupyter-notebook-validator-operator
 
