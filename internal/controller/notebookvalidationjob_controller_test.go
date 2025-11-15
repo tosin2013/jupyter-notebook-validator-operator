@@ -173,7 +173,7 @@ var _ = Describe("NotebookValidationJobReconciler", func() {
 					},
 				}
 
-				result, err := reconciler.Reconcile(ctx, req)
+				_, err := reconciler.Reconcile(ctx, req)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Verify phase was updated to Failed
