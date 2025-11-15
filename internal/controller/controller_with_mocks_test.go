@@ -34,19 +34,6 @@ import (
 	"github.com/tosin2013/jupyter-notebook-validator-operator/internal/controller/mocks"
 )
 
-// Helper to convert mock types to controller types
-func mockCredsToController(mockCreds *mocks.GitCredentials) *GitCredentials {
-	if mockCreds == nil {
-		return nil
-	}
-	return &GitCredentials{
-		Type:     mockCreds.Type,
-		Username: mockCreds.Username,
-		Password: mockCreds.Password,
-		SSHKey:   mockCreds.SSHKey,
-	}
-}
-
 func TestControllerWithMocks(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Controller With Mocks Tests")
