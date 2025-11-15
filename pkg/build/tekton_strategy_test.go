@@ -8,17 +8,19 @@ import (
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 // TestNewTektonStrategy tests Tekton strategy creation
 func TestNewTektonStrategy(t *testing.T) {
-	scheme := runtime.NewScheme()
-	_ = mlopsv1alpha1.AddToScheme(scheme)
-	_ = tektonv1.AddToScheme(scheme)
-	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	testScheme := runtime.NewScheme()
+	_ = scheme.AddToScheme(testScheme) // Add core Kubernetes types
+	_ = mlopsv1alpha1.AddToScheme(testScheme)
+	_ = tektonv1.AddToScheme(testScheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(testScheme).Build()
 
-	strategy := NewTektonStrategy(fakeClient, scheme)
+	strategy := NewTektonStrategy(fakeClient, testScheme)
 
 	if strategy == nil {
 		t.Fatal("NewTektonStrategy returned nil")
@@ -31,12 +33,13 @@ func TestNewTektonStrategy(t *testing.T) {
 
 // TestTektonStrategyName tests the Name method
 func TestTektonStrategyName(t *testing.T) {
-	scheme := runtime.NewScheme()
-	_ = mlopsv1alpha1.AddToScheme(scheme)
-	_ = tektonv1.AddToScheme(scheme)
-	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	testScheme := runtime.NewScheme()
+	_ = scheme.AddToScheme(testScheme) // Add core Kubernetes types
+	_ = mlopsv1alpha1.AddToScheme(testScheme)
+	_ = tektonv1.AddToScheme(testScheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(testScheme).Build()
 
-	strategy := NewTektonStrategy(fakeClient, scheme)
+	strategy := NewTektonStrategy(fakeClient, testScheme)
 
 	if strategy.Name() != "tekton" {
 		t.Errorf("Name() = %v, want tekton", strategy.Name())
@@ -45,12 +48,13 @@ func TestTektonStrategyName(t *testing.T) {
 
 // TestTektonStrategyDetect tests the Detect method
 func TestTektonStrategyDetect(t *testing.T) {
-	scheme := runtime.NewScheme()
-	_ = mlopsv1alpha1.AddToScheme(scheme)
-	_ = tektonv1.AddToScheme(scheme)
-	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	testScheme := runtime.NewScheme()
+	_ = scheme.AddToScheme(testScheme) // Add core Kubernetes types
+	_ = mlopsv1alpha1.AddToScheme(testScheme)
+	_ = tektonv1.AddToScheme(testScheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(testScheme).Build()
 
-	strategy := NewTektonStrategy(fakeClient, scheme)
+	strategy := NewTektonStrategy(fakeClient, testScheme)
 	ctx := context.Background()
 
 	// In a test environment without real Tekton, detection should return false or error
@@ -67,12 +71,13 @@ func TestTektonStrategyDetect(t *testing.T) {
 
 // TestTektonStrategyValidateConfig tests configuration validation
 func TestTektonStrategyValidateConfig(t *testing.T) {
-	scheme := runtime.NewScheme()
-	_ = mlopsv1alpha1.AddToScheme(scheme)
-	_ = tektonv1.AddToScheme(scheme)
-	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	testScheme := runtime.NewScheme()
+	_ = scheme.AddToScheme(testScheme) // Add core Kubernetes types
+	_ = mlopsv1alpha1.AddToScheme(testScheme)
+	_ = tektonv1.AddToScheme(testScheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(testScheme).Build()
 
-	strategy := NewTektonStrategy(fakeClient, scheme)
+	strategy := NewTektonStrategy(fakeClient, testScheme)
 
 	tests := []struct {
 		name        string
@@ -122,9 +127,10 @@ func TestTektonStrategyValidateConfig(t *testing.T) {
 
 // TestTektonStrategyCreateBuild tests build creation
 func TestTektonStrategyCreateBuild(t *testing.T) {
-	scheme := runtime.NewScheme()
-	_ = mlopsv1alpha1.AddToScheme(scheme)
-	_ = tektonv1.AddToScheme(scheme)
+	testScheme := runtime.NewScheme()
+	_ = scheme.AddToScheme(testScheme) // Add core Kubernetes types
+	_ = mlopsv1alpha1.AddToScheme(testScheme)
+	_ = tektonv1.AddToScheme(testScheme)
 
 	// ADR-028: Pre-create Tasks in openshift-pipelines namespace for testing
 	// This simulates the Tasks that exist in a real OpenShift cluster
@@ -165,11 +171,11 @@ func TestTektonStrategyCreateBuild(t *testing.T) {
 	}
 
 	fakeClient := fake.NewClientBuilder().
-		WithScheme(scheme).
+		WithScheme(testScheme).
 		WithObjects(gitCloneTask, buildahTask).
 		Build()
 
-	strategy := NewTektonStrategy(fakeClient, scheme)
+	strategy := NewTektonStrategy(fakeClient, testScheme)
 	ctx := context.Background()
 
 	tests := []struct {
