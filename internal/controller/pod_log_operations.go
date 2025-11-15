@@ -27,13 +27,13 @@ import (
 type PodLogOperations interface {
 	// CollectLogs retrieves logs from a pod
 	CollectLogs(ctx context.Context, pod *corev1.Pod, containerName string) (string, error)
-	
+
 	// ParseResults parses execution results from logs
 	ParseResults(logs string) (*NotebookExecutionResult, error)
-	
+
 	// ParseGoldenNotebook parses golden notebook data from logs
 	ParseGoldenNotebook(logs string) (*NotebookFormat, error)
-	
+
 	// ExtractError extracts error messages from logs
 	ExtractError(logs string) string
 }

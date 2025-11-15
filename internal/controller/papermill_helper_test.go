@@ -27,14 +27,14 @@ import (
 
 func TestConvertResourceRequirements(t *testing.T) {
 	tests := []struct {
-		name           string
+		name            string
 		customResources *mlopsv1alpha1.ResourceRequirements
-		expected       corev1.ResourceRequirements
+		expected        corev1.ResourceRequirements
 	}{
 		{
-			name:           "nil resources",
+			name:            "nil resources",
 			customResources: nil,
-			expected:       corev1.ResourceRequirements{},
+			expected:        corev1.ResourceRequirements{},
 		},
 		{
 			name: "empty resources",
@@ -151,7 +151,7 @@ func TestConvertEnvVars(t *testing.T) {
 	}{
 		{
 			name:        "nil env vars",
-			customEnvs:   nil,
+			customEnvs:  nil,
 			expected:    nil,
 			expectedLen: 0,
 		},

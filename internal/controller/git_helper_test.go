@@ -51,8 +51,8 @@ func TestResolveGitCredentials(t *testing.T) {
 				Spec: mlopsv1alpha1.NotebookValidationJobSpec{
 					Notebook: mlopsv1alpha1.NotebookSpec{
 						Git: mlopsv1alpha1.GitSpec{
-							URL:              "https://github.com/test/repo.git",
-							Ref:              "main",
+							URL:               "https://github.com/test/repo.git",
+							Ref:               "main",
 							CredentialsSecret: "",
 						},
 					},
@@ -73,8 +73,8 @@ func TestResolveGitCredentials(t *testing.T) {
 				Spec: mlopsv1alpha1.NotebookValidationJobSpec{
 					Notebook: mlopsv1alpha1.NotebookSpec{
 						Git: mlopsv1alpha1.GitSpec{
-							URL:              "git@github.com:test/repo.git",
-							Ref:              "main",
+							URL:               "git@github.com:test/repo.git",
+							Ref:               "main",
 							CredentialsSecret: "ssh-secret",
 						},
 					},
@@ -105,8 +105,8 @@ func TestResolveGitCredentials(t *testing.T) {
 				Spec: mlopsv1alpha1.NotebookValidationJobSpec{
 					Notebook: mlopsv1alpha1.NotebookSpec{
 						Git: mlopsv1alpha1.GitSpec{
-							URL:              "https://github.com/test/repo.git",
-							Ref:              "main",
+							URL:               "https://github.com/test/repo.git",
+							Ref:               "main",
 							CredentialsSecret: "https-secret",
 						},
 					},
@@ -139,8 +139,8 @@ func TestResolveGitCredentials(t *testing.T) {
 				Spec: mlopsv1alpha1.NotebookValidationJobSpec{
 					Notebook: mlopsv1alpha1.NotebookSpec{
 						Git: mlopsv1alpha1.GitSpec{
-							URL:              "https://github.com/test/repo.git",
-							Ref:              "main",
+							URL:               "https://github.com/test/repo.git",
+							Ref:               "main",
 							CredentialsSecret: "token-secret",
 						},
 					},
@@ -173,8 +173,8 @@ func TestResolveGitCredentials(t *testing.T) {
 				Spec: mlopsv1alpha1.NotebookValidationJobSpec{
 					Notebook: mlopsv1alpha1.NotebookSpec{
 						Git: mlopsv1alpha1.GitSpec{
-							URL:              "https://github.com/test/repo.git",
-							Ref:              "main",
+							URL:               "https://github.com/test/repo.git",
+							Ref:               "main",
 							CredentialsSecret: "invalid-secret",
 						},
 					},
@@ -201,8 +201,8 @@ func TestResolveGitCredentials(t *testing.T) {
 				Spec: mlopsv1alpha1.NotebookValidationJobSpec{
 					Notebook: mlopsv1alpha1.NotebookSpec{
 						Git: mlopsv1alpha1.GitSpec{
-							URL:              "https://github.com/test/repo.git",
-							Ref:              "main",
+							URL:               "https://github.com/test/repo.git",
+							Ref:               "main",
 							CredentialsSecret: "missing-secret",
 						},
 					},
@@ -220,8 +220,8 @@ func TestResolveGitCredentials(t *testing.T) {
 				Spec: mlopsv1alpha1.NotebookValidationJobSpec{
 					Notebook: mlopsv1alpha1.NotebookSpec{
 						Git: mlopsv1alpha1.GitSpec{
-							URL:              "https://github.com/test/repo.git",
-							Ref:              "main",
+							URL:               "https://github.com/test/repo.git",
+							Ref:               "main",
 							CredentialsSecret: "unknown-secret",
 						},
 					},
@@ -501,8 +501,8 @@ func TestResolveGoldenGitCredentials(t *testing.T) {
 				Spec: mlopsv1alpha1.NotebookValidationJobSpec{
 					GoldenNotebook: &mlopsv1alpha1.NotebookSpec{
 						Git: mlopsv1alpha1.GitSpec{
-							URL:              "git@github.com:test/golden.git",
-							Ref:              "main",
+							URL:               "git@github.com:test/golden.git",
+							Ref:               "main",
 							CredentialsSecret: "golden-ssh-secret",
 						},
 						Path: "golden.ipynb",
@@ -534,8 +534,8 @@ func TestResolveGoldenGitCredentials(t *testing.T) {
 				Spec: mlopsv1alpha1.NotebookValidationJobSpec{
 					GoldenNotebook: &mlopsv1alpha1.NotebookSpec{
 						Git: mlopsv1alpha1.GitSpec{
-							URL:              "https://github.com/test/golden.git",
-							Ref:              "main",
+							URL:               "https://github.com/test/golden.git",
+							Ref:               "main",
 							CredentialsSecret: "",
 						},
 						Path: "golden.ipynb",

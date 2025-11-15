@@ -19,8 +19,8 @@ package controller
 import (
 	"context"
 
-	corev1 "k8s.io/api/core/v1"
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // GitOperations defines the interface for Git-related operations
@@ -28,13 +28,13 @@ import (
 type GitOperations interface {
 	// ResolveCredentials resolves Git credentials from Kubernetes secrets
 	ResolveCredentials(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (*GitCredentials, error)
-	
+
 	// ResolveGoldenCredentials resolves Git credentials for golden notebook
 	ResolveGoldenCredentials(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (*GitCredentials, error)
-	
+
 	// BuildCloneInitContainer builds an init container for Git clone operations
 	BuildCloneInitContainer(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob, creds *GitCredentials) (corev1.Container, error)
-	
+
 	// BuildGoldenCloneInitContainer builds an init container for golden notebook Git clone
 	BuildGoldenCloneInitContainer(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob, creds *GitCredentials) (corev1.Container, error)
 }

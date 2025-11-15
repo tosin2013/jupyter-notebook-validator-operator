@@ -86,21 +86,21 @@ type PodLogOperations interface {
 type MockPodLogOperations struct {
 	// CollectLogsFunc allows customizing the CollectLogs behavior
 	CollectLogsFunc func(ctx context.Context, pod *corev1.Pod, containerName string) (string, error)
-	
+
 	// ParseResultsFunc allows customizing the ParseResults behavior
 	ParseResultsFunc func(logs string) (*NotebookExecutionResult, error)
-	
+
 	// ParseGoldenNotebookFunc allows customizing the ParseGoldenNotebook behavior
 	ParseGoldenNotebookFunc func(logs string) (*NotebookFormat, error)
-	
+
 	// ExtractErrorFunc allows customizing the ExtractError behavior
 	ExtractErrorFunc func(logs string) string
-	
+
 	// Call tracking
-	CollectLogsCallCount      int
-	ParseResultsCallCount     int
+	CollectLogsCallCount         int
+	ParseResultsCallCount        int
 	ParseGoldenNotebookCallCount int
-	ExtractErrorCallCount     int
+	ExtractErrorCallCount        int
 }
 
 // NewMockPodLogOperations creates a new mock PodLogOperations with default behaviors

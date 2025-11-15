@@ -19,8 +19,8 @@ package mocks
 import (
 	"context"
 
-	corev1 "k8s.io/api/core/v1"
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // GitCredentials represents Git authentication credentials
@@ -43,20 +43,20 @@ type GitOperations interface {
 type MockGitOperations struct {
 	// ResolveCredentialsFunc allows customizing the ResolveCredentials behavior
 	ResolveCredentialsFunc func(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (*GitCredentials, error)
-	
+
 	// ResolveGoldenCredentialsFunc allows customizing the ResolveGoldenCredentials behavior
 	ResolveGoldenCredentialsFunc func(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (*GitCredentials, error)
-	
+
 	// BuildCloneInitContainerFunc allows customizing the BuildCloneInitContainer behavior
 	BuildCloneInitContainerFunc func(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob, creds *GitCredentials) (corev1.Container, error)
-	
+
 	// BuildGoldenCloneInitContainerFunc allows customizing the BuildGoldenCloneInitContainer behavior
 	BuildGoldenCloneInitContainerFunc func(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob, creds *GitCredentials) (corev1.Container, error)
-	
+
 	// Call tracking
-	ResolveCredentialsCallCount      int
-	ResolveGoldenCredentialsCallCount int
-	BuildCloneInitContainerCallCount  int
+	ResolveCredentialsCallCount            int
+	ResolveGoldenCredentialsCallCount      int
+	BuildCloneInitContainerCallCount       int
 	BuildGoldenCloneInitContainerCallCount int
 }
 

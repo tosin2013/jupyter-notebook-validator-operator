@@ -450,8 +450,8 @@ Error: Error 7`,
 			expected: "ERROR: Error 1\nError: Error 2\nFAILED: Error 3\nException: Error 4\nTraceback: Error 5",
 		},
 		{
-			name: "error with whitespace",
-			logs: `  ERROR:   Padded error  `,
+			name:     "error with whitespace",
+			logs:     `  ERROR:   Padded error  `,
 			expected: "ERROR:   Padded error",
 		},
 	}

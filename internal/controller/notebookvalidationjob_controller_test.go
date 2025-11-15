@@ -44,9 +44,9 @@ func TestNotebookValidationJobController(t *testing.T) {
 
 var _ = Describe("NotebookValidationJobReconciler", func() {
 	var (
-		ctx       context.Context
+		ctx        context.Context
 		reconciler *NotebookValidationJobReconciler
-		scheme    *runtime.Scheme
+		scheme     *runtime.Scheme
 		fakeClient client.Client
 	)
 

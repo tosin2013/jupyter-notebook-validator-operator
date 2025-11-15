@@ -54,11 +54,11 @@ func TestControllerWithMocks(t *testing.T) {
 
 var _ = Describe("NotebookValidationJobReconciler with Mocks", func() {
 	var (
-		ctx         context.Context
-		scheme      *runtime.Scheme
-		fakeClient  client.Client
-		gitOps      *mocks.MockGitOperations
-		podLogOps   *mocks.MockPodLogOperations
+		ctx        context.Context
+		scheme     *runtime.Scheme
+		fakeClient client.Client
+		gitOps     *mocks.MockGitOperations
+		podLogOps  *mocks.MockPodLogOperations
 	)
 
 	BeforeEach(func() {
