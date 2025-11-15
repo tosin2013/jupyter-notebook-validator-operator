@@ -431,12 +431,14 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 			ServiceAccountName: job.Spec.PodConfig.ServiceAccountName,
 			RestartPolicy:      corev1.RestartPolicyNever,
 			// ADR-005: OpenShift Compatibility
-			// Set fsGroup to ensure EmptyDir volumes are writable by OpenShift-assigned UID
-			// OpenShift will override this with the namespace's allocated fsGroup range
-			// This ensures /workspace volume is writable regardless of the assigned UID
-			SecurityContext: &corev1.PodSecurityContext{
-				FSGroup: int64Ptr(0), // Will be overridden by OpenShift SCC
-			},
+			// SecurityContext is intentionally omitted at pod level
+			// OpenShift automatically assigns appropriate UID/GID/fsGroup from namespace ranges
+			// Container-level SecurityContext (in buildPapermillValidationContainer) ensures:
+			//   - RunAsNonRoot: true
+			//   - AllowPrivilegeEscalation: false
+			//   - Capabilities dropped
+			// Combined with HOME=/workspace and PYTHONUSERBASE=/workspace/.local env vars,
+			// this ensures notebooks work with OpenShift's default restricted SCC
 			InitContainers: initContainers,
 			Containers: []corev1.Container{
 				r.buildPapermillValidationContainer(ctx, job, containerImage),
