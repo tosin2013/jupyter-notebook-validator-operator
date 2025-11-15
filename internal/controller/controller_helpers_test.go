@@ -18,7 +18,6 @@ package controller
 
 import (
 	"errors"
-	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -27,10 +26,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestControllerHelpers(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Controller Helpers Unit Tests")
-}
+// TestControllerHelpers is consolidated into the main test suite
+// All Describe blocks in this file are part of the unified test suite
 
 var _ = Describe("classifyError", func() {
 	It("should return empty string for nil error", func() {

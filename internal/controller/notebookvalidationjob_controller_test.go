@@ -39,7 +39,7 @@ import (
 
 func TestNotebookValidationJobController(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "NotebookValidationJob Controller Unit Tests")
+	RunSpecs(t, "Controller Unit Tests")
 }
 
 var _ = Describe("NotebookValidationJobReconciler", func() {
@@ -497,15 +497,30 @@ var _ = Describe("NotebookValidationJobReconciler", func() {
 			// After second error, retryCount becomes 2, backoff = 1 << (2-1) = 2 minutes
 			Expect(result.RequeueAfter).To(Equal(2 * time.Minute))
 
+			// Get updated job after second retry
+			Expect(fakeClient.Get(ctx, types.NamespacedName{
+				Name:      job.Name,
+				Namespace: job.Namespace,
+			}, updatedJob)).To(Succeed())
+
 			// Third retry (retryCount is now 2, becomes 3 after increment)
+			// When RetryCount reaches MaxRetries (3), the job should be marked as failed
 			updatedJob.Status.RetryCount = 2
 			Expect(fakeClient.Status().Update(ctx, updatedJob)).To(Succeed())
 
 			err3 := k8serrors.NewInternalError(errors.New("internal error"))
 			result, handleErr = reconciler.handleReconcileError(ctx, updatedJob, err3)
 			Expect(handleErr).NotTo(HaveOccurred())
-			// After third error, retryCount becomes 3, backoff = 1 << (3-1) = 4 minutes
-			Expect(result.RequeueAfter).To(Equal(4 * time.Minute))
+			// After third error, retryCount becomes 3, which is >= MaxRetries, so job is marked as failed
+			// updateJobPhase returns ctrl.Result{} with RequeueAfter = 0
+			Expect(result.RequeueAfter).To(Equal(time.Duration(0)))
+
+			// Verify job was marked as failed
+			Expect(fakeClient.Get(ctx, types.NamespacedName{
+				Name:      job.Name,
+				Namespace: job.Namespace,
+			}, updatedJob)).To(Succeed())
+			Expect(updatedJob.Status.Phase).To(Equal(PhaseFailed))
 		})
 	})
 })

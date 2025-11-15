@@ -19,7 +19,6 @@ package controller
 import (
 	"context"
 	"errors"
-	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -34,10 +33,8 @@ import (
 	"github.com/tosin2013/jupyter-notebook-validator-operator/internal/controller/mocks"
 )
 
-func TestControllerWithMocks(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Controller With Mocks Tests")
-}
+// TestControllerWithMocks is consolidated into the main test suite
+// All Describe blocks in this file are part of the unified test suite
 
 var _ = Describe("NotebookValidationJobReconciler with Mocks", func() {
 	var (
