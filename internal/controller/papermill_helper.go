@@ -422,6 +422,13 @@ exit $EXIT_CODE
 				Name:      "workspace",
 				MountPath: "/workspace",
 			},
+			{
+				// ADR-005: OpenShift Compatibility
+				// Mount emptyDir at /home/jovyan to prevent permission errors
+				// Jupyter containers expect this directory to exist and be writable
+				Name:      "jovyan-home",
+				MountPath: "/home/jovyan",
+			},
 		},
 		Resources: convertResourceRequirements(job.Spec.PodConfig.Resources),
 		Env: append(convertEnvVars(job.Spec.PodConfig.Env),
