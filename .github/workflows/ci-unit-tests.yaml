@@ -1,8 +1,9 @@
 name: CI - Unit & Integration Tests (Tier 1)
 
-# ADR-032: GitHub Actions CI Testing Against Kubernetes 1.30.13
+# ADR-032: GitHub Actions CI Testing Against Kubernetes 1.31.12
+# ADR-034: Dual Testing Strategy with Kind and OpenShift
 # This workflow runs unit and integration tests on a KinD cluster pinned to
-# Kubernetes v1.30.13 for stable API compatibility with OpenShift 4.18.
+# Kubernetes v1.31.12 for stable API compatibility with OpenShift 4.18.21.
 
 on:
   push:
@@ -19,8 +20,8 @@ concurrency:
 
 env:
   GO_VERSION: '1.22'
-  KUBERNETES_VERSION: 'v1.30.13'
-  KIND_VERSION: 'v0.24.0'  # Upgraded from v0.20.0 to fix containerd snapshotter bug
+  KUBERNETES_VERSION: 'v1.31.12'  # Updated to match OpenShift 4.18.21 (Phase 5 testing)
+  KIND_VERSION: 'v0.20.0'  # Stable version used in local testing
   TEKTON_VERSION: 'v0.65.0'
 
 jobs:
@@ -101,7 +102,7 @@ jobs:
           EOF
           cat /tmp/kind-config.yaml
 
-      - name: Create KinD cluster (Kubernetes v1.30.13)
+      - name: Create KinD cluster (Kubernetes v1.31.12)
         uses: helm/kind-action@v1
         with:
           version: ${{ env.KIND_VERSION }}

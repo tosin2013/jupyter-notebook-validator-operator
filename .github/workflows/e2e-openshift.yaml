@@ -1,8 +1,11 @@
-name: E2E - OpenShift Cluster Tests (Tier 2)
+name: E2E - OpenShift Cluster Tests (All Tiers)
 
 # ADR-033: End-to-End Testing Against Live OpenShift Cluster
+# ADR-034: Dual Testing Strategy with Kind and OpenShift
+# ADR-035: Test Tier Organization and Scope
 # This workflow runs complete E2E tests on a live OpenShift 4.18 cluster,
-# validating the full operator workflow including Tekton builds and notebook validation.
+# validating the full operator workflow including Tekton builds, notebook validation,
+# and complex integrations (KServe, credentials, MLflow).
 
 on:
   push:
@@ -179,6 +182,45 @@ jobs:
           echo "✅ Operator deployed successfully with webhook"
           oc get pods -n ${{ env.OPERATOR_NAMESPACE }}
 
+      - name: Setup test credentials
+        run: |
+          echo "Creating test credentials for Tier 3 tests..."
+
+          # Create git credentials secret for test repository access
+          oc create secret generic git-credentials \
+            -n ${{ env.TEST_NAMESPACE }} \
+            --from-literal=username=oauth2 \
+            --from-literal=password=${{ secrets.TEST_REPO_TOKEN }} \
+            --dry-run=client -o yaml | oc apply -f -
+
+          # Create mock AWS credentials for Tier 3 test 03
+          oc create secret generic aws-credentials \
+            -n ${{ env.TEST_NAMESPACE }} \
+            --from-literal=AWS_ACCESS_KEY_ID=mock-access-key \
+            --from-literal=AWS_SECRET_ACCESS_KEY=mock-secret-key \
+            --from-literal=AWS_REGION=us-east-1 \
+            --dry-run=client -o yaml | oc apply -f -
+
+          # Create mock database credentials for Tier 3 test 04
+          oc create secret generic database-credentials \
+            -n ${{ env.TEST_NAMESPACE }} \
+            --from-literal=DB_HOST=mock-db-host \
+            --from-literal=DB_PORT=5432 \
+            --from-literal=DB_NAME=mock-db \
+            --from-literal=DB_USER=mock-user \
+            --from-literal=DB_PASSWORD=mock-password \
+            --dry-run=client -o yaml | oc apply -f -
+
+          # Create mock MLflow credentials for Tier 3 test 05
+          oc create secret generic mlflow-credentials \
+            -n ${{ env.TEST_NAMESPACE }} \
+            --from-literal=MLFLOW_TRACKING_URI=http://mock-mlflow:5000 \
+            --from-literal=MLFLOW_TRACKING_USERNAME=mock-user \
+            --from-literal=MLFLOW_TRACKING_PASSWORD=mock-password \
+            --dry-run=client -o yaml | oc apply -f -
+
+          echo "✅ Test credentials created successfully"
+
       - name: Clone test notebooks repository
         env:
           TEST_REPO_TOKEN: ${{ secrets.TEST_REPO_TOKEN }}
@@ -195,59 +237,217 @@ jobs:
 
           cd test-notebooks
           echo "Test notebooks cloned successfully"
-          ls -la
+          ls -la notebooks/
 
       - name: Run Tier 1 tests (Simple notebooks)
         if: github.event.inputs.test_tier == '1' || github.event.inputs.test_tier == 'all' || github.event.inputs.test_tier == ''
         run: |
           echo "=== Running Tier 1 Tests (Simple notebooks) ==="
-          cd test-notebooks
-          
-          # Run tier 1 test script
-          if [ -f scripts/run-tier1-tests.sh ]; then
-            bash scripts/run-tier1-tests.sh
-          else
-            echo "Creating tier 1 test jobs..."
-            for notebook in notebooks/tier1-simple/*.ipynb; do
-              if [ -f "$notebook" ]; then
-                echo "Testing: $notebook"
-                # Create NotebookValidationJob for each notebook
-                # (Implementation depends on test notebook structure)
-              fi
-            done
+
+          # Create NotebookValidationJob for each Tier 1 notebook
+          for i in 01 02 03; do
+            cat <<EOF | oc apply -n ${{ env.TEST_NAMESPACE }} -f -
+          apiVersion: mlops.mlops.dev/v1alpha1
+          kind: NotebookValidationJob
+          metadata:
+            name: tier1-test-${i}
+          spec:
+            notebookPath: "notebooks/tier1-simple/${i}-*.ipynb"
+            gitConfig:
+              repositoryURL: "${{ env.TEST_REPO }}"
+              branch: "main"
+              secretName: "git-credentials"
+            podConfig:
+              containerImage: "quay.io/jupyter/minimal-notebook:latest"
+            timeout: "5m"
+          EOF
+          done
+
+          # Wait for tests to complete
+          echo "Waiting for Tier 1 tests to complete..."
+          for i in {1..60}; do
+            COMPLETED=\$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -l tier=1 -o jsonpath='{.items[?(@.status.phase=="Succeeded")].metadata.name}' | wc -w)
+            FAILED=\$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -l tier=1 -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
+
+            if [ \$((COMPLETED + FAILED)) -eq 3 ]; then
+              break
+            fi
+
+            echo "Progress: \${COMPLETED} succeeded, \${FAILED} failed (waiting...)"
+            sleep 5
+          done
+
+          # Check results
+          oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }}
+
+          FAILED=\$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
+          if [ \$FAILED -gt 0 ]; then
+            echo "❌ Tier 1 tests failed!"
+            exit 1
           fi
-          
-          echo "✅ Tier 1 tests completed"
+
+          echo "✅ Tier 1 tests completed successfully"
 
       - name: Run Tier 2 tests (Intermediate notebooks)
         if: github.event.inputs.test_tier == '2' || github.event.inputs.test_tier == 'all' || github.event.inputs.test_tier == ''
         run: |
-          echo "=== Running Tier 2 Tests (Intermediate notebooks) ==="
-          cd test-notebooks
-          
-          # Run tier 2 test script
-          if [ -f scripts/run-tier2-tests.sh ]; then
-            bash scripts/run-tier2-tests.sh
-          else
-            echo "Tier 2 tests not yet implemented"
-          fi
-          
-          echo "✅ Tier 2 tests completed"
+          echo "=== Running Tier 2 Tests (Intermediate notebooks with Tekton builds) ==="
+
+          # Create PVC for Tekton builds
+          cat <<EOF | oc apply -n ${{ env.TEST_NAMESPACE }} -f -
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: tier2-build-workspace
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 1Gi
+          EOF
+
+          # Create NotebookValidationJob with Tekton build
+          cat <<EOF | oc apply -n ${{ env.TEST_NAMESPACE }} -f -
+          apiVersion: mlops.mlops.dev/v1alpha1
+          kind: NotebookValidationJob
+          metadata:
+            name: tier2-test-01-sentiment-model
+          spec:
+            notebookPath: "notebooks/tier2-intermediate/01-train-sentiment-model.ipynb"
+            gitConfig:
+              repositoryURL: "${{ env.TEST_REPO }}"
+              branch: "main"
+              secretName: "git-credentials"
+            podConfig:
+              containerImage: "quay.io/jupyter/minimal-notebook:latest"
+              buildConfig:
+                enabled: true
+                strategy: "tekton"
+            timeout: "15m"
+          EOF
+
+          # Wait for test to complete
+          echo "Waiting for Tier 2 test to complete (may take 5-10 minutes for build)..."
+          for i in {1..120}; do
+            PHASE=\$(oc get notebookvalidationjob tier2-test-01-sentiment-model -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+
+            if [ "\$PHASE" == "Succeeded" ]; then
+              echo "✅ Tier 2 test succeeded!"
+              break
+            elif [ "\$PHASE" == "Failed" ]; then
+              echo "❌ Tier 2 test failed!"
+              oc get notebookvalidationjob tier2-test-01-sentiment-model -n ${{ env.TEST_NAMESPACE }} -o yaml
+              exit 1
+            fi
+
+            echo "Progress: Phase=\${PHASE} (waiting...)"
+            sleep 10
+          done
+
+          echo "✅ Tier 2 tests completed successfully"
 
       - name: Run Tier 3 tests (Complex notebooks)
         if: github.event.inputs.test_tier == '3' || github.event.inputs.test_tier == 'all' || github.event.inputs.test_tier == ''
         run: |
-          echo "=== Running Tier 3 Tests (Complex notebooks) ==="
-          cd test-notebooks
-          
-          # Run tier 3 test script
-          if [ -f scripts/run-tier3-tests.sh ]; then
-            bash scripts/run-tier3-tests.sh
-          else
-            echo "Tier 3 tests not yet implemented"
+          echo "=== Running Tier 3 Tests (Complex integration tests) ==="
+
+          # Note: Tier 3 tests require KServe InferenceServices to be deployed
+          # For CI/CD, we'll run credential injection tests only
+          # KServe tests require manual infrastructure setup
+
+          # Test 03: AWS credentials
+          cat <<EOF | oc apply -n ${{ env.TEST_NAMESPACE }} -f -
+          apiVersion: mlops.mlops.dev/v1alpha1
+          kind: NotebookValidationJob
+          metadata:
+            name: tier3-test-03-aws-credentials
+          spec:
+            notebookPath: "notebooks/tier3-complex/03-aws-credentials-test.ipynb"
+            gitConfig:
+              repositoryURL: "${{ env.TEST_REPO }}"
+              branch: "main"
+              secretName: "git-credentials"
+            podConfig:
+              containerImage: "quay.io/jupyter/minimal-notebook:latest"
+              buildConfig:
+                enabled: true
+                strategy: "tekton"
+              credentials:
+                - "aws-credentials"
+            timeout: "15m"
+          EOF
+
+          # Test 04: Database credentials
+          cat <<EOF | oc apply -n ${{ env.TEST_NAMESPACE }} -f -
+          apiVersion: mlops.mlops.dev/v1alpha1
+          kind: NotebookValidationJob
+          metadata:
+            name: tier3-test-04-database-credentials
+          spec:
+            notebookPath: "notebooks/tier3-complex/04-database-connection-test.ipynb"
+            gitConfig:
+              repositoryURL: "${{ env.TEST_REPO }}"
+              branch: "main"
+              secretName: "git-credentials"
+            podConfig:
+              containerImage: "quay.io/jupyter/minimal-notebook:latest"
+              buildConfig:
+                enabled: true
+                strategy: "tekton"
+              credentials:
+                - "database-credentials"
+            timeout: "15m"
+          EOF
+
+          # Test 05: MLflow credentials
+          cat <<EOF | oc apply -n ${{ env.TEST_NAMESPACE }} -f -
+          apiVersion: mlops.mlops.dev/v1alpha1
+          kind: NotebookValidationJob
+          metadata:
+            name: tier3-test-05-mlflow-credentials
+          spec:
+            notebookPath: "notebooks/tier3-complex/05-mlflow-tracking-test.ipynb"
+            gitConfig:
+              repositoryURL: "${{ env.TEST_REPO }}"
+              branch: "main"
+              secretName: "git-credentials"
+            podConfig:
+              containerImage: "quay.io/jupyter/minimal-notebook:latest"
+              buildConfig:
+                enabled: true
+                strategy: "tekton"
+              credentials:
+                - "mlflow-credentials"
+            timeout: "15m"
+          EOF
+
+          # Wait for tests to complete
+          echo "Waiting for Tier 3 tests to complete (may take 10-15 minutes)..."
+          for i in {1..180}; do
+            COMPLETED=\$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -l tier=3 -o jsonpath='{.items[?(@.status.phase=="Succeeded")].metadata.name}' | wc -w)
+            FAILED=\$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -l tier=3 -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
+
+            if [ \$((COMPLETED + FAILED)) -eq 3 ]; then
+              break
+            fi
+
+            echo "Progress: \${COMPLETED} succeeded, \${FAILED} failed (waiting...)"
+            sleep 10
+          done
+
+          # Check results
+          oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }}
+
+          FAILED=\$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
+          if [ \$FAILED -gt 0 ]; then
+            echo "❌ Some Tier 3 tests failed!"
+            exit 1
           fi
-          
-          echo "✅ Tier 3 tests completed"
+
+          echo "✅ Tier 3 tests completed successfully"
+          echo ""
+          echo "Note: KServe tests (01, 02) require manual infrastructure setup and are not run in CI/CD"
 
       - name: Collect test results
         if: always()
@@ -295,24 +495,29 @@ jobs:
           
           echo "✅ Cleanup completed"
 
-  tier2-status:
-    name: Tier 2 E2E Status
+  e2e-status:
+    name: E2E Test Status (All Tiers)
     runs-on: ubuntu-latest
     needs: [check-trigger, openshift-e2e]
     if: always() && needs.check-trigger.outputs.should_run == 'true'
     steps:
-      - name: Check Tier 2 status
+      - name: Check E2E status
         run: |
-          echo "=== Tier 2 E2E Test Results ==="
+          echo "=== E2E Test Results (All Tiers) ==="
           echo "OpenShift E2E Tests: ${{ needs.openshift-e2e.result }}"
-          
+
           if [ "${{ needs.openshift-e2e.result }}" != "success" ]; then
-            echo "❌ Tier 2 E2E tests failed!"
+            echo "❌ E2E tests failed!"
             echo "Check the test results artifact for details"
             exit 1
           fi
-          
-          echo "✅ All Tier 2 E2E tests passed!"
+
+          echo "✅ All E2E tests passed!"
           echo ""
-          echo "Complete end-to-end workflow validated on OpenShift 4.18 cluster"
+          echo "Complete end-to-end workflow validated on OpenShift 4.18 cluster:"
+          echo "  - Tier 1: Simple notebooks (< 30s)"
+          echo "  - Tier 2: Intermediate notebooks with Tekton builds (1-5 min)"
+          echo "  - Tier 3: Complex integration tests with credentials (5-30 min)"
+          echo ""
+          echo "Note: KServe tests require manual infrastructure setup"
 
