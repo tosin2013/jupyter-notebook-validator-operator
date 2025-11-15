@@ -301,22 +301,22 @@ jobs:
           # Wait for tests to complete
           echo "Waiting for Tier 1 tests to complete..."
           for i in {1..60}; do
-            COMPLETED=\$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.items[?(@.status.phase=="Succeeded")].metadata.name}' | wc -w)
-            FAILED=\$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
+            COMPLETED=$$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.items[?(@.status.phase=="Succeeded")].metadata.name}' | wc -w)
+            FAILED=$$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
 
-            if [ \$((COMPLETED + FAILED)) -eq 3 ]; then
+            if [ $$((COMPLETED + FAILED)) -eq 3 ]; then
               break
             fi
 
-            echo "Progress: \${COMPLETED} succeeded, \${FAILED} failed (waiting...)"
+            echo "Progress: $${COMPLETED} succeeded, $${FAILED} failed (waiting...)"
             sleep 5
           done
 
           # Check results
           oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }}
 
-          FAILED=\$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
-          if [ \$FAILED -gt 0 ]; then
+          FAILED=$$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
+          if [ $$FAILED -gt 0 ]; then
             echo "❌ Tier 1 tests failed!"
             exit 1
           fi
