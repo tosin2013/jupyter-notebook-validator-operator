@@ -452,9 +452,11 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 				},
 				{
 					// ADR-005: OpenShift Compatibility
-					// Jupyter containers expect /home/jovyan to exist and be writable
+					// Jupyter containers expect /home/jovyan to exist and be writable during startup
 					// Mount an emptyDir at /home/jovyan to satisfy this requirement
+					// OpenShift automatically makes emptyDir writable by the assigned UID
 					// Combined with HOME=/workspace env var, this prevents startup failures
+					// while redirecting actual work to the workspace volume
 					Name: "jovyan-home",
 					VolumeSource: corev1.VolumeSource{
 						EmptyDir: &corev1.EmptyDirVolumeSource{},
