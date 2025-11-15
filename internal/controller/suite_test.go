@@ -1,3 +1,5 @@
+// +build integration
+
 /*
 Copyright 2025.
 
@@ -38,6 +40,12 @@ import (
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
+//
+// This file is for integration tests that require a real Kubernetes API server.
+// Unit tests that use fake clients are in separate files.
+//
+// To run integration tests: go test -tags=integration ./internal/controller
+// To run unit tests only: go test ./internal/controller
 
 var cfg *rest.Config
 var k8sClient client.Client
@@ -46,7 +54,7 @@ var testEnv *envtest.Environment
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecs(t, "Controller Suite")
+	RunSpecs(t, "Controller Integration Suite")
 }
 
 var _ = BeforeSuite(func() {

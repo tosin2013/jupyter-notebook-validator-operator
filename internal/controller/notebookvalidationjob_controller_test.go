@@ -18,12 +18,14 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -54,7 +56,10 @@ var _ = Describe("NotebookValidationJobReconciler", func() {
 		_ = corev1.AddToScheme(scheme)
 		_ = mlopsv1alpha1.AddToScheme(scheme)
 
-		fakeClient = fake.NewClientBuilder().WithScheme(scheme).Build()
+		fakeClient = fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithStatusSubresource(&mlopsv1alpha1.NotebookValidationJob{}).
+			Build()
 		reconciler = &NotebookValidationJobReconciler{
 			Client:     fakeClient,
 			Scheme:     scheme,
@@ -404,24 +409,93 @@ var _ = Describe("NotebookValidationJobReconciler", func() {
 					},
 				},
 				Status: mlopsv1alpha1.NotebookValidationJobStatus{
-					Phase: PhaseRunning,
+					Phase:      PhaseRunning,
+					RetryCount: 0,
 				},
 			}
 			Expect(fakeClient.Create(ctx, job)).To(Succeed())
 		})
 
-		It("should handle not found errors gracefully", func() {
-			err := errors.NewNotFound(corev1.Resource("notebookvalidationjob"), "not-found")
+		It("should handle transient errors with requeue", func() {
+			err := k8serrors.NewServerTimeout(corev1.Resource("pod"), "get", 0)
 			result, handleErr := reconciler.handleReconcileError(ctx, job, err)
 			Expect(handleErr).NotTo(HaveOccurred())
-			Expect(result).To(Equal(reconcile.Result{}))
+			Expect(result.RequeueAfter).To(Equal(time.Minute))
 		})
 
-		It("should requeue on other errors", func() {
-			err := errors.NewBadRequest("some error")
+		It("should handle retriable errors with backoff", func() {
+			err := k8serrors.NewInternalError(errors.New("internal error"))
 			result, handleErr := reconciler.handleReconcileError(ctx, job, err)
 			Expect(handleErr).NotTo(HaveOccurred())
 			Expect(result.RequeueAfter).To(BeNumerically(">", 0))
+
+			// Verify retry count was incremented
+			updatedJob := &mlopsv1alpha1.NotebookValidationJob{}
+			Expect(fakeClient.Get(ctx, types.NamespacedName{
+				Name:      job.Name,
+				Namespace: job.Namespace,
+			}, updatedJob)).To(Succeed())
+			Expect(updatedJob.Status.RetryCount).To(Equal(1))
+		})
+
+		It("should mark job as failed when max retries exceeded", func() {
+			job.Status.RetryCount = MaxRetries - 1
+			Expect(fakeClient.Status().Update(ctx, job)).To(Succeed())
+
+			err := k8serrors.NewInternalError(errors.New("internal error"))
+			_, handleErr := reconciler.handleReconcileError(ctx, job, err)
+			Expect(handleErr).NotTo(HaveOccurred())
+
+			// Verify job was marked as failed
+			updatedJob := &mlopsv1alpha1.NotebookValidationJob{}
+			Expect(fakeClient.Get(ctx, types.NamespacedName{
+				Name:      job.Name,
+				Namespace: job.Namespace,
+			}, updatedJob)).To(Succeed())
+			Expect(updatedJob.Status.Phase).To(Equal(PhaseFailed))
+		})
+
+		It("should handle terminal errors by marking job as failed", func() {
+			err := k8serrors.NewBadRequest("bad request")
+			_, handleErr := reconciler.handleReconcileError(ctx, job, err)
+			Expect(handleErr).NotTo(HaveOccurred())
+
+			// Verify job was marked as failed
+			updatedJob := &mlopsv1alpha1.NotebookValidationJob{}
+			Expect(fakeClient.Get(ctx, types.NamespacedName{
+				Name:      job.Name,
+				Namespace: job.Namespace,
+			}, updatedJob)).To(Succeed())
+			Expect(updatedJob.Status.Phase).To(Equal(PhaseFailed))
+		})
+
+		It("should apply exponential backoff for retriable errors", func() {
+			// First retry
+			job.Status.RetryCount = 1
+			Expect(fakeClient.Status().Update(ctx, job)).To(Succeed())
+
+			err := k8serrors.NewInternalError(errors.New("internal error"))
+			result, handleErr := reconciler.handleReconcileError(ctx, job, err)
+			Expect(handleErr).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(Equal(2 * time.Minute))
+
+			// Second retry
+			job.Status.RetryCount = 2
+			Expect(fakeClient.Status().Update(ctx, job)).To(Succeed())
+
+			err2 := k8serrors.NewInternalError(errors.New("internal error"))
+			result, handleErr = reconciler.handleReconcileError(ctx, job, err2)
+			Expect(handleErr).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(Equal(4 * time.Minute))
+
+			// Third retry (capped at 5 minutes)
+			job.Status.RetryCount = 3
+			Expect(fakeClient.Status().Update(ctx, job)).To(Succeed())
+
+			err3 := k8serrors.NewInternalError(errors.New("internal error"))
+			result, handleErr = reconciler.handleReconcileError(ctx, job, err3)
+			Expect(handleErr).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(Equal(5 * time.Minute))
 		})
 	})
 })
