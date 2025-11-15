@@ -130,6 +130,25 @@ if [ "$FAILED" -gt 0 ]; then
   echo ""
   echo "Failed tests:"
   oc get notebookvalidationjobs -n ${TEST_NAMESPACE} -o jsonpath='{range .items[?(@.status.phase=="Failed")]}{.metadata.name}{"\n"}{end}'
+
+  echo ""
+  echo "=== Detailed failure information ==="
+  for job in $(oc get notebookvalidationjobs -n ${TEST_NAMESPACE} -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}'); do
+    echo ""
+    echo -e "${YELLOW}Job: ${job}${NC}"
+    echo "Status conditions:"
+    oc get notebookvalidationjob ${job} -n ${TEST_NAMESPACE} -o jsonpath='{.status.conditions[*].message}' | tr ' ' '\n'
+    echo ""
+    echo "Pod logs (last 50 lines):"
+    POD_NAME=$(oc get pods -n ${TEST_NAMESPACE} -l job-name=${job} -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+    if [ -n "$POD_NAME" ]; then
+      oc logs ${POD_NAME} -n ${TEST_NAMESPACE} --tail=50 2>&1 || echo "Could not retrieve pod logs"
+    else
+      echo "No pod found for job ${job}"
+    fi
+    echo "---"
+  done
+
   exit 1
 fi
 
