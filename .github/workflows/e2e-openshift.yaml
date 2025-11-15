@@ -304,7 +304,8 @@ jobs:
             COMPLETED=$$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.items[?(@.status.phase=="Succeeded")].metadata.name}' | wc -w)
             FAILED=$$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
 
-            if [ $$((COMPLETED + FAILED)) -eq 3 ]; then
+            TOTAL=$$(expr $$COMPLETED + $$FAILED)
+            if [ $$TOTAL -eq 3 ]; then
               break
             fi
 
