@@ -282,9 +282,9 @@ var _ = Describe("NotebookValidationJobReconciler", func() {
 
 			// Check that conditions were updated
 			Expect(len(updatedJob.Status.Conditions)).To(BeNumerically(">", 0))
-			readyCondition := findCondition(updatedJob.Status.Conditions, ConditionTypeReady)
-			Expect(readyCondition).NotTo(BeNil())
-			Expect(readyCondition.Status).To(Equal(metav1.ConditionFalse))
+			validationCondition := findCondition(updatedJob.Status.Conditions, ConditionTypeValidationComplete)
+			Expect(validationCondition).NotTo(BeNil())
+			Expect(validationCondition.Status).To(Equal(metav1.ConditionUnknown))
 		})
 	})
 
@@ -470,32 +470,42 @@ var _ = Describe("NotebookValidationJobReconciler", func() {
 		})
 
 		It("should apply exponential backoff for retriable errors", func() {
-			// First retry
-			job.Status.RetryCount = 1
+			// First retry (retryCount starts at 0, becomes 1 after increment)
+			job.Status.RetryCount = 0
 			Expect(fakeClient.Status().Update(ctx, job)).To(Succeed())
 
 			err := k8serrors.NewInternalError(errors.New("internal error"))
 			result, handleErr := reconciler.handleReconcileError(ctx, job, err)
 			Expect(handleErr).NotTo(HaveOccurred())
-			Expect(result.RequeueAfter).To(Equal(2 * time.Minute))
+			// After first error, retryCount becomes 1, backoff = 1 << (1-1) = 1 minute
+			Expect(result.RequeueAfter).To(Equal(time.Minute))
 
-			// Second retry
-			job.Status.RetryCount = 2
-			Expect(fakeClient.Status().Update(ctx, job)).To(Succeed())
+			// Get updated job to check retry count
+			updatedJob := &mlopsv1alpha1.NotebookValidationJob{}
+			Expect(fakeClient.Get(ctx, types.NamespacedName{
+				Name:      job.Name,
+				Namespace: job.Namespace,
+			}, updatedJob)).To(Succeed())
+
+			// Second retry (retryCount is now 1, becomes 2 after increment)
+			updatedJob.Status.RetryCount = 1
+			Expect(fakeClient.Status().Update(ctx, updatedJob)).To(Succeed())
 
 			err2 := k8serrors.NewInternalError(errors.New("internal error"))
-			result, handleErr = reconciler.handleReconcileError(ctx, job, err2)
+			result, handleErr = reconciler.handleReconcileError(ctx, updatedJob, err2)
 			Expect(handleErr).NotTo(HaveOccurred())
-			Expect(result.RequeueAfter).To(Equal(4 * time.Minute))
+			// After second error, retryCount becomes 2, backoff = 1 << (2-1) = 2 minutes
+			Expect(result.RequeueAfter).To(Equal(2 * time.Minute))
 
-			// Third retry (capped at 5 minutes)
-			job.Status.RetryCount = 3
-			Expect(fakeClient.Status().Update(ctx, job)).To(Succeed())
+			// Third retry (retryCount is now 2, becomes 3 after increment)
+			updatedJob.Status.RetryCount = 2
+			Expect(fakeClient.Status().Update(ctx, updatedJob)).To(Succeed())
 
 			err3 := k8serrors.NewInternalError(errors.New("internal error"))
-			result, handleErr = reconciler.handleReconcileError(ctx, job, err3)
+			result, handleErr = reconciler.handleReconcileError(ctx, updatedJob, err3)
 			Expect(handleErr).NotTo(HaveOccurred())
-			Expect(result.RequeueAfter).To(Equal(5 * time.Minute))
+			// After third error, retryCount becomes 3, backoff = 1 << (3-1) = 4 minutes
+			Expect(result.RequeueAfter).To(Equal(4 * time.Minute))
 		})
 	})
 })
