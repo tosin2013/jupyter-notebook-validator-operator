@@ -167,6 +167,12 @@ func parseGoldenNotebookFromLogs(logs string) (*NotebookFormat, error) {
 // convertExecutionResultToNotebookFormat converts execution results to NotebookFormat for comparison
 // Phase 3: Golden Notebook Comparison
 func convertExecutionResultToNotebookFormat(result *NotebookExecutionResult) *NotebookFormat {
+	if result == nil {
+		return &NotebookFormat{
+			Cells: []NotebookCell{},
+		}
+	}
+
 	notebook := &NotebookFormat{
 		Cells: make([]NotebookCell, 0, len(result.Cells)),
 	}
