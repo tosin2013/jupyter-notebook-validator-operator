@@ -245,6 +245,8 @@ jobs:
           TEST_NAMESPACE: ${{ env.TEST_NAMESPACE }}
           TEST_REPO_URL: ${{ env.TEST_REPO }}
           TEST_REPO_BRANCH: "main"
+          TEST_CREDENTIALS_SECRET: "git-credentials"
+          TEST_CONTAINER_IMAGE: "quay.io/jupyter/minimal-notebook:latest"
           TIMEOUT_SECONDS: "300"
         run: |
           # Run Tier 1 tests using the dedicated script

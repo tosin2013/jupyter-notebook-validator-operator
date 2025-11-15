@@ -8,6 +8,8 @@ set -e
 TEST_NAMESPACE="${TEST_NAMESPACE:-jupyter-notebook-validator-e2e}"
 TEST_REPO_URL="${TEST_REPO_URL:-https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git}"
 TEST_REPO_BRANCH="${TEST_REPO_BRANCH:-main}"
+TEST_CREDENTIALS_SECRET="${TEST_CREDENTIALS_SECRET:-git-credentials}"
+TEST_CONTAINER_IMAGE="${TEST_CONTAINER_IMAGE:-quay.io/jupyter/minimal-notebook:latest}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-300}"  # 5 minutes
 EXPECTED_TEST_COUNT=3
 
@@ -38,9 +40,10 @@ spec:
     git:
       url: "${TEST_REPO_URL}"
       ref: "${TEST_REPO_BRANCH}"
+      credentialsSecret: "${TEST_CREDENTIALS_SECRET}"
     path: "notebooks/tier1-simple/01-hello-world.ipynb"
   podConfig:
-    containerImage: "quay.io/jupyter/scipy-notebook:latest"
+    containerImage: "${TEST_CONTAINER_IMAGE}"
   timeout: "5m"
 EOF
 
@@ -56,9 +59,10 @@ spec:
     git:
       url: "${TEST_REPO_URL}"
       ref: "${TEST_REPO_BRANCH}"
+      credentialsSecret: "${TEST_CREDENTIALS_SECRET}"
     path: "notebooks/tier1-simple/02-simple-math.ipynb"
   podConfig:
-    containerImage: "quay.io/jupyter/scipy-notebook:latest"
+    containerImage: "${TEST_CONTAINER_IMAGE}"
   timeout: "5m"
 EOF
 
@@ -74,6 +78,7 @@ spec:
     git:
       url: "${TEST_REPO_URL}"
       ref: "${TEST_REPO_BRANCH}"
+      credentialsSecret: "${TEST_CREDENTIALS_SECRET}"
     path: "notebooks/tier1-simple/03-data-validation.ipynb"
   podConfig:
     containerImage: "quay.io/jupyter/scipy-notebook:latest"
