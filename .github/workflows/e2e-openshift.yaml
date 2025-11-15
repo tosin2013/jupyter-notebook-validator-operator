@@ -241,89 +241,14 @@ jobs:
 
       - name: Run Tier 1 tests (Simple notebooks)
         if: github.event.inputs.test_tier == '1' || github.event.inputs.test_tier == 'all' || github.event.inputs.test_tier == ''
+        env:
+          TEST_NAMESPACE: ${{ env.TEST_NAMESPACE }}
+          TEST_REPO_URL: ${{ env.TEST_REPO }}
+          TEST_REPO_BRANCH: "main"
+          TIMEOUT_SECONDS: "300"
         run: |
-          echo "=== Running Tier 1 Tests (Simple notebooks) ==="
-
-          # Create NotebookValidationJob for test 01-hello-world
-          cat <<EOF | oc apply -n ${{ env.TEST_NAMESPACE }} -f -
-          apiVersion: mlops.mlops.dev/v1alpha1
-          kind: NotebookValidationJob
-          metadata:
-            name: tier1-test-01-hello-world
-          spec:
-            notebook:
-              git:
-                url: "${{ env.TEST_REPO }}"
-                ref: "main"
-                credentialsSecret: "git-credentials"
-              path: "notebooks/tier1-simple/01-hello-world.ipynb"
-            podConfig:
-              containerImage: "quay.io/jupyter/minimal-notebook:latest"
-            timeout: "5m"
-          EOF
-
-          # Create NotebookValidationJob for test 02-simple-math
-          cat <<EOF | oc apply -n ${{ env.TEST_NAMESPACE }} -f -
-          apiVersion: mlops.mlops.dev/v1alpha1
-          kind: NotebookValidationJob
-          metadata:
-            name: tier1-test-02-simple-math
-          spec:
-            notebook:
-              git:
-                url: "${{ env.TEST_REPO }}"
-                ref: "main"
-                credentialsSecret: "git-credentials"
-              path: "notebooks/tier1-simple/02-simple-math.ipynb"
-            podConfig:
-              containerImage: "quay.io/jupyter/minimal-notebook:latest"
-            timeout: "5m"
-          EOF
-
-          # Create NotebookValidationJob for test 03-data-validation
-          cat <<EOF | oc apply -n ${{ env.TEST_NAMESPACE }} -f -
-          apiVersion: mlops.mlops.dev/v1alpha1
-          kind: NotebookValidationJob
-          metadata:
-            name: tier1-test-03-data-validation
-          spec:
-            notebook:
-              git:
-                url: "${{ env.TEST_REPO }}"
-                ref: "main"
-                credentialsSecret: "git-credentials"
-              path: "notebooks/tier1-simple/03-data-validation.ipynb"
-            podConfig:
-              containerImage: "quay.io/jupyter/scipy-notebook:latest"
-            timeout: "5m"
-          EOF
-
-          # Wait for tests to complete
-          echo "Waiting for Tier 1 tests to complete..."
-          for i in {1..60}; do
-            COMPLETED=$$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.items[?(@.status.phase=="Succeeded")].metadata.name}' | wc -w)
-            FAILED=$$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
-
-            # Check if all 3 tests are done
-            TOTAL=$$(($$COMPLETED + $$FAILED))
-            if [ "$$TOTAL" -eq 3 ]; then
-              break
-            fi
-
-            echo "Progress: $${COMPLETED} succeeded, $${FAILED} failed (waiting...)"
-            sleep 5
-          done
-
-          # Check results
-          oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }}
-
-          FAILED=$$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
-          if [ $$FAILED -gt 0 ]; then
-            echo "❌ Tier 1 tests failed!"
-            exit 1
-          fi
-
-          echo "✅ Tier 1 tests completed successfully"
+          # Run Tier 1 tests using the dedicated script
+          ./scripts/run-tier1-e2e-tests.sh
 
       - name: Run Tier 2 tests (Intermediate notebooks)
         if: github.event.inputs.test_tier == '2' || github.event.inputs.test_tier == 'all' || github.event.inputs.test_tier == ''
