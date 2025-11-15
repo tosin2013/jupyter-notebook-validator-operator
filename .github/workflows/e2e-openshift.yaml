@@ -221,6 +221,27 @@ jobs:
 
           echo "✅ Test credentials created successfully"
 
+      - name: Create git credentials secret for notebook repository access
+        env:
+          TEST_REPO_TOKEN: ${{ secrets.TEST_REPO_TOKEN }}
+        run: |
+          echo "Creating git-credentials secret for notebook repository access..."
+
+          if [ -z "$TEST_REPO_TOKEN" ]; then
+            echo "❌ ERROR: TEST_REPO_TOKEN secret is not set!"
+            echo "Please configure the TEST_REPO_TOKEN secret in GitHub repository settings."
+            exit 1
+          fi
+
+          # Create git credentials secret for NotebookValidationJob to use
+          oc create secret generic git-credentials \
+            -n ${{ env.TEST_NAMESPACE }} \
+            --from-literal=username=git \
+            --from-literal=password=${TEST_REPO_TOKEN} \
+            --dry-run=client -o yaml | oc apply -f -
+
+          echo "✅ Git credentials secret created successfully"
+
       - name: Clone test notebooks repository
         env:
           TEST_REPO_TOKEN: ${{ secrets.TEST_REPO_TOKEN }}
