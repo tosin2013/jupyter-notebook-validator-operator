@@ -105,6 +105,16 @@ type PodConfigSpec struct {
 	// +optional
 	EnvFrom []EnvFromSource `json:"envFrom,omitempty"`
 
+	// Credentials is a simplified way to specify secrets for credential injection
+	// This is syntactic sugar that automatically converts to envFrom with secretRef
+	// Example: credentials: ["aws-credentials", "database-credentials"]
+	// This is equivalent to:
+	//   envFrom:
+	//     - secretRef: {name: "aws-credentials"}
+	//     - secretRef: {name: "database-credentials"}
+	// +optional
+	Credentials []string `json:"credentials,omitempty"`
+
 	// BuildConfig specifies optional container image build configuration
 	// When specified, the operator will build a custom image before validation
 	// +optional

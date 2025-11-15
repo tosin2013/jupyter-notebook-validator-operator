@@ -321,6 +321,18 @@ spec:
                     description: ContainerImage is the container image to use for
                       validation
                     type: string
+                  credentials:
+                    description: |-
+                      Credentials is a simplified way to specify secrets for credential injection
+                      This is syntactic sugar that automatically converts to envFrom with secretRef
+                      Example: credentials: ["aws-credentials", "database-credentials"]
+                      This is equivalent to:
+                        envFrom:
+                          - secretRef: {name: "aws-credentials"}
+                          - secretRef: {name: "database-credentials"}
+                    items:
+                      type: string
+                    type: array
                   env:
                     description: Env specifies environment variables for the validation
                       pod

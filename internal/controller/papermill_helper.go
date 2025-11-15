@@ -151,7 +151,9 @@ START_TIME=$(date +%%s)
 # --log-output: Log notebook output to console
 # --progress-bar: Show progress
 # --report-mode: Generate execution report
-if papermill \
+# Use 'python -m papermill' instead of 'papermill' to avoid PATH issues
+# when papermill is installed with --user flag
+if python -m papermill \
     "%s" \
     "%s" \
     --log-output \

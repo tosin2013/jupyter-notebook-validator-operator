@@ -654,6 +654,11 @@ func (in *PodConfigSpec) DeepCopyInto(out *PodConfigSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.Credentials != nil {
+		in, out := &in.Credentials, &out.Credentials
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.BuildConfig != nil {
 		in, out := &in.BuildConfig, &out.BuildConfig
 		*out = new(BuildConfigSpec)

@@ -497,8 +497,10 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 	}
 
 	// Add envFrom if specified (Phase 4: Credential Management)
+	envFromSources := make([]corev1.EnvFromSource, 0)
+
+	// First, add explicit envFrom entries
 	if len(job.Spec.PodConfig.EnvFrom) > 0 {
-		envFromSources := make([]corev1.EnvFromSource, 0, len(job.Spec.PodConfig.EnvFrom))
 		for _, envFrom := range job.Spec.PodConfig.EnvFrom {
 			envFromSource := corev1.EnvFromSource{}
 
@@ -522,6 +524,27 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 
 			envFromSources = append(envFromSources, envFromSource)
 		}
+	}
+
+	// Then, add credentials as secretRef entries (syntactic sugar)
+	// This allows users to simply specify: credentials: ["aws-credentials", "database-credentials"]
+	// instead of the more verbose envFrom syntax
+	if len(job.Spec.PodConfig.Credentials) > 0 {
+		logger.Info("Converting credentials to envFrom", "credentials", job.Spec.PodConfig.Credentials)
+		for _, credentialName := range job.Spec.PodConfig.Credentials {
+			envFromSource := corev1.EnvFromSource{
+				SecretRef: &corev1.SecretEnvSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: credentialName,
+					},
+				},
+			}
+			envFromSources = append(envFromSources, envFromSource)
+		}
+	}
+
+	// Apply all envFrom sources to the pod
+	if len(envFromSources) > 0 {
 		pod.Spec.Containers[0].EnvFrom = envFromSources
 	}
 
