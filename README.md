@@ -2,8 +2,10 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Go Report Card](https://goreportcard.com/badge/github.com/tosin2013/jupyter-notebook-validator-operator)](https://goreportcard.com/report/github.com/tosin2013/jupyter-notebook-validator-operator)
+[![CI](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/ci.yml/badge.svg)](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/ci.yml)
+[![Tier 1 Tests](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/ci-unit-tests.yaml/badge.svg)](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/ci-unit-tests.yaml)
 [![OpenShift](https://img.shields.io/badge/OpenShift-4.18+-red.svg)](https://www.openshift.com/)
-[![Kubernetes](https://img.shields.io/badge/Kubernetes-1.25+-blue.svg)](https://kubernetes.io/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-1.31+-blue.svg)](https://kubernetes.io/)
 
 A Kubernetes-native operator that automates Jupyter Notebook validation in MLOps workflows. Built with Operator SDK and Go, it provides Git integration, pod orchestration for notebook execution, golden notebook comparison for regression testing, and model-aware validation for ML/AI workloads.
 
@@ -26,9 +28,9 @@ The Jupyter Notebook Validator Operator enables automated testing and validation
 
 ### Prerequisites
 
-- **Kubernetes/OpenShift Cluster:** OpenShift 4.18+ (recommended) or Kubernetes 1.25+
+- **Kubernetes/OpenShift Cluster:** OpenShift 4.18+ (recommended) or Kubernetes 1.31+
 - **Command-line Tools:** kubectl or oc CLI, make (for building from source)
-- **Optional:** External Secrets Operator (ESO), KServe or OpenShift AI
+- **Optional:** External Secrets Operator (ESO), KServe or OpenShift AI, Tekton Pipelines (for build integration)
 
 ### Installation
 
