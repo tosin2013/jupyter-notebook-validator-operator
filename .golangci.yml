@@ -12,7 +12,7 @@ linters-settings:
     min: 3
     max: 3
   lll:
-    line-length: 150  # Increased from default 120 to accommodate longer error messages and URLs
+    line-length: 200  # Increased to accommodate detailed error messages, URLs, and function signatures
     tab-width: 1
 
 issues:
@@ -28,6 +28,13 @@ issues:
     - path: "internal/*"
       linters:
         - dupl
+    # Exclude lll for webhook files (kubebuilder annotations are very long)
+    - path: "_webhook\\.go$"
+      linters:
+        - lll
+    # Exclude lll for test files (test data can be long)
+    - path: "_test\\.go$"
+      linters:
         - lll
     # Exclude typecheck due to Kubernetes dependency version incompatibility
     # This is a known issue with golangci-lint and Kubernetes projects

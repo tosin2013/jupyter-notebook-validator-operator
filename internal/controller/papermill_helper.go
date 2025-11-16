@@ -121,13 +121,18 @@ if ! python -c "import papermill" 2>/dev/null; then
     if grep -q "ERROR:\|Permission denied\|Could not install" /tmp/pip_install.log; then
         log "ERROR: Pip installation failed. Log contents:"
         cat /tmp/pip_install.log
-        handle_error 2 "Failed to install Papermill due to permission errors. The container cannot write to the Python user site-packages directory. SOLUTION: Use a custom container image with Papermill pre-installed. See docs/ERROR_HANDLING_GUIDE.md for instructions." "dependency_install_failed"
+        handle_error 2 "Failed to install Papermill due to permission errors. " \
+            "The container cannot write to the Python user site-packages directory. " \
+            "SOLUTION: Use a custom container image with Papermill pre-installed. " \
+            "See docs/ERROR_HANDLING_GUIDE.md for instructions." "dependency_install_failed"
     fi
 
     # Verify papermill was actually installed
     if ! python -c "import papermill" 2>/dev/null; then
         log "ERROR: Papermill import failed after pip install"
-        handle_error 2 "Papermill installation appeared to succeed but the module cannot be imported. This usually indicates a permission or path issue. SOLUTION: Use a custom container image with Papermill pre-installed." "dependency_install_failed"
+        handle_error 2 "Papermill installation appeared to succeed but the module cannot be imported. " \
+            "This usually indicates a permission or path issue. " \
+            "SOLUTION: Use a custom container image with Papermill pre-installed." "dependency_install_failed"
     fi
 
     log "✓ Papermill installed successfully"
