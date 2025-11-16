@@ -183,4 +183,3 @@ func TestBuildPapermillValidationContainerResources(t *testing.T) {
 		t.Errorf("Memory limit = %v, want 4Gi", memLimit)
 	}
 }
-

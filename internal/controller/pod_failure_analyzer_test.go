@@ -26,15 +26,15 @@ import (
 
 func TestAnalyzePodFailure(t *testing.T) {
 	tests := []struct {
-		name                string
-		pod                 *corev1.Pod
-		expectedReason      PodFailureReason
-		expectedTransient   bool
-		expectedShouldRetry bool
-		expectedSCCViolation bool
-		expectedImageIssue  bool
+		name                  string
+		pod                   *corev1.Pod
+		expectedReason        PodFailureReason
+		expectedTransient     bool
+		expectedShouldRetry   bool
+		expectedSCCViolation  bool
+		expectedImageIssue    bool
 		expectedInitContainer bool
-		description         string
+		description           string
 	}{
 		{
 			name: "init container image pull backoff",
@@ -474,5 +474,3 @@ func TestShouldSkipGitClone(t *testing.T) {
 		})
 	}
 }
-
-

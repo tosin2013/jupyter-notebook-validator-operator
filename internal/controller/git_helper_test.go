@@ -510,5 +510,3 @@ func containsHelper(s, substr string) bool {
 	}
 	return false
 }
-
-
