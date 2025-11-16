@@ -167,9 +167,9 @@ Why this works: Tekton clones during build with pipelines-scc, then validation p
 
 See: config/samples/mlops_v1alpha1_notebookvalidationjob_tekton.yaml
 Docs: https://docs.redhat.com/en/documentation/red_hat_openshift_pipelines/1.16/html/securing_openshift_pipelines/authenticating-pipelines-repos-using-secrets`
-					} else if strings.Contains(errorLower, "repository not found") ||
-						strings.Contains(errorLower, "not found") {
-						analysis.SuggestedAction = `Git repository not found. The specified repository URL is invalid or inaccessible.
+		} else if strings.Contains(errorLower, "repository not found") ||
+			strings.Contains(errorLower, "not found") {
+			analysis.SuggestedAction = `Git repository not found. The specified repository URL is invalid or inaccessible.
 
 ROOT CAUSE: Repository URL is incorrect, repository is private, or repository was deleted.
 
@@ -193,9 +193,9 @@ Quick Fix:
         strategy: "tekton"
 
 See: config/samples/mlops_v1alpha1_notebookvalidationjob_tekton.yaml`
-					} else {
-						// Generic git error - provide comprehensive guidance
-						analysis.SuggestedAction = fmt.Sprintf(`Git-clone init container failed (exit code %d). This typically indicates authentication or repository access issues.
+		} else {
+			// Generic git error - provide comprehensive guidance
+			analysis.SuggestedAction = fmt.Sprintf(`Git-clone init container failed (exit code %d). This typically indicates authentication or repository access issues.
 
 COMMON CAUSES:
 - Missing or invalid git credentials

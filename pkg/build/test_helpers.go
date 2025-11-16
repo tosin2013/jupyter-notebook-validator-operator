@@ -28,4 +28,3 @@ func RunValidateConfigTests(t *testing.T, strategy Strategy, tests []ValidateCon
 		})
 	}
 }
-
