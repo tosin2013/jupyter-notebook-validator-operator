@@ -11,6 +11,9 @@ linters-settings:
     numbers: false  # Don't check for repeated numbers
     min: 3
     max: 3
+  lll:
+    line-length: 150  # Increased from default 120 to accommodate longer error messages and URLs
+    tab-width: 1
 
 issues:
   # don't skip warning about doc comments
