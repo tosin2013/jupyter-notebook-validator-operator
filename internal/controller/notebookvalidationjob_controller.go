@@ -258,7 +258,7 @@ func (r *NotebookValidationJobReconciler) reconcileValidation(ctx context.Contex
 		if err != nil {
 			logger.Error(err, "Failed to create validation pod")
 			// Record pod creation failure
-			recordPodCreation(job.Namespace, "failed")
+			recordPodCreation(job.Namespace, StatusFailed)
 			return r.updateJobPhase(ctx, job, PhaseFailed, fmt.Sprintf("Failed to create validation pod: %v", err))
 		}
 

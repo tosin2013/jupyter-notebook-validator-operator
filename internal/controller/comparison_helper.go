@@ -107,7 +107,7 @@ func compareNotebooks(executed, golden *NotebookFormat, config ComparisonConfig)
 	if result.MismatchedCells == 0 {
 		result.Result = "matched"
 	} else {
-		result.Result = "failed"
+		result.Result = StatusFailed
 	}
 
 	return result

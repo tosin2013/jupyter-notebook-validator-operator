@@ -181,7 +181,7 @@ func convertExecutionResultToNotebookFormat(result *NotebookExecutionResult) *No
 		}
 
 		// For code cells with errors, add error output
-		if cell.Status == "failed" && cell.Error != "" {
+		if cell.Status == StatusFailed && cell.Error != "" {
 			errorOutput := CellOutput{
 				OutputType: "error",
 				Ename:      "ExecutionError",
@@ -221,7 +221,7 @@ func (r *NotebookValidationJobReconciler) updateJobStatusWithResults(
 		// Map status
 		if cell.Status == "succeeded" {
 			cellResult.Status = "Success"
-		} else if cell.Status == "failed" {
+		} else if cell.Status == StatusFailed {
 			cellResult.Status = "Failure"
 
 			// Copy error message if present
@@ -256,7 +256,7 @@ func (r *NotebookValidationJobReconciler) updateJobStatusWithResults(
 		result.Statistics.CodeCells,
 		result.Statistics.SuccessRate)
 
-	if result.Status == "failed" {
+	if result.Status == StatusFailed {
 		message = fmt.Sprintf("Validation failed: %s", result.Error)
 	}
 
@@ -378,10 +378,10 @@ func (r *NotebookValidationJobReconciler) handlePodSuccess(
 				"mismatched", comparisonResult.MismatchedCells)
 
 			// If comparison failed, mark validation as failed
-			if comparisonResult.Result == "failed" {
+			if comparisonResult.Result == StatusFailed {
 				logger.Info("Golden notebook comparison failed, marking validation as failed")
 				// Record validation completion metric with failed status
-				recordValidationComplete(job.Namespace, "failed")
+				recordValidationComplete(job.Namespace, StatusFailed)
 				return r.updateJobPhase(ctx, job, PhaseFailed,
 					fmt.Sprintf("Validation failed: golden notebook comparison failed (%d/%d cells matched)",
 						comparisonResult.MatchedCells, comparisonResult.TotalCells))
@@ -394,9 +394,9 @@ func (r *NotebookValidationJobReconciler) handlePodSuccess(
 	// Determine final phase based on execution result
 	finalPhase := PhaseSucceeded
 	status := "succeeded"
-	if result.Status == "failed" {
+	if result.Status == StatusFailed {
 		finalPhase = PhaseFailed
-		status = "failed"
+		status = StatusFailed
 	}
 
 	// Record validation completion metric
@@ -514,8 +514,8 @@ func (r *NotebookValidationJobReconciler) handlePodFailure(
 
 	// Max retries reached, mark as failed
 	// Record validation completion metric with failed status
-	recordValidationComplete(job.Namespace, "failed")
-	logger.Info("Recorded validation completion metric", "namespace", job.Namespace, "status", "failed")
+	recordValidationComplete(job.Namespace, StatusFailed)
+	logger.Info("Recorded validation completion metric", "namespace", job.Namespace, "status", StatusFailed)
 
 	return r.updateJobPhase(ctx, job, PhaseFailed,
 		fmt.Sprintf("Validation failed after %d retries: %s. Suggested action: %s",

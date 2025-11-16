@@ -4,9 +4,15 @@ package controller
 const (
 	// GitCloneContainerName is the standard name for git-clone init containers
 	GitCloneContainerName = "git-clone"
+)
 
-	// PodStatusFailed represents a failed pod status
-	PodStatusFailed = "failed"
+// Status constants
+const (
+	// StatusFailed represents a failed status (used for validation, pod, and cell status)
+	StatusFailed = "failed"
+
+	// StatusSucceeded represents a succeeded status
+	StatusSucceeded = "succeeded"
 )
 
 // Git credential type constants
