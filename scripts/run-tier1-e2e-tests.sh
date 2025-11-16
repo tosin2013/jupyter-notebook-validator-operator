@@ -47,12 +47,12 @@ spec:
   timeout: "5m"
 EOF
 
-# Test 2: Simple Math
+# Test 2: Basic Math
 oc apply -f - <<EOF
 apiVersion: mlops.mlops.dev/v1alpha1
 kind: NotebookValidationJob
 metadata:
-  name: tier1-test-02-simple-math
+  name: tier1-test-02-basic-math
   namespace: ${TEST_NAMESPACE}
 spec:
   notebook:
@@ -60,7 +60,7 @@ spec:
       url: "${TEST_REPO_URL}"
       ref: "${TEST_REPO_BRANCH}"
       credentialsSecret: "${TEST_CREDENTIALS_SECRET}"
-    path: "notebooks/tier1-simple/02-simple-math.ipynb"
+    path: "notebooks/tier1-simple/02-basic-math.ipynb"
   podConfig:
     containerImage: "${TEST_CONTAINER_IMAGE}"
   timeout: "5m"
