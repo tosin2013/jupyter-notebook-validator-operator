@@ -79,50 +79,36 @@ func TestS2IStrategyValidateConfig(t *testing.T) {
 
 	strategy := NewS2IStrategy(fakeClient, scheme)
 
-	tests := []struct {
-		name        string
-		config      *mlopsv1alpha1.BuildConfigSpec
-		expectError bool
-	}{
+	tests := []ValidateConfigTestCase{
 		{
-			name: "Valid config with base image",
-			config: &mlopsv1alpha1.BuildConfigSpec{
+			Name: "Valid config with base image",
+			Config: &mlopsv1alpha1.BuildConfigSpec{
 				Strategy:  "s2i",
 				BaseImage: "quay.io/jupyter/minimal-notebook:latest",
 			},
-			expectError: false,
+			ExpectError: false,
 		},
 		{
-			name: "Valid config without base image (uses default)",
-			config: &mlopsv1alpha1.BuildConfigSpec{
+			Name: "Valid config without base image (uses default)",
+			Config: &mlopsv1alpha1.BuildConfigSpec{
 				Strategy: "s2i",
 			},
-			expectError: false,
+			ExpectError: false,
 		},
 		{
-			name: "Valid config with strategy config",
-			config: &mlopsv1alpha1.BuildConfigSpec{
+			Name: "Valid config with strategy config",
+			Config: &mlopsv1alpha1.BuildConfigSpec{
 				Strategy:  "s2i",
 				BaseImage: "custom-image:latest",
 				StrategyConfig: map[string]string{
 					"incremental": "true",
 				},
 			},
-			expectError: false,
+			ExpectError: false,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := strategy.ValidateConfig(tt.config)
-			if tt.expectError && err == nil {
-				t.Error("ValidateConfig() expected error, got nil")
-			}
-			if !tt.expectError && err != nil {
-				t.Errorf("ValidateConfig() unexpected error = %v", err)
-			}
-		})
-	}
+	RunValidateConfigTests(t, strategy, tests)
 }
 
 // TestS2IStrategyCreateBuild tests build creation

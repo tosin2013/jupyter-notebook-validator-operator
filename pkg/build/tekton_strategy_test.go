@@ -79,50 +79,36 @@ func TestTektonStrategyValidateConfig(t *testing.T) {
 
 	strategy := NewTektonStrategy(fakeClient, testScheme)
 
-	tests := []struct {
-		name        string
-		config      *mlopsv1alpha1.BuildConfigSpec
-		expectError bool
-	}{
+	tests := []ValidateConfigTestCase{
 		{
-			name: "Valid config with base image",
-			config: &mlopsv1alpha1.BuildConfigSpec{
+			Name: "Valid config with base image",
+			Config: &mlopsv1alpha1.BuildConfigSpec{
 				Strategy:  "tekton",
 				BaseImage: "quay.io/jupyter/minimal-notebook:latest",
 			},
-			expectError: false,
+			ExpectError: false,
 		},
 		{
-			name: "Valid config without base image (uses default)",
-			config: &mlopsv1alpha1.BuildConfigSpec{
+			Name: "Valid config without base image (uses default)",
+			Config: &mlopsv1alpha1.BuildConfigSpec{
 				Strategy: "tekton",
 			},
-			expectError: false,
+			ExpectError: false,
 		},
 		{
-			name: "Valid config with registry",
-			config: &mlopsv1alpha1.BuildConfigSpec{
+			Name: "Valid config with registry",
+			Config: &mlopsv1alpha1.BuildConfigSpec{
 				Strategy:  "tekton",
 				BaseImage: "custom-image:latest",
 				StrategyConfig: map[string]string{
 					"registry": "custom-registry.example.com:5000",
 				},
 			},
-			expectError: false,
+			ExpectError: false,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := strategy.ValidateConfig(tt.config)
-			if tt.expectError && err == nil {
-				t.Error("ValidateConfig() expected error, got nil")
-			}
-			if !tt.expectError && err != nil {
-				t.Errorf("ValidateConfig() unexpected error = %v", err)
-			}
-		})
-	}
+	RunValidateConfigTests(t, strategy, tests)
 }
 
 // TestTektonStrategyCreateBuild tests build creation

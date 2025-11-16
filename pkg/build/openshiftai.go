@@ -75,7 +75,7 @@ func (h *OpenShiftAIHelper) ListS2IImageStreams(ctx context.Context) ([]ImageStr
 		return nil, fmt.Errorf("failed to list ImageStreams: %w", err)
 	}
 
-	var s2iImages []ImageStreamInfo
+	s2iImages := make([]ImageStreamInfo, 0, len(imageStreamList.Items))
 	for _, is := range imageStreamList.Items {
 		// Only include S2I-enabled images (those starting with "s2i-")
 		if len(is.Name) < 4 || is.Name[:4] != "s2i-" {
@@ -105,7 +105,7 @@ func (h *OpenShiftAIHelper) ListAllImageStreams(ctx context.Context) ([]ImageStr
 		return nil, fmt.Errorf("failed to list ImageStreams: %w", err)
 	}
 
-	var images []ImageStreamInfo
+	images := make([]ImageStreamInfo, 0, len(imageStreamList.Items))
 	for _, is := range imageStreamList.Items {
 		info := h.parseImageStream(&is)
 		images = append(images, info)

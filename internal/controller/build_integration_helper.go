@@ -421,7 +421,7 @@ func (r *NotebookValidationJobReconciler) populateAvailableImages(ctx context.Co
 	}
 
 	// Convert to API type
-	var availableImages []mlopsv1alpha1.AvailableImageInfo
+	availableImages := make([]mlopsv1alpha1.AvailableImageInfo, 0, len(s2iImages))
 	for _, img := range s2iImages {
 		availableImages = append(availableImages, mlopsv1alpha1.AvailableImageInfo{
 			Name:        img.Name,

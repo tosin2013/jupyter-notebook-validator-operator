@@ -84,7 +84,7 @@ func compareNotebooks(executed, golden *NotebookFormat, config ComparisonConfig)
 			result.MatchedCells++
 		} else {
 			result.MismatchedCells++
-			diff := generateCellDiff(i, execCell, goldenCell, config)
+			diff := generateCellDiff(i, execCell, goldenCell)
 			result.Diffs = append(result.Diffs, diff)
 		}
 	}
@@ -275,7 +275,7 @@ func normalizeFloatingPoint(output string, tolerance float64) string {
 }
 
 // generateCellDiff generates a diff for a mismatched cell
-func generateCellDiff(index int, exec, golden NotebookCell, config ComparisonConfig) mlopsv1alpha1.CellDiff {
+func generateCellDiff(index int, exec, golden NotebookCell) mlopsv1alpha1.CellDiff {
 	diff := mlopsv1alpha1.CellDiff{
 		CellIndex: index,
 		CellType:  exec.CellType,
