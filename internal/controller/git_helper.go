@@ -32,7 +32,7 @@ import (
 
 // GitCredentials holds parsed Git authentication credentials
 type GitCredentials struct {
-	Type     string // "https", "ssh", or "none"
+	Type     string // GitCredTypeHTTPS, GitCredTypeSSH, or "none"
 	Username string // For HTTPS
 	Password string // For HTTPS (token or password)
 	SSHKey   string // For SSH (private key)
@@ -101,7 +101,7 @@ func (r *NotebookValidationJobReconciler) resolveGitCredentials(ctx context.Cont
 
 	// Check for SSH key (ADR-009: SSH authentication)
 	if sshKey, exists := secret.Data["ssh-privatekey"]; exists {
-		creds.Type = "ssh"
+		creds.Type = GitCredTypeSSH
 		creds.SSHKey = string(sshKey)
 		logger.Info("Using SSH authentication")
 		return creds, nil
@@ -109,7 +109,7 @@ func (r *NotebookValidationJobReconciler) resolveGitCredentials(ctx context.Cont
 
 	// Check for HTTPS credentials (ADR-009: HTTPS authentication)
 	if username, exists := secret.Data["username"]; exists {
-		creds.Type = "https"
+		creds.Type = GitCredTypeHTTPS
 		creds.Username = string(username)
 
 		// Password or token
@@ -170,7 +170,7 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 			echo "Notebook found successfully"
 		`, gitRef, gitURL, notebookPath, notebookPath, notebookPath)
 
-	case "https":
+	case GitCredTypeHTTPS:
 		// HTTPS clone with credentials
 		// Sanitize credentials for URL (ADR-009: credential sanitization)
 		sanitizedURL := strings.Replace(gitURL, "https://", fmt.Sprintf("https://%s:%s@", creds.Username, creds.Password), 1)
@@ -192,7 +192,7 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 			echo "Notebook found successfully"
 		`, gitRef, sanitizedURL, creds.Password, notebookPath, notebookPath, notebookPath)
 
-	case "ssh":
+	case GitCredTypeSSH:
 		// SSH clone with private key
 		cloneCommand = fmt.Sprintf(`
 			set -e
@@ -230,7 +230,7 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 	// Kubernetes: bitnami/git:latest
 	// Override: GIT_INIT_IMAGE environment variable
 	initContainer := corev1.Container{
-		Name:  "git-clone",
+		Name:  GitCloneContainerName,
 		Image: getGitImage(),
 		Command: []string{
 			"/bin/bash",
@@ -262,7 +262,7 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 	}
 
 	// Add SSH key as environment variable if using SSH
-	if creds.Type == "ssh" {
+	if creds.Type == GitCredTypeSSH {
 		initContainer.Env = append(initContainer.Env, corev1.EnvVar{
 			Name:  "SSH_PRIVATE_KEY",
 			Value: creds.SSHKey,
@@ -308,7 +308,7 @@ func (r *NotebookValidationJobReconciler) resolveGoldenGitCredentials(ctx contex
 
 	// Check for SSH key (ADR-009: SSH authentication)
 	if sshKey, exists := secret.Data["ssh-privatekey"]; exists {
-		creds.Type = "ssh"
+		creds.Type = GitCredTypeSSH
 		creds.SSHKey = string(sshKey)
 		logger.Info("Using SSH authentication for golden notebook")
 		return creds, nil
@@ -316,7 +316,7 @@ func (r *NotebookValidationJobReconciler) resolveGoldenGitCredentials(ctx contex
 
 	// Check for HTTPS credentials (ADR-009: HTTPS authentication)
 	if username, exists := secret.Data["username"]; exists {
-		creds.Type = "https"
+		creds.Type = GitCredTypeHTTPS
 		creds.Username = string(username)
 
 		// Password or token
@@ -369,7 +369,7 @@ func (r *NotebookValidationJobReconciler) buildGoldenGitCloneInitContainer(ctx c
 			echo "Golden notebook found successfully"
 		`, gitRef, gitURL, notebookPath, notebookPath, notebookPath)
 
-	case "https":
+	case GitCredTypeHTTPS:
 		// HTTPS clone with credentials
 		// Sanitize credentials for URL (ADR-009: credential sanitization)
 		sanitizedURL := strings.Replace(gitURL, "https://", fmt.Sprintf("https://%s:%s@", creds.Username, creds.Password), 1)
@@ -391,7 +391,7 @@ func (r *NotebookValidationJobReconciler) buildGoldenGitCloneInitContainer(ctx c
 			echo "Golden notebook found successfully"
 		`, gitRef, sanitizedURL, creds.Password, notebookPath, notebookPath, notebookPath)
 
-	case "ssh":
+	case GitCredTypeSSH:
 		// SSH clone with private key
 		cloneCommand = fmt.Sprintf(`
 			set -e
@@ -461,7 +461,7 @@ func (r *NotebookValidationJobReconciler) buildGoldenGitCloneInitContainer(ctx c
 	}
 
 	// Add SSH key as environment variable if using SSH
-	if creds.Type == "ssh" {
+	if creds.Type == GitCredTypeSSH {
 		initContainer.Env = append(initContainer.Env, corev1.EnvVar{
 			Name:  "SSH_PRIVATE_KEY",
 			Value: creds.SSHKey,

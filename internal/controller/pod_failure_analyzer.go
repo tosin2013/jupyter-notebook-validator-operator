@@ -110,7 +110,7 @@ func analyzeInitContainerTerminated(ctx context.Context, status corev1.Container
 	// Check for git authentication errors (exit code 2 or 128) - MOST COMMON FAILURE
 	// This must be checked BEFORE generic permission errors
 	if (terminated.ExitCode == 2 || terminated.ExitCode == 128) &&
-		(status.Name == "git-clone" || strings.Contains(status.Name, "git")) {
+		(status.Name == GitCloneContainerName || strings.Contains(status.Name, "git")) {
 		analysis.Reason = FailureReasonPermission
 		analysis.ShouldRetry = false // Terminal error - requires user action
 
@@ -424,7 +424,7 @@ func analyzeContainerTerminated(ctx context.Context, status corev1.ContainerStat
 	}
 
 	// Check for specific error patterns
-	if isInit && status.Name == "git-clone" {
+	if isInit && status.Name == GitCloneContainerName {
 		return analyzeGitCloneFailure(terminated, analysis)
 	}
 

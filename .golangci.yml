@@ -2,6 +2,16 @@ run:
   timeout: 5m
   allow-parallel-runners: true
 
+linters-settings:
+  goconst:
+    min-len: 3
+    min-occurrences: 5  # Increased from default 3 to reduce false positives
+    ignore-tests: true  # Ignore test files
+    match-constant: false  # Don't match against existing constants
+    numbers: false  # Don't check for repeated numbers
+    min: 3
+    max: 3
+
 issues:
   # don't skip warning about doc comments
   # don't exclude the default set of lint
