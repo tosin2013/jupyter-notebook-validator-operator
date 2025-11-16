@@ -32,4 +32,3 @@ const (
 	// DefaultJupyterImage is the default Jupyter notebook base image
 	DefaultJupyterImage = "quay.io/jupyter/minimal-notebook:latest"
 )
-
