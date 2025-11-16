@@ -28,7 +28,11 @@ issues:
     # Exclude Ginkgo/Gomega test framework undefined symbols
     - linters:
         - typecheck
-      text: "undefined.*(Describe|Context|It|BeforeEach|AfterEach|By|Expect|BeforeSuite|AfterSuite|RegisterFailHandler|RunSpecs|GinkgoWriter|Succeed|HaveOccurred|Fail|BeNil)"
+      text: "undefined.*(Describe|Context|It|BeforeEach|AfterEach|By|Expect|BeforeSuite|AfterSuite|RegisterFailHandler|RunSpecs|GinkgoWriter|Succeed|HaveOccurred|Fail|BeNil|Ordered|BeforeAll|AfterAll|ContainSubstring)"
+    # Exclude webhook receiver method issues (r.Name, r.Namespace)
+    - linters:
+        - typecheck
+      text: "r\\.(Name|Namespace) undefined"
 linters:
   disable-all: true
   enable:
