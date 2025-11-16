@@ -41,7 +41,6 @@ docs/CELL_ERROR_DISPLAY_FIX.md
 docs/POD_LOG_COLLECTION_COMPLETE.md
 docs/PAPERMILL_INTEGRATION_COMPLETE.md
 docs/TEST_NOTEBOOKS_DEPLOYMENT_SUMMARY.md
-.golangci.yml
 
 # Environment variables and secrets
 .env
