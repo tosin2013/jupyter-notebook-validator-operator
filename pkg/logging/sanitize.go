@@ -25,6 +25,11 @@ import (
 	"strings"
 )
 
+const (
+	// RedactedPlaceholder is used to replace sensitive information in logs
+	RedactedPlaceholder = "[REDACTED]"
+)
+
 // SanitizeURL removes credentials from URLs for logging
 // This prevents leaking usernames, passwords, and tokens in logs
 func SanitizeURL(rawURL string) string {
@@ -53,7 +58,7 @@ func SanitizeError(err error, sensitiveStrings ...string) error {
 	msg := err.Error()
 	for _, sensitive := range sensitiveStrings {
 		if sensitive != "" && len(sensitive) > 0 {
-			msg = strings.ReplaceAll(msg, sensitive, "[REDACTED]")
+			msg = strings.ReplaceAll(msg, sensitive, RedactedPlaceholder)
 		}
 	}
 
@@ -80,7 +85,7 @@ func SanitizeString(value string) string {
 func SanitizeSecretData(data map[string][]byte) map[string]string {
 	sanitized := make(map[string]string)
 	for key := range data {
-		sanitized[key] = "[REDACTED]"
+		sanitized[key] = RedactedPlaceholder
 	}
 	return sanitized
 }
@@ -109,7 +114,7 @@ func SanitizeEnvVars(envVars map[string]string) map[string]string {
 		}
 
 		if isSensitive {
-			sanitized[key] = "[REDACTED]"
+			sanitized[key] = RedactedPlaceholder
 		} else {
 			sanitized[key] = value
 		}
@@ -133,7 +138,7 @@ func SanitizeCommand(command string) string {
 		// Git URLs with credentials: https://user:pass@github.com/repo.git
 		{
 			regex:       regexp.MustCompile(`(https?://)[^:@]+:[^@]+@`),
-			replacement: "$1[REDACTED]:[REDACTED]@",
+			replacement: "$1" + RedactedPlaceholder + ":" + RedactedPlaceholder + "@",
 		},
 		// SSH private keys
 		{
@@ -148,12 +153,12 @@ func SanitizeCommand(command string) string {
 		// Password flags: --password=secret, -p secret
 		{
 			regex:       regexp.MustCompile(`(--password[= ]|--token[= ]|-p )[^\s]+`),
-			replacement: "$1[REDACTED]",
+			replacement: "$1" + RedactedPlaceholder,
 		},
 		// Environment variable assignments: PASSWORD=secret
 		{
 			regex:       regexp.MustCompile(`([A-Z_]*(?:PASSWORD|TOKEN|SECRET|KEY)[A-Z_]*=)[^\s]+`),
-			replacement: "$1[REDACTED]",
+			replacement: "$1" + RedactedPlaceholder,
 		},
 	}
 
@@ -177,7 +182,7 @@ func SanitizeLogMessage(message string, sensitiveStrings ...string) string {
 	// Apply custom sensitive strings
 	for _, sensitive := range sensitiveStrings {
 		if sensitive != "" && len(sensitive) > 0 {
-			sanitized = strings.ReplaceAll(sanitized, sensitive, "[REDACTED]")
+			sanitized = strings.ReplaceAll(sanitized, sensitive, RedactedPlaceholder)
 		}
 	}
 
@@ -206,7 +211,7 @@ func (f LogFields) Sanitize(sensitiveKeys ...string) LogFields {
 		}
 
 		if isSensitive {
-			sanitized[key] = "[REDACTED]"
+			sanitized[key] = RedactedPlaceholder
 		} else {
 			// Sanitize string values
 			if strValue, ok := value.(string); ok {

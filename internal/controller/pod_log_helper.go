@@ -78,7 +78,9 @@ func (r *NotebookValidationJobReconciler) collectPodLogs(ctx context.Context, po
 	if err != nil {
 		return "", fmt.Errorf("failed to open log stream: %w", err)
 	}
-	defer podLogs.Close()
+	defer func() {
+		_ = podLogs.Close()
+	}()
 
 	// Read logs into buffer
 	buf := new(bytes.Buffer)

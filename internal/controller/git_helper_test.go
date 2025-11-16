@@ -71,13 +71,13 @@ func TestGetGitImage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Clear all relevant env vars
-			os.Unsetenv("GIT_INIT_IMAGE")
-			os.Unsetenv("PLATFORM")
-			os.Unsetenv("OPENSHIFT_BUILD_NAMESPACE")
+			_ = os.Unsetenv("GIT_INIT_IMAGE")
+			_ = os.Unsetenv("PLATFORM")
+			_ = os.Unsetenv("OPENSHIFT_BUILD_NAMESPACE")
 
 			// Set test env vars
 			for k, v := range tt.envVars {
-				os.Setenv(k, v)
+				_ = os.Setenv(k, v)
 			}
 
 			result := getGitImage()
@@ -87,7 +87,7 @@ func TestGetGitImage(t *testing.T) {
 
 			// Cleanup
 			for k := range tt.envVars {
-				os.Unsetenv(k)
+				_ = os.Unsetenv(k)
 			}
 		})
 	}

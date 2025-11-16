@@ -18,6 +18,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+const (
+	// S2IStrategyName is the name of the S2I build strategy
+	S2IStrategyName = "s2i"
+)
+
 // S2IStrategy implements the Strategy interface for OpenShift Source-to-Image builds
 type S2IStrategy struct {
 	client client.Client
@@ -34,7 +39,7 @@ func NewS2IStrategy(client client.Client, scheme *runtime.Scheme) *S2IStrategy {
 
 // Name returns the strategy name
 func (s *S2IStrategy) Name() string {
-	return "s2i"
+	return S2IStrategyName
 }
 
 // Detect checks if S2I is available (OpenShift build API)

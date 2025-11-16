@@ -16,6 +16,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+const (
+	// TektonConditionSucceeded is the Tekton condition type for successful completion
+	TektonConditionSucceeded = "Succeeded"
+	// TektonStrategyName is the name of the Tekton build strategy
+	TektonStrategyName = "tekton"
+)
+
 // TektonStrategy implements the Strategy interface for Tekton Pipelines
 type TektonStrategy struct {
 	client client.Client
@@ -32,7 +39,7 @@ func NewTektonStrategy(client client.Client, scheme *runtime.Scheme) *TektonStra
 
 // Name returns the strategy name
 func (t *TektonStrategy) Name() string {
-	return "tekton"
+	return TektonStrategyName
 }
 
 // Detect checks if Tekton is available in the cluster
@@ -579,7 +586,7 @@ func (t *TektonStrategy) getPipelineRunStatus(pr *tektonv1.PipelineRun) *BuildIn
 
 	// Get status from conditions
 	for _, condition := range pr.Status.Conditions {
-		if condition.Type == "Succeeded" {
+		if condition.Type == TektonConditionSucceeded {
 			switch condition.Status {
 			case corev1.ConditionTrue:
 				info.Status = BuildStatusComplete
@@ -621,7 +628,7 @@ func (t *TektonStrategy) getTaskRunStatus(tr *tektonv1.TaskRun) *BuildInfo {
 
 	// Get status from conditions
 	for _, condition := range tr.Status.Conditions {
-		if condition.Type == "Succeeded" {
+		if condition.Type == TektonConditionSucceeded {
 			switch condition.Status {
 			case corev1.ConditionTrue:
 				info.Status = BuildStatusComplete
@@ -761,7 +768,7 @@ func (t *TektonStrategy) CleanupOldBuilds(ctx context.Context, pipelineName stri
 		pr := &runsToDelete[i]
 		// Don't delete running PipelineRuns
 		for _, condition := range pr.Status.Conditions {
-			if condition.Type == "Succeeded" && condition.Status == corev1.ConditionUnknown {
+			if condition.Type == TektonConditionSucceeded && condition.Status == corev1.ConditionUnknown {
 				logger.Info("Skipping running PipelineRun", "pipelineRunName", pr.Name)
 				continue
 			}
