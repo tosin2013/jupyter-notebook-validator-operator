@@ -169,11 +169,17 @@ func recordModelValidationDuration(namespace, platform, result string, duration 
 }
 
 // recordModelHealthCheck records a model health check attempt
+// TODO(ADR-020): Implement model health check functionality
+//
+//nolint:unused // Reserved for ADR-020 Model-Aware Validation Strategy
 func recordModelHealthCheck(namespace, platform, status string) {
 	modelHealthChecks.WithLabelValues(namespace, platform, status).Inc()
 }
 
 // recordPredictionValidation records a prediction validation attempt
+// TODO(ADR-020): Implement prediction validation functionality
+//
+//nolint:unused // Reserved for ADR-020 Model-Aware Validation Strategy
 func recordPredictionValidation(namespace, platform, result string) {
 	predictionValidations.WithLabelValues(namespace, platform, result).Inc()
 }
