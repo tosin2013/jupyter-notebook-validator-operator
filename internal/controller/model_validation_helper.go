@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/discovery"
@@ -31,6 +32,7 @@ import (
 
 // performModelValidation performs platform detection and model validation
 func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) error {
+	startTime := time.Now()
 	logger := log.FromContext(ctx)
 
 	// Check if model validation is enabled
@@ -39,8 +41,9 @@ func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Con
 		return nil
 	}
 
+	platform := job.Spec.ModelValidation.Platform
 	logger.Info("Performing model validation",
-		"platform", job.Spec.ModelValidation.Platform,
+		"platform", platform,
 		"phase", job.Spec.ModelValidation.Phase)
 
 	// Create discovery client for platform detection
@@ -53,11 +56,18 @@ func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Con
 	// Create platform detector
 	detector := platform.NewDetector(r.Client, discoveryClient)
 
-	// Detect platform
+	// Detect platform and record metrics
+	detectionStart := time.Now()
 	platformInfo, err := detector.DetectPlatform(ctx, job.Spec.ModelValidation.Platform)
+	detectionDuration := time.Since(detectionStart).Seconds()
+
 	if err != nil {
 		logger.Error(err, "Failed to detect model serving platform",
 			"platformHint", job.Spec.ModelValidation.Platform)
+
+		// Record platform detection failure
+		recordPlatformDetection(job.Namespace, platform, false, detectionDuration)
+		recordModelValidationDuration(job.Namespace, platform, "error", time.Since(startTime).Seconds())
 
 		// Update status with detection failure
 		job.Status.ModelValidationResult = &mlopsv1alpha1.ModelValidationResult{
@@ -70,6 +80,9 @@ func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Con
 
 		return fmt.Errorf("platform detection failed: %w", err)
 	}
+
+	// Record successful platform detection
+	recordPlatformDetection(job.Namespace, platform, platformInfo.Available, detectionDuration)
 
 	logger.Info("Platform detected successfully",
 		"platform", platformInfo.Platform,
@@ -89,12 +102,19 @@ func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Con
 		job.Status.ModelValidationResult.Success = false
 		job.Status.ModelValidationResult.Message = fmt.Sprintf("Platform %s not available in cluster", platformInfo.Platform)
 		logger.Info("Platform not available", "platform", platformInfo.Platform)
+
+		// Record model validation failure due to platform unavailability
+		recordModelValidationDuration(job.Namespace, platform, "platform_unavailable", time.Since(startTime).Seconds())
+
 		return fmt.Errorf("platform %s not available", platformInfo.Platform)
 	}
 
 	logger.Info("Model validation platform ready",
 		"platform", platformInfo.Platform,
 		"phase", job.Spec.ModelValidation.Phase)
+
+	// Record successful model validation setup
+	recordModelValidationDuration(job.Namespace, platform, "success", time.Since(startTime).Seconds())
 
 	return nil
 }

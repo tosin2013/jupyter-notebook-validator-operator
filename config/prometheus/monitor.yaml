@@ -1,10 +1,13 @@
 # Prometheus Monitor Service (Metrics)
+# Enhanced ServiceMonitor configuration for Jupyter Notebook Validator Operator
+# Based on ADR-010: Observability and Monitoring Strategy
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   labels:
     control-plane: controller-manager
     app.kubernetes.io/name: jupyter-notebook-validator-operator
+    app.kubernetes.io/component: observability
     app.kubernetes.io/managed-by: kustomize
   name: controller-manager-metrics-monitor
   namespace: system
@@ -13,9 +16,32 @@ spec:
     - path: /metrics
       port: https
       scheme: https
+      interval: 30s
+      scrapeTimeout: 10s
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
       tlsConfig:
         insecureSkipVerify: true
+      # Relabeling to add useful labels
+      relabelings:
+        # Add namespace label
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        # Add pod label
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        # Add service label
+        - sourceLabels: [__meta_kubernetes_service_name]
+          targetLabel: service
+      # Metric relabeling for filtering and optimization
+      metricRelabelings:
+        # Drop high-cardinality metrics if needed (currently keeping all)
+        # Keep only operator-specific metrics
+        - sourceLabels: [__name__]
+          regex: 'notebookvalidationjob_.*'
+          action: keep
+        # Add operator label to all metrics
+        - targetLabel: operator
+          replacement: jupyter-notebook-validator
   selector:
     matchLabels:
       control-plane: controller-manager
