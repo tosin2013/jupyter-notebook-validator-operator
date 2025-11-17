@@ -236,7 +236,7 @@ func (t *TektonStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Not
 	imageRef := fmt.Sprintf("%s/%s/%s:latest", registry, job.Namespace, buildName)
 
 	// Create a Pipeline with git-clone + buildah tasks
-	pipeline := t.createBuildPipeline(job, buildConfig, imageRef)
+	pipeline := t.createBuildPipeline(job, buildConfig)
 	if err := t.client.Create(ctx, pipeline); err != nil {
 		if !errors.IsAlreadyExists(err) {
 			// ADR-030 Phase 1: Return error instead of continuing silently
@@ -294,7 +294,7 @@ func (t *TektonStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Not
 }
 
 // createBuildPipeline creates a Tekton Pipeline with git-clone and buildah tasks
-func (t *TektonStrategy) createBuildPipeline(job *mlopsv1alpha1.NotebookValidationJob, buildConfig *mlopsv1alpha1.BuildConfigSpec, imageRef string) *tektonv1.Pipeline {
+func (t *TektonStrategy) createBuildPipeline(job *mlopsv1alpha1.NotebookValidationJob, buildConfig *mlopsv1alpha1.BuildConfigSpec) *tektonv1.Pipeline {
 	// Get base image (use default if not specified)
 	baseImage := buildConfig.BaseImage
 	if baseImage == "" {
@@ -502,7 +502,10 @@ func (t *TektonStrategy) createPipelineRun(job *mlopsv1alpha1.NotebookValidation
 			Params: []tektonv1.Param{
 				{Name: "git-url", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: job.Spec.Notebook.Git.URL}},
 				{Name: "git-revision", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: job.Spec.Notebook.Git.Ref}},
-				{Name: "image-reference", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: fmt.Sprintf("image-registry.openshift-image-registry.svc:5000/%s/%s:latest", job.Namespace, buildName)}},
+				{Name: "image-reference", Value: tektonv1.ParamValue{
+					Type:      tektonv1.ParamTypeString,
+					StringVal: fmt.Sprintf("image-registry.openshift-image-registry.svc:5000/%s/%s:latest", job.Namespace, buildName),
+				}},
 				{Name: "base-image", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: baseImage}},
 				// ADR-031 Phase 2: Pass custom Dockerfile path
 				{Name: "dockerfile-path", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: dockerfilePath}},
