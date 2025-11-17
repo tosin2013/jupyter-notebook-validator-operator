@@ -350,3 +350,101 @@ git-status: ## Show git status and current branch
 	@echo ""
 	@echo "🌿 Current branch: $$(git branch --show-current)"
 	@echo "🔗 Remote: $$(git remote get-url origin)"
+
+##@ Helm Chart
+
+HELM_CHART_DIR := helm/jupyter-notebook-validator-operator
+HELM_CRDS_DIR := $(HELM_CHART_DIR)/crds
+HELM_TEST_VALUES_DIR := $(HELM_CHART_DIR)/test-values
+
+.PHONY: helm-sync-crds
+helm-sync-crds: ## Sync CRDs from config/crd/bases to helm/crds
+	@echo "🔄 Syncing CRDs to Helm chart..."
+	@mkdir -p $(HELM_CRDS_DIR)
+	@cp config/crd/bases/mlops.mlops.dev_notebookvalidationjobs.yaml $(HELM_CRDS_DIR)/
+	@echo "✅ CRDs synced to $(HELM_CRDS_DIR)/"
+
+.PHONY: helm-sync-observability
+helm-sync-observability: ## Sync Phase 7 observability resources to Helm templates
+	@echo "🔄 Syncing observability resources to Helm chart..."
+	@mkdir -p $(HELM_CHART_DIR)/dashboards
+	@cp config/monitoring/openshift-console/*.yaml $(HELM_CHART_DIR)/dashboards/ 2>/dev/null || true
+	@echo "✅ Observability resources synced"
+
+.PHONY: helm-lint
+helm-lint: ## Lint Helm chart
+	@echo "🔍 Linting Helm chart..."
+	@helm lint $(HELM_CHART_DIR)
+	@echo "✅ Helm chart linted successfully"
+
+.PHONY: helm-template
+helm-template: ## Render Helm templates (dry-run)
+	@echo "📝 Rendering Helm templates..."
+	@helm template test-release $(HELM_CHART_DIR) \
+		--namespace jupyter-validator-system \
+		--debug
+
+.PHONY: helm-template-openshift
+helm-template-openshift: ## Render Helm templates with OpenShift values
+	@echo "📝 Rendering Helm templates (OpenShift)..."
+	@helm template test-release $(HELM_CHART_DIR) \
+		--namespace jupyter-validator-system \
+		--set openshift.enabled=true \
+		--set prometheus.enabled=true \
+		--debug
+
+.PHONY: helm-install-dry-run
+helm-install-dry-run: ## Test Helm install (dry-run)
+	@echo "🧪 Testing Helm install (dry-run)..."
+	@helm install test-release $(HELM_CHART_DIR) \
+		--namespace jupyter-validator-system \
+		--create-namespace \
+		--dry-run \
+		--debug
+
+.PHONY: helm-install
+helm-install: helm-sync-crds ## Install Helm chart to current cluster
+	@echo "📦 Installing Helm chart..."
+	@helm install jupyter-validator $(HELM_CHART_DIR) \
+		--namespace jupyter-validator-system \
+		--create-namespace \
+		--set openshift.enabled=true \
+		--set prometheus.enabled=true \
+		--wait \
+		--timeout 10m
+	@echo "✅ Helm chart installed successfully"
+	@echo "🔍 Verify with: kubectl get pods -n jupyter-validator-system"
+
+.PHONY: helm-upgrade
+helm-upgrade: helm-sync-crds ## Upgrade Helm chart on current cluster
+	@echo "⬆️  Upgrading Helm chart..."
+	@helm upgrade jupyter-validator $(HELM_CHART_DIR) \
+		--namespace jupyter-validator-system \
+		--set openshift.enabled=true \
+		--set prometheus.enabled=true \
+		--wait \
+		--timeout 10m
+	@echo "✅ Helm chart upgraded successfully"
+
+.PHONY: helm-uninstall
+helm-uninstall: ## Uninstall Helm chart from current cluster
+	@echo "🗑️  Uninstalling Helm chart..."
+	@helm uninstall jupyter-validator --namespace jupyter-validator-system
+	@echo "✅ Helm chart uninstalled"
+	@echo "⚠️  CRDs are kept by default. To remove: kubectl delete crd notebookvalidationjobs.mlops.mlops.dev"
+
+.PHONY: helm-package
+helm-package: helm-sync-crds ## Package Helm chart for distribution
+	@echo "📦 Packaging Helm chart..."
+	@mkdir -p dist
+	@helm package $(HELM_CHART_DIR) --destination dist/
+	@echo "✅ Helm chart packaged to dist/"
+	@ls -lh dist/*.tgz
+
+.PHONY: helm-test
+helm-test: helm-lint helm-template helm-install-dry-run ## Run all Helm tests
+	@echo "✅ All Helm tests passed!"
+
+.PHONY: helm-sync
+helm-sync: helm-sync-crds helm-sync-observability ## Sync all resources from config/ to helm/
+	@echo "✅ All resources synced to Helm chart"

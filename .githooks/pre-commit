@@ -1,0 +1,33 @@
+#!/bin/bash
+# Pre-commit hook to sync CRDs to Helm chart
+# Install: git config core.hooksPath .githooks
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo -e "${YELLOW}🔍 Checking if CRDs need to be synced to Helm chart...${NC}"
+
+# Check if CRD files have changed
+CRD_CHANGED=$(git diff --cached --name-only | grep -E "^config/crd/bases/.*\.yaml$" || true)
+
+if [ -n "$CRD_CHANGED" ]; then
+    echo -e "${YELLOW}📝 CRD files changed, syncing to Helm chart...${NC}"
+    
+    # Sync CRDs
+    make helm-sync-crds
+    
+    # Add the synced files to the commit
+    git add helm/jupyter-notebook-validator-operator/crds/
+    
+    echo -e "${GREEN}✅ CRDs synced to Helm chart and added to commit${NC}"
+else
+    echo -e "${GREEN}✅ No CRD changes detected${NC}"
+fi
+
+exit 0
+

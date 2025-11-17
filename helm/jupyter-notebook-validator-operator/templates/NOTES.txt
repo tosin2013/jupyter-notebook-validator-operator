@@ -1,0 +1,121 @@
+🎉 Jupyter Notebook Validator Operator has been installed!
+
+📦 Release: {{ .Release.Name }}
+📂 Namespace: {{ .Release.Namespace }}
+🏷️  Version: {{ .Chart.AppVersion }}
+
+{{- if .Values.crds.install }}
+
+✅ CRDs Installed:
+   - NotebookValidationJob (mlops.mlops.dev/v1alpha1)
+
+{{- end }}
+
+🔍 Check the operator status:
+
+   kubectl get pods -n {{ .Release.Namespace }} -l control-plane=controller-manager
+
+📊 View operator logs:
+
+   kubectl logs -n {{ .Release.Namespace }} -l control-plane=controller-manager --tail=100 -f
+
+{{- if .Values.operator.metrics.enabled }}
+
+📈 Metrics endpoint:
+   {{ if .Values.operator.metrics.authProxy.enabled }}
+   Metrics are protected by kube-rbac-proxy on port {{ .Values.service.metricsPort }}
+   {{- else }}
+   Metrics available on port {{ .Values.service.metricsPort }}
+   {{- end }}
+
+{{- end }}
+
+{{- if .Values.prometheus.enabled }}
+
+📊 Prometheus ServiceMonitor created:
+   kubectl get servicemonitor -n {{ .Release.Namespace }} {{ include "jupyter-notebook-validator-operator.serviceMonitorName" . }}
+
+{{- end }}
+
+{{- if .Values.tekton.enabled }}
+
+🔧 Tekton Integration:
+   ✅ Tekton Pipelines support enabled
+   ⚠️  Ensure Tekton Pipelines {{ .Values.tekton.version }} is installed:
+   
+   kubectl get pods -n tekton-pipelines
+
+{{- end }}
+
+{{- if .Values.externalSecrets.enabled }}
+
+🔐 External Secrets Operator:
+   ✅ ESO integration enabled
+   ⚠️  Ensure External Secrets Operator {{ .Values.externalSecrets.version }} is installed:
+   
+   kubectl get pods -n external-secrets
+
+{{- end }}
+
+{{- if .Values.openshift.enabled }}
+
+🔴 OpenShift Features:
+   ✅ OpenShift-specific features enabled
+   {{- if .Values.openshift.scc.create }}
+   ✅ SecurityContextConstraints created: {{ .Values.openshift.scc.name }}
+   {{- end }}
+   {{- if .Values.openshift.route.enabled }}
+   ✅ Route created: {{ .Values.openshift.route.host }}
+   {{- end }}
+
+{{- end }}
+
+📝 Create your first NotebookValidationJob:
+
+cat <<EOF | kubectl apply -f -
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: my-first-validation
+  namespace: {{ .Release.Namespace }}
+spec:
+  notebookRepo: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+  notebookPath: "tier-1/basic-math.ipynb"
+  branch: "main"
+EOF
+
+🔍 Check validation job status:
+
+   kubectl get notebookvalidationjobs -n {{ .Release.Namespace }}
+   kubectl describe notebookvalidationjob my-first-validation -n {{ .Release.Namespace }}
+
+📚 Documentation:
+   - Architecture: https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/docs/ARCHITECTURE_OVERVIEW.md
+   - Integration Testing: https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/docs/INTEGRATION_TESTING.md
+   - ADRs: https://github.com/tosin2013/jupyter-notebook-validator-operator/tree/main/docs/adrs
+
+💡 Examples:
+   - Basic validation: config/samples/mlops_v1alpha1_notebookvalidationjob.yaml
+   - Golden comparison: config/samples/mlops_v1alpha1_notebookvalidationjob_golden.yaml
+   - Tekton build: config/samples/mlops_v1alpha1_notebookvalidationjob_tekton.yaml
+   - Model training: config/samples/model-training-job.yaml
+
+🐛 Troubleshooting:
+   - Check operator logs for errors
+   - Verify RBAC permissions
+   - Ensure Tekton Pipelines is running (if using build features)
+   - Check validation pod logs: kubectl logs -n {{ .Release.Namespace }} <validation-pod-name>
+
+🆘 Support:
+   - Issues: https://github.com/tosin2013/jupyter-notebook-validator-operator/issues
+   - Discussions: https://github.com/tosin2013/jupyter-notebook-validator-operator/discussions
+
+{{- if not .Values.crds.keep }}
+
+⚠️  WARNING: CRDs will be deleted when you uninstall this chart!
+   Set crds.keep=true to preserve CRDs and data on uninstall.
+
+{{- end }}
+
+Happy validating! 🚀
+

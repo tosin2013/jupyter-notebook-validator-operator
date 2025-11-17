@@ -1,0 +1,30 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+{{- if eq .Values.rbac.scope "cluster" }}
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "jupyter-notebook-validator-operator.fullname" . }}-manager-rolebinding
+  labels:
+    {{- include "jupyter-notebook-validator-operator.labels" . | nindent 4 }}
+{{- else }}
+kind: RoleBinding
+metadata:
+  name: {{ include "jupyter-notebook-validator-operator.fullname" . }}-manager-rolebinding
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "jupyter-notebook-validator-operator.labels" . | nindent 4 }}
+{{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  {{- if eq .Values.rbac.scope "cluster" }}
+  kind: ClusterRole
+  {{- else }}
+  kind: Role
+  {{- end }}
+  name: {{ include "jupyter-notebook-validator-operator.fullname" . }}-manager-role
+subjects:
+- kind: ServiceAccount
+  name: {{ include "jupyter-notebook-validator-operator.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
+

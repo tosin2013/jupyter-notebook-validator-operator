@@ -1,0 +1,28 @@
+{{- if and .Values.rbac.create .Values.validationRunner.serviceAccount.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "jupyter-notebook-validator-operator.fullname" . }}-validation-runner-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "jupyter-notebook-validator-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: validation-runner
+rules:
+# Allow reading secrets for Git credentials
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+# Allow reading configmaps for configuration
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+{{- end }}
+

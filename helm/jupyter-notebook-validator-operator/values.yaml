@@ -1,0 +1,302 @@
+# Default values for jupyter-notebook-validator-operator
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# -- Number of operator replicas (typically 1 for operators)
+replicaCount: 1
+
+# -- Operator image configuration
+image:
+  # -- Image repository
+  repository: quay.io/tosin2013/jupyter-notebook-validator-operator
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+  # -- Image tag (overrides the chart appVersion)
+  tag: ""
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+# - name: quay-secret
+
+# -- Override the chart name
+nameOverride: ""
+# -- Override the full release name
+fullnameOverride: ""
+
+# -- CRD installation configuration
+crds:
+  # -- Install CRDs as part of the chart
+  install: true
+  # -- Keep CRDs on chart uninstall (recommended for production)
+  keep: true
+  # -- Annotations to add to CRDs
+  annotations: {}
+
+# -- Service account configuration
+serviceAccount:
+  # -- Create service account
+  create: true
+  # -- Annotations to add to the service account
+  annotations: {}
+  # -- Service account name (generated if not set)
+  name: ""
+
+# -- Validation runner service account (for Tekton pipelines)
+validationRunner:
+  serviceAccount:
+    # -- Create validation runner service account
+    create: true
+    # -- Service account name
+    name: "validation-runner"
+    # -- Annotations to add to the service account
+    annotations: {}
+
+# -- RBAC configuration
+rbac:
+  # -- Create RBAC resources
+  create: true
+  # -- RBAC scope: "cluster" or "namespace"
+  scope: cluster
+  # -- Additional rules to add to the operator role
+  additionalRules: []
+
+# -- Pod annotations
+podAnnotations: {}
+
+# -- Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  # fsGroup: 2000
+
+# -- Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+# -- Service configuration (for metrics/webhooks)
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- Service port
+  port: 8443
+  # -- Metrics port
+  metricsPort: 8080
+
+# -- Resource limits and requests
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# -- Node selector
+nodeSelector: {}
+
+# -- Tolerations
+tolerations: []
+
+# -- Affinity rules
+affinity: {}
+
+# -- Operator configuration
+operator:
+  # -- Leader election configuration
+  leaderElection:
+    enabled: true
+    # -- Leader election lease duration
+    leaseDuration: 15s
+    # -- Leader election renew deadline
+    renewDeadline: 10s
+    # -- Leader election retry period
+    retryPeriod: 2s
+
+  # -- Metrics configuration
+  metrics:
+    # -- Enable metrics endpoint
+    enabled: true
+    # -- Metrics bind address
+    bindAddress: ":8080"
+    # -- Enable auth proxy for metrics
+    authProxy:
+      enabled: true
+      image:
+        repository: gcr.io/kubebuilder/kube-rbac-proxy
+        tag: v0.15.0
+        pullPolicy: IfNotPresent
+      resources:
+        limits:
+          cpu: 500m
+          memory: 128Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+
+  # -- Health probe configuration
+  health:
+    # -- Health probe bind address
+    bindAddress: ":8081"
+
+  # -- Webhook configuration (if using webhooks)
+  webhook:
+    enabled: true
+    port: 9443
+    certDir: /tmp/k8s-webhook-server/serving-certs
+    failurePolicy: Fail
+
+# -- Cert-manager configuration (required for webhooks)
+certManager:
+  # -- Enable cert-manager integration
+  enabled: true
+  # -- Image for cert-manager pre-install check
+  checkImage: bitnami/kubectl:latest
+
+# -- Prometheus ServiceMonitor configuration
+prometheus:
+  # -- Create ServiceMonitor for Prometheus Operator
+  enabled: false
+  # -- ServiceMonitor namespace (defaults to release namespace)
+  namespace: ""
+  # -- ServiceMonitor labels
+  labels: {}
+  # -- Scrape interval
+  interval: 30s
+  # -- Scrape timeout
+  scrapeTimeout: 10s
+
+# -- Tekton Pipelines configuration
+tekton:
+  # -- Install Tekton tasks and pipelines
+  enabled: true
+  # -- Tekton Pipelines version (must be pre-installed)
+  version: "v0.65.0"
+  # -- Default pipeline timeout
+  timeout: 1h
+  # -- Default task timeout
+  taskTimeout: 30m
+
+# -- External Secrets Operator integration
+externalSecrets:
+  # -- Enable ESO integration
+  enabled: false
+  # -- ESO version (must be pre-installed)
+  version: "v0.9.0"
+
+# -- OpenShift-specific configuration
+openshift:
+  # -- Enable OpenShift-specific features
+  enabled: false
+  # -- Create SecurityContextConstraints
+  scc:
+    create: false
+    # -- SCC name
+    name: "jupyter-notebook-validator-scc"
+  # -- OpenShift Routes
+  route:
+    enabled: false
+    # -- Route host
+    host: ""
+    # -- TLS configuration
+    tls:
+      enabled: true
+      termination: edge
+
+# -- Validation job defaults
+validation:
+  # -- Default notebook repository
+  defaultRepo: ""
+  # -- Default branch
+  defaultBranch: "main"
+  # -- Default timeout for validation jobs
+  timeout: "30m"
+  # -- Default resource limits for validation pods
+  resources:
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+  # -- Default Python version
+  pythonVersion: "3.11"
+  # -- Default base image for validation
+  baseImage: "python:3.11-slim"
+
+# -- Logging configuration
+logging:
+  # -- Log level (debug, info, warn, error)
+  level: info
+  # -- Log format (json, console)
+  format: json
+  # -- Enable development mode logging
+  development: false
+
+# -- Additional environment variables for the operator
+env: []
+# - name: CUSTOM_VAR
+#   value: "custom-value"
+
+# -- Additional volumes
+volumes: []
+# - name: custom-volume
+#   configMap:
+#     name: custom-config
+
+# -- Additional volume mounts
+volumeMounts: []
+# - name: custom-volume
+#   mountPath: /etc/custom
+
+# -- Init containers
+initContainers: []
+
+# -- Sidecar containers
+sidecars: []
+
+# -- Pod disruption budget
+podDisruptionBudget:
+  enabled: false
+  # minAvailable: 1
+  # maxUnavailable: 1
+
+# -- Horizontal Pod Autoscaler
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+# -- Network policies
+networkPolicy:
+  enabled: false
+  # -- Ingress rules
+  ingress: []
+  # -- Egress rules
+  egress: []
+
+# -- Priority class name
+priorityClassName: ""
+
+# -- Topology spread constraints
+topologySpreadConstraints: []
+
+# -- DNS configuration
+dnsPolicy: ClusterFirst
+dnsConfig: {}
+
+# -- Host aliases
+hostAliases: []
+
+# -- Lifecycle hooks
+lifecycle: {}
+
+# -- Termination grace period
+terminationGracePeriodSeconds: 30
+
