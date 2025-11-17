@@ -31,11 +31,33 @@ This chart deploys the Jupyter Notebook Validator Operator on a Kubernetes or Op
 
 ## Prerequisites
 
+### Required
 - Kubernetes 1.31+ or OpenShift 4.18+
 - Helm 3.8+
-- Tekton Pipelines v0.65.0+ (optional, for build features)
-- External Secrets Operator v0.9.0+ (optional, for secret management)
-- Prometheus Operator (optional, for metrics)
+- **cert-manager v1.13+** (required for webhook certificates)
+
+### Optional
+- Tekton Pipelines v0.65.0+ (for build features)
+- External Secrets Operator v0.9.0+ (for secret management)
+- Prometheus Operator (for metrics and alerts)
+
+### Installing cert-manager
+
+If cert-manager is not already installed:
+
+```bash
+# Install cert-manager
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
+
+# Verify cert-manager is running
+kubectl get pods -n cert-manager
+```
+
+For OpenShift, cert-manager is typically pre-installed. Verify with:
+
+```bash
+oc get pods -n cert-manager
+```
 
 ## Installing the Chart
 
@@ -145,6 +167,172 @@ openshift:
     tls:
       enabled: true
       termination: edge
+```
+
+## Working with Private Git Repositories
+
+The operator supports both public and private Git repositories. For private repositories, you need to create a Kubernetes Secret with your Git credentials.
+
+### Creating Git Credentials Secret
+
+#### Option 1: HTTPS with Personal Access Token (Recommended)
+
+```bash
+# Create secret with GitHub Personal Access Token
+kubectl create secret generic git-credentials \
+  --from-literal=username=your-github-username \
+  --from-literal=password=ghp_your_personal_access_token \
+  -n default
+
+# Or using a file
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: git-credentials
+  namespace: default
+type: Opaque
+stringData:
+  username: "your-github-username"
+  password: "ghp_your_personal_access_token"
+EOF
+```
+
+**Creating a GitHub Personal Access Token:**
+1. Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
+2. Click "Generate new token (classic)"
+3. Select scopes: `repo` (for private repos) or `public_repo` (for public repos)
+4. Copy the token and use it as the password
+
+#### Option 2: SSH Key Authentication
+
+```bash
+# Create secret with SSH private key
+kubectl create secret generic git-ssh-credentials \
+  --from-file=ssh-privatekey=/path/to/id_rsa \
+  --from-literal=known_hosts="$(ssh-keyscan github.com)" \
+  -n default
+```
+
+#### Option 3: Using External Secrets Operator (Advanced)
+
+If you have External Secrets Operator installed:
+
+```yaml
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: git-credentials
+  namespace: default
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: SecretStore
+  target:
+    name: git-credentials
+    creationPolicy: Owner
+  data:
+  - secretKey: username
+    remoteRef:
+      key: git/credentials
+      property: username
+  - secretKey: password
+    remoteRef:
+      key: git/credentials
+      property: token
+```
+
+### Using Credentials in NotebookValidationJob
+
+Once you've created the secret, reference it in your NotebookValidationJob:
+
+```yaml
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: validate-private-repo
+  namespace: default
+spec:
+  notebook:
+    git:
+      url: "https://github.com/your-org/private-notebooks.git"
+      ref: "main"
+      credentialsSecret: "git-credentials"  # Reference the secret
+    path: "notebooks/analysis.ipynb"
+
+  podConfig:
+    containerImage: "quay.io/jupyter/minimal-notebook:latest"
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+
+  timeout: "10m"
+```
+
+### SSH URL Example
+
+For SSH authentication:
+
+```yaml
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: validate-ssh-repo
+  namespace: default
+spec:
+  notebook:
+    git:
+      url: "git@github.com:your-org/private-notebooks.git"
+      ref: "main"
+      credentialsSecret: "git-ssh-credentials"
+    path: "notebooks/analysis.ipynb"
+
+  podConfig:
+    containerImage: "quay.io/jupyter/minimal-notebook:latest"
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+
+  timeout: "10m"
+```
+
+### Best Practices for Git Credentials
+
+1. **Use Personal Access Tokens** instead of passwords for HTTPS
+2. **Limit token scope** to only what's needed (e.g., `repo` for private repos)
+3. **Rotate tokens regularly** and update secrets
+4. **Use namespace-specific secrets** to limit access
+5. **Consider External Secrets Operator** for centralized secret management
+6. **Use SSH keys** for automated systems and CI/CD pipelines
+7. **Never commit credentials** to Git repositories
+
+### Troubleshooting Git Authentication
+
+If your validation job fails with git clone errors:
+
+```bash
+# Check if secret exists
+kubectl get secret git-credentials -n default
+
+# Verify secret contents (base64 encoded)
+kubectl get secret git-credentials -n default -o yaml
+
+# Check validation pod logs
+kubectl logs <validation-pod-name> -n default -c git-clone
+
+# Common errors:
+# - "Authentication failed": Wrong username/password or token
+# - "Repository not found": Check URL and permissions
+# - "Permission denied (publickey)": SSH key not configured correctly
 ```
 
 ## Examples
