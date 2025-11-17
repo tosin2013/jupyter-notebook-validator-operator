@@ -257,11 +257,14 @@ jobs:
 
       - name: Run Tier 2 tests (Intermediate notebooks)
         if: github.event.inputs.test_tier == '2' || github.event.inputs.test_tier == 'all' || github.event.inputs.test_tier == ''
+        env:
+          TEST_REPO_URL: ${{ env.TEST_REPO }}
+          TEST_NS: ${{ env.TEST_NAMESPACE }}
         run: |
           echo "=== Running Tier 2 Tests (Intermediate notebooks with Tekton builds) ==="
 
           # Create PVC for Tekton builds
-          cat <<EOF | oc apply -n ${{ env.TEST_NAMESPACE }} -f -
+          cat <<EOF | oc apply -n ${TEST_NS} -f -
           apiVersion: v1
           kind: PersistentVolumeClaim
           metadata:
@@ -275,17 +278,18 @@ jobs:
           EOF
 
           # Create NotebookValidationJob with Tekton build
-          cat <<EOF | oc apply -n ${{ env.TEST_NAMESPACE }} -f -
+          cat <<EOF | oc apply -n ${TEST_NS} -f -
           apiVersion: mlops.mlops.dev/v1alpha1
           kind: NotebookValidationJob
           metadata:
             name: tier2-test-01-sentiment-model
           spec:
-            notebookPath: "notebooks/tier2-intermediate/01-train-sentiment-model.ipynb"
-            gitConfig:
-              repositoryURL: "${{ env.TEST_REPO }}"
-              branch: "main"
-              secretName: "git-credentials"
+            notebook:
+              git:
+                url: "${TEST_REPO_URL}"
+                ref: "main"
+                credentialsSecret: "git-credentials"
+              path: "notebooks/tier2-intermediate/01-train-sentiment-model.ipynb"
             podConfig:
               containerImage: "quay.io/jupyter/minimal-notebook:latest"
               buildConfig:
@@ -297,18 +301,18 @@ jobs:
           # Wait for test to complete
           echo "Waiting for Tier 2 test to complete (may take 5-10 minutes for build)..."
           for i in {1..120}; do
-            PHASE=\$(oc get notebookvalidationjob tier2-test-01-sentiment-model -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+            PHASE=$(oc get notebookvalidationjob tier2-test-01-sentiment-model -n ${TEST_NS} -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
 
-            if [ "\$PHASE" == "Succeeded" ]; then
+            if [ "$PHASE" == "Succeeded" ]; then
               echo "✅ Tier 2 test succeeded!"
               break
-            elif [ "\$PHASE" == "Failed" ]; then
+            elif [ "$PHASE" == "Failed" ]; then
               echo "❌ Tier 2 test failed!"
-              oc get notebookvalidationjob tier2-test-01-sentiment-model -n ${{ env.TEST_NAMESPACE }} -o yaml
+              oc get notebookvalidationjob tier2-test-01-sentiment-model -n ${TEST_NS} -o yaml
               exit 1
             fi
 
-            echo "Progress: Phase=\${PHASE} (waiting...)"
+            echo "Progress: Phase=${PHASE} (waiting...)"
             sleep 10
           done
 
@@ -316,6 +320,9 @@ jobs:
 
       - name: Run Tier 3 tests (Complex notebooks)
         if: github.event.inputs.test_tier == '3' || github.event.inputs.test_tier == 'all' || github.event.inputs.test_tier == ''
+        env:
+          TEST_REPO_URL: ${{ env.TEST_REPO }}
+          TEST_NS: ${{ env.TEST_NAMESPACE }}
         run: |
           echo "=== Running Tier 3 Tests (Complex integration tests) ==="
 
@@ -324,17 +331,18 @@ jobs:
           # KServe tests require manual infrastructure setup
 
           # Test 03: AWS credentials
-          cat <<EOF | oc apply -n ${{ env.TEST_NAMESPACE }} -f -
+          cat <<EOF | oc apply -n ${TEST_NS} -f -
           apiVersion: mlops.mlops.dev/v1alpha1
           kind: NotebookValidationJob
           metadata:
             name: tier3-test-03-aws-credentials
           spec:
-            notebookPath: "notebooks/tier3-complex/03-aws-credentials-test.ipynb"
-            gitConfig:
-              repositoryURL: "${{ env.TEST_REPO }}"
-              branch: "main"
-              secretName: "git-credentials"
+            notebook:
+              git:
+                url: "${TEST_REPO_URL}"
+                ref: "main"
+                credentialsSecret: "git-credentials"
+              path: "notebooks/tier3-complex/03-aws-credentials-test.ipynb"
             podConfig:
               containerImage: "quay.io/jupyter/minimal-notebook:latest"
               buildConfig:
@@ -346,17 +354,18 @@ jobs:
           EOF
 
           # Test 04: Database credentials
-          cat <<EOF | oc apply -n ${{ env.TEST_NAMESPACE }} -f -
+          cat <<EOF | oc apply -n ${TEST_NS} -f -
           apiVersion: mlops.mlops.dev/v1alpha1
           kind: NotebookValidationJob
           metadata:
             name: tier3-test-04-database-credentials
           spec:
-            notebookPath: "notebooks/tier3-complex/04-database-connection-test.ipynb"
-            gitConfig:
-              repositoryURL: "${{ env.TEST_REPO }}"
-              branch: "main"
-              secretName: "git-credentials"
+            notebook:
+              git:
+                url: "${TEST_REPO_URL}"
+                ref: "main"
+                credentialsSecret: "git-credentials"
+              path: "notebooks/tier3-complex/04-database-connection-test.ipynb"
             podConfig:
               containerImage: "quay.io/jupyter/minimal-notebook:latest"
               buildConfig:
@@ -368,17 +377,18 @@ jobs:
           EOF
 
           # Test 05: MLflow credentials
-          cat <<EOF | oc apply -n ${{ env.TEST_NAMESPACE }} -f -
+          cat <<EOF | oc apply -n ${TEST_NS} -f -
           apiVersion: mlops.mlops.dev/v1alpha1
           kind: NotebookValidationJob
           metadata:
             name: tier3-test-05-mlflow-credentials
           spec:
-            notebookPath: "notebooks/tier3-complex/05-mlflow-tracking-test.ipynb"
-            gitConfig:
-              repositoryURL: "${{ env.TEST_REPO }}"
-              branch: "main"
-              secretName: "git-credentials"
+            notebook:
+              git:
+                url: "${TEST_REPO_URL}"
+                ref: "main"
+                credentialsSecret: "git-credentials"
+              path: "notebooks/tier3-complex/05-mlflow-tracking-test.ipynb"
             podConfig:
               containerImage: "quay.io/jupyter/minimal-notebook:latest"
               buildConfig:
@@ -392,22 +402,22 @@ jobs:
           # Wait for tests to complete
           echo "Waiting for Tier 3 tests to complete (may take 10-15 minutes)..."
           for i in {1..180}; do
-            COMPLETED=\$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -l tier=3 -o jsonpath='{.items[?(@.status.phase=="Succeeded")].metadata.name}' | wc -w)
-            FAILED=\$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -l tier=3 -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
+            COMPLETED=$(oc get notebookvalidationjobs -n ${TEST_NS} -l tier=3 -o jsonpath='{.items[?(@.status.phase=="Succeeded")].metadata.name}' | wc -w)
+            FAILED=$(oc get notebookvalidationjobs -n ${TEST_NS} -l tier=3 -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
 
-            if [ \$((COMPLETED + FAILED)) -eq 3 ]; then
+            if [ $((COMPLETED + FAILED)) -eq 3 ]; then
               break
             fi
 
-            echo "Progress: \${COMPLETED} succeeded, \${FAILED} failed (waiting...)"
+            echo "Progress: ${COMPLETED} succeeded, ${FAILED} failed (waiting...)"
             sleep 10
           done
 
           # Check results
-          oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }}
+          oc get notebookvalidationjobs -n ${TEST_NS}
 
-          FAILED=\$(oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
-          if [ \$FAILED -gt 0 ]; then
+          FAILED=$(oc get notebookvalidationjobs -n ${TEST_NS} -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
+          if [ $FAILED -gt 0 ]; then
             echo "❌ Some Tier 3 tests failed!"
             exit 1
           fi
