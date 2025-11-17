@@ -41,9 +41,9 @@ func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Con
 		return nil
 	}
 
-	platform := job.Spec.ModelValidation.Platform
+	targetPlatform := job.Spec.ModelValidation.Platform
 	logger.Info("Performing model validation",
-		"platform", platform,
+		"platform", targetPlatform,
 		"phase", job.Spec.ModelValidation.Phase)
 
 	// Create discovery client for platform detection
@@ -66,8 +66,8 @@ func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Con
 			"platformHint", job.Spec.ModelValidation.Platform)
 
 		// Record platform detection failure
-		recordPlatformDetection(job.Namespace, platform, false, detectionDuration)
-		recordModelValidationDuration(job.Namespace, platform, "error", time.Since(startTime).Seconds())
+		recordPlatformDetection(job.Namespace, targetPlatform, false, detectionDuration)
+		recordModelValidationDuration(job.Namespace, targetPlatform, "error", time.Since(startTime).Seconds())
 
 		// Update status with detection failure
 		job.Status.ModelValidationResult = &mlopsv1alpha1.ModelValidationResult{
@@ -82,7 +82,7 @@ func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Con
 	}
 
 	// Record successful platform detection
-	recordPlatformDetection(job.Namespace, platform, platformInfo.Available, detectionDuration)
+	recordPlatformDetection(job.Namespace, targetPlatform, platformInfo.Available, detectionDuration)
 
 	logger.Info("Platform detected successfully",
 		"platform", platformInfo.Platform,
@@ -104,7 +104,7 @@ func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Con
 		logger.Info("Platform not available", "platform", platformInfo.Platform)
 
 		// Record model validation failure due to platform unavailability
-		recordModelValidationDuration(job.Namespace, platform, "platform_unavailable", time.Since(startTime).Seconds())
+		recordModelValidationDuration(job.Namespace, targetPlatform, "platform_unavailable", time.Since(startTime).Seconds())
 
 		return fmt.Errorf("platform %s not available", platformInfo.Platform)
 	}
@@ -114,7 +114,7 @@ func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Con
 		"phase", job.Spec.ModelValidation.Phase)
 
 	// Record successful model validation setup
-	recordModelValidationDuration(job.Namespace, platform, "success", time.Since(startTime).Seconds())
+	recordModelValidationDuration(job.Namespace, targetPlatform, "success", time.Since(startTime).Seconds())
 
 	return nil
 }
