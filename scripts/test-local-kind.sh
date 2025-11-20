@@ -314,6 +314,28 @@ install_cert_manager() {
     log_success "cert-manager installed successfully"
 }
 
+# Install Tekton Pipelines (ADR-037 - Build testing)
+install_tekton() {
+    log_info "Installing Tekton Pipelines for build testing..."
+
+    # Determine kubectl command based on rootful mode
+    local KUBECTL_CMD="kubectl"
+    if [[ "$PODMAN_ROOTFUL" == "true" ]]; then
+        KUBECTL_CMD="sudo kubectl"
+    fi
+
+    # Install Tekton Pipelines v0.53.0 (compatible with Kubernetes 1.31)
+    $KUBECTL_CMD apply -f https://storage.googleapis.com/tekton-releases/pipeline/previous/v0.53.0/release.yaml
+
+    # Wait for Tekton to be ready
+    log_info "Waiting for Tekton to be ready..."
+    $KUBECTL_CMD wait --for=condition=Available --timeout=300s \
+        -n tekton-pipelines deployment/tekton-pipelines-controller \
+        deployment/tekton-pipelines-webhook
+
+    log_success "Tekton Pipelines v0.53.0 installed successfully"
+}
+
 # Deploy operator
 deploy_operator() {
     log_info "Deploying Jupyter Notebook Validator Operator..."
@@ -520,10 +542,131 @@ EOF
     return 0
 }
 
+# Run build integration tests (ADR-037)
+run_build_tests() {
+    log_info "Running build integration tests (ADR-037 - Tekton state machine)..."
+
+    # Determine kubectl command based on rootful mode
+    local KUBECTL_CMD="kubectl"
+    if [[ "$PODMAN_ROOTFUL" == "true" ]]; then
+        KUBECTL_CMD="sudo kubectl"
+    fi
+
+    local job_name="build-test-tekton-seaborn"
+
+    log_info "Testing: Tekton build with custom requirements (seaborn)"
+    log_info "Expected flow: Initializing → Building → BuildComplete → ValidationRunning → Succeeded"
+
+    # Create NotebookValidationJob with Tekton build
+    cat <<EOF | $KUBECTL_CMD apply -f -
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: ${job_name}
+  namespace: ${TEST_NAMESPACE}
+spec:
+  notebook:
+    git:
+      url: "${TEST_REPO_URL}"
+      ref: "${TEST_REPO_REF}"
+    path: "notebooks/tier2-data/01-pandas-analysis.ipynb"
+  podConfig:
+    buildConfig:
+      enabled: true
+      strategy: "tekton"
+      baseImage: "quay.io/jupyter/minimal-notebook:latest"
+      requirementsFile: "requirements.txt"
+      autoGenerateRequirements: false
+      fallbackStrategy: "warn"
+    containerImage: "quay.io/jupyter/minimal-notebook:latest"
+    serviceAccountName: jupyter-notebook-validator-runner
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+  timeout: "15m"
+EOF
+
+    # Wait for job to complete (max 10 minutes for build + validation)
+    local timeout=600
+    local elapsed=0
+    local interval=10
+    local last_phase=""
+
+    echo ""
+    log_info "Monitoring phase transitions (ADR-037)..."
+
+    while [ $elapsed -lt $timeout ]; do
+        local phase=$($KUBECTL_CMD get notebookvalidationjob "$job_name" -n "$TEST_NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+
+        # Show phase transitions
+        if [ "$phase" != "$last_phase" ] && [ -n "$phase" ]; then
+            if [ -n "$last_phase" ]; then
+                log_info "  Phase transition: $last_phase → $phase"
+            else
+                log_info "  Initial phase: $phase"
+            fi
+            last_phase="$phase"
+
+            # Show BuildStatus details when in Building/BuildComplete
+            if [[ "$phase" == "Building" ]] || [[ "$phase" == "BuildComplete" ]]; then
+                local build_phase=$($KUBECTL_CMD get notebookvalidationjob "$job_name" -n "$TEST_NAMESPACE" -o jsonpath='{.status.buildStatus.phase}' 2>/dev/null || echo "Unknown")
+                local build_duration=$($KUBECTL_CMD get notebookvalidationjob "$job_name" -n "$TEST_NAMESPACE" -o jsonpath='{.status.buildStatus.duration}' 2>/dev/null || echo "N/A")
+                log_info "    BuildStatus: phase=$build_phase, duration=$build_duration"
+            fi
+        fi
+
+        case "$phase" in
+            "Succeeded")
+                echo ""
+                log_success "✅ Build test passed: $job_name"
+
+                # Verify BuildStatus was set
+                local image_ref=$($KUBECTL_CMD get notebookvalidationjob "$job_name" -n "$TEST_NAMESPACE" -o jsonpath='{.status.buildStatus.imageReference}' 2>/dev/null)
+                local build_duration=$($KUBECTL_CMD get notebookvalidationjob "$job_name" -n "$TEST_NAMESPACE" -o jsonpath='{.status.buildStatus.duration}' 2>/dev/null)
+
+                if [ -n "$image_ref" ]; then
+                    log_success "  Built image: $image_ref"
+                    log_info "  Build duration: $build_duration"
+                else
+                    log_warning "  BuildStatus.imageReference not set (unexpected for build test)"
+                fi
+
+                echo ""
+                return 0
+                ;;
+            "Failed")
+                echo ""
+                log_error "❌ Build test failed: $job_name"
+                log_info "Dumping NotebookValidationJob status..."
+                $KUBECTL_CMD get notebookvalidationjob "$job_name" -n "$TEST_NAMESPACE" -o yaml
+                echo ""
+                return 1
+                ;;
+            *)
+                sleep $interval
+                elapsed=$((elapsed + interval))
+                ;;
+        esac
+    done
+
+    if [ $elapsed -ge $timeout ]; then
+        echo ""
+        log_error "❌ Build test timeout after ${timeout}s (phase: $phase)"
+        log_info "Dumping NotebookValidationJob status..."
+        $KUBECTL_CMD get notebookvalidationjob "$job_name" -n "$TEST_NAMESPACE" -o yaml
+        echo ""
+        return 1
+    fi
+}
+
 # Main execution
 main() {
     echo "========================================"
-    log_info "Kind Local Testing - Tier 1"
+    log_info "Kind Local Testing - Tier 1 + Build Tests (ADR-037)"
     log_info "Kubernetes Version: $KUBERNETES_VERSION"
     log_info "Cluster Name: $CLUSTER_NAME"
     echo "========================================"
@@ -553,10 +696,13 @@ main() {
     
     # Create new cluster
     create_cluster
-    
+
     # Install cert-manager
     install_cert_manager
-    
+
+    # Install Tekton (for build testing - ADR-037)
+    install_tekton
+
     # Deploy operator
     deploy_operator
     
@@ -564,11 +710,41 @@ main() {
     setup_test_environment
     
     # Run Tier 1 tests
+    local tier1_result=0
     if run_tier1_tests; then
-        log_success "🎉 All tests passed!"
+        log_success "🎉 Tier 1 tests passed!"
+        tier1_result=0
+    else
+        log_error "❌ Tier 1 tests failed"
+        tier1_result=1
+    fi
+
+    # Run build integration tests (ADR-037)
+    echo ""
+    log_info "========================================"
+    log_info "Starting Build Integration Tests (ADR-037)"
+    log_info "========================================"
+    echo ""
+
+    local build_result=0
+    if run_build_tests; then
+        log_success "🎉 Build tests passed!"
+        build_result=0
+    else
+        log_error "❌ Build tests failed"
+        build_result=1
+    fi
+
+    # Overall result
+    if [ $tier1_result -eq 0 ] && [ $build_result -eq 0 ]; then
+        echo ""
+        log_success "🎉🎉 ALL TESTS PASSED! 🎉🎉"
         TEST_RESULT=0
     else
+        echo ""
         log_error "❌ Some tests failed"
+        [ $tier1_result -ne 0 ] && log_error "  - Tier 1 tests: FAILED"
+        [ $build_result -ne 0 ] && log_error "  - Build tests: FAILED"
         TEST_RESULT=1
     fi
     

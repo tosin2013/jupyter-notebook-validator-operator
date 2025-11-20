@@ -497,6 +497,10 @@ spec:
                     description: CompletionTime is when the build completed
                     format: date-time
                     type: string
+                  duration:
+                    description: Duration is the build duration in human-readable
+                      format (e.g., "5m30s")
+                    type: string
                   imageReference:
                     description: ImageReference is the reference to the built image
                     type: string
@@ -848,13 +852,18 @@ spec:
                 - success
                 type: object
               phase:
-                description: Phase represents the current phase of the validation
-                  job
+                description: |-
+                  Phase represents the current phase of the validation job
+                  State machine: Initializing → Building → BuildComplete → ValidationRunning → Succeeded/Failed
                 enum:
-                - Pending
-                - Running
+                - Initializing
+                - Building
+                - BuildComplete
+                - ValidationRunning
                 - Succeeded
                 - Failed
+                - Pending
+                - Running
                 type: string
               results:
                 description: Results contains cell-by-cell execution results

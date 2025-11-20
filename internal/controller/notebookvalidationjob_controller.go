@@ -33,15 +33,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
+	"github.com/tosin2013/jupyter-notebook-validator-operator/pkg/build"
 	"github.com/tosin2013/jupyter-notebook-validator-operator/pkg/logging"
 )
 
 const (
-	// Phases
-	PhasePending   = "Pending"
-	PhaseRunning   = "Running"
-	PhaseSucceeded = "Succeeded"
-	PhaseFailed    = "Failed"
+	// Phases - State Machine (ADR-037)
+	PhaseInitializing      = "Initializing"      // Initial state when job is created
+	PhaseBuilding          = "Building"          // Build in progress (waiting for build to complete)
+	PhaseBuildComplete     = "BuildComplete"     // Build completed successfully (ready for validation)
+	PhaseValidationRunning = "ValidationRunning" // Validation pod executing notebook
+	PhaseSucceeded         = "Succeeded"         // Terminal success state
+	PhaseFailed            = "Failed"            // Terminal failure state
+	PhasePending           = "Pending"           // Legacy state (backward compatibility)
+	PhaseRunning           = "Running"           // Legacy state (backward compatibility)
 
 	// Condition types
 	ConditionTypeReady              = "Ready"
@@ -144,12 +149,12 @@ func (r *NotebookValidationJobReconciler) Reconcile(ctx context.Context, req ctr
 		"generation", job.Generation,
 		"resourceVersion", job.ResourceVersion)
 
-	// Initialize status if needed
+	// Initialize status if needed (ADR-037: State Machine)
 	if job.Status.Phase == "" {
 		logger.Info("Initializing NotebookValidationJob status",
 			"namespace", req.Namespace,
 			"name", req.Name)
-		job.Status.Phase = PhasePending
+		job.Status.Phase = PhaseInitializing
 		job.Status.StartTime = &metav1.Time{Time: time.Now()}
 		job.Status.RetryCount = 0
 
@@ -184,10 +189,48 @@ func (r *NotebookValidationJobReconciler) Reconcile(ctx context.Context, req ctr
 		return r.updateJobPhase(ctx, job, PhaseFailed, "Maximum retry attempts exceeded")
 	}
 
-	// Main reconciliation logic
-	result, err := r.reconcileValidation(ctx, job)
+	// ADR-037: State Machine Dispatch
+	// Dispatch to appropriate reconciliation function based on current phase
+	logger.V(1).Info("Dispatching based on phase", "phase", job.Status.Phase)
+
+	var result ctrl.Result
+	var err error
+
+	switch job.Status.Phase {
+	case PhaseInitializing:
+		logger.Info("Phase: Initializing - Setting up initial state")
+		result, err = r.reconcileInitializing(ctx, job)
+
+	case PhaseBuilding:
+		logger.Info("Phase: Building - Checking build status")
+		result, err = r.reconcileBuilding(ctx, job)
+
+	case PhaseBuildComplete:
+		logger.Info("Phase: BuildComplete - Transitioning to validation")
+		result, err = r.reconcileBuildComplete(ctx, job)
+
+	case PhaseValidationRunning:
+		logger.Info("Phase: ValidationRunning - Monitoring validation pod")
+		result, err = r.reconcileValidationRunning(ctx, job)
+
+	case PhasePending, PhaseRunning:
+		// Legacy states - migrate to new state machine
+		logger.Info("Legacy phase detected, migrating to new state machine", "oldPhase", job.Status.Phase)
+		if isBuildEnabled(job) {
+			// If build is enabled, start from Building phase
+			result, err = r.transitionPhase(ctx, job, PhaseBuilding, "Migrating from legacy phase to Building")
+		} else {
+			// If no build, start from ValidationRunning phase
+			result, err = r.transitionPhase(ctx, job, PhaseValidationRunning, "Migrating from legacy phase to ValidationRunning")
+		}
+
+	default:
+		logger.Error(nil, "Unknown phase", "phase", job.Status.Phase)
+		return r.updateJobPhase(ctx, job, PhaseFailed, fmt.Sprintf("Unknown phase: %s", job.Status.Phase))
+	}
+
 	if err != nil {
-		logger.Error(err, "Error during validation reconciliation")
+		logger.Error(err, "Error during phase reconciliation", "phase", job.Status.Phase)
 		// Record reconciliation duration with error result
 		recordReconciliationDuration(req.Namespace, "error", time.Since(startTime).Seconds())
 		// Classify error and handle accordingly (ADR-011)
@@ -197,6 +240,233 @@ func (r *NotebookValidationJobReconciler) Reconcile(ctx context.Context, req ctr
 	// Record reconciliation duration with success result
 	recordReconciliationDuration(req.Namespace, "success", time.Since(startTime).Seconds())
 	return result, nil
+}
+
+// ADR-037: State Machine Reconciliation Functions
+
+// transitionPhase transitions the job to a new phase with logging and status update
+func (r *NotebookValidationJobReconciler) transitionPhase(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob, newPhase, message string) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Transitioning phase", "oldPhase", job.Status.Phase, "newPhase", newPhase, "message", message)
+
+	job.Status.Phase = newPhase
+	if err := r.Status().Update(ctx, job); err != nil {
+		logger.Error(err, "Failed to update job phase", "newPhase", newPhase)
+		return ctrl.Result{}, err
+	}
+
+	// Requeue immediately to process new phase
+	return ctrl.Result{Requeue: true}, nil
+}
+
+// reconcileInitializing handles the Initializing phase
+// Sets up initial state and determines whether to build or validate directly
+func (r *NotebookValidationJobReconciler) reconcileInitializing(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling Initializing phase")
+
+	// Determine next phase based on build configuration
+	if isBuildEnabled(job) {
+		// Build is enabled - transition to Building phase
+		logger.Info("Build enabled, transitioning to Building phase")
+		return r.transitionPhase(ctx, job, PhaseBuilding, "Build enabled, starting build workflow")
+	}
+
+	// No build needed - transition directly to ValidationRunning
+	logger.Info("Build not enabled, transitioning to ValidationRunning phase")
+	return r.transitionPhase(ctx, job, PhaseValidationRunning, "No build required, starting validation")
+}
+
+// reconcileBuilding handles the Building phase
+// Checks build status and waits for completion with 30-second requeue
+func (r *NotebookValidationJobReconciler) reconcileBuilding(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling Building phase")
+
+	// Initialize build status if needed
+	if job.Status.BuildStatus == nil {
+		job.Status.BuildStatus = &mlopsv1alpha1.BuildStatus{
+			Phase:     "Pending",
+			Message:   "Build initialization",
+			StartTime: &metav1.Time{Time: time.Now()},
+		}
+		if err := r.Status().Update(ctx, job); err != nil {
+			logger.Error(err, "Failed to initialize build status")
+			return ctrl.Result{}, err
+		}
+	}
+
+	// Initialize build registry
+	registry := build.NewStrategyRegistry(r.Client, r.Scheme)
+	s2iStrategy := build.NewS2IStrategy(r.Client, r.Scheme)
+	tektonStrategy := build.NewTektonStrategy(r.Client, r.Scheme)
+	registry.Register(s2iStrategy)
+	registry.Register(tektonStrategy)
+
+	// Get the configured strategy
+	strategyName := job.Spec.PodConfig.BuildConfig.Strategy
+	if strategyName == "" {
+		strategyName = "s2i" // Default to S2I
+	}
+
+	strategy := registry.GetStrategy(strategyName)
+	if strategy == nil {
+		logger.Error(nil, "Build strategy not found", "strategy", strategyName)
+		return r.transitionPhase(ctx, job, PhaseFailed, fmt.Sprintf("Build strategy not found: %s", strategyName))
+	}
+
+	// Check if build needs to be created
+	buildName := fmt.Sprintf("%s-build", job.Name)
+	buildInfo, err := strategy.GetBuildStatus(ctx, buildName)
+
+	if err != nil {
+		// Build doesn't exist yet, create it
+		logger.Info("Build not found, creating new build", "buildName", buildName)
+
+		// Validate strategy availability
+		available, detectErr := strategy.Detect(ctx, r.Client)
+		if detectErr != nil || !available {
+			logger.Error(detectErr, "Build strategy not available", "strategy", strategyName)
+			return r.transitionPhase(ctx, job, PhaseFailed, fmt.Sprintf("Build strategy not available: %s", strategyName))
+		}
+
+		// Validate configuration
+		if validateErr := strategy.ValidateConfig(job.Spec.PodConfig.BuildConfig); validateErr != nil {
+			logger.Error(validateErr, "Invalid build configuration")
+			return r.transitionPhase(ctx, job, PhaseFailed, fmt.Sprintf("Invalid build configuration: %v", validateErr))
+		}
+
+		// Create build
+		buildInfo, err = strategy.CreateBuild(ctx, job)
+		if err != nil {
+			logger.Error(err, "Failed to create build")
+			return r.transitionPhase(ctx, job, PhaseFailed, fmt.Sprintf("Failed to create build: %v", err))
+		}
+
+		// Update build status
+		job.Status.BuildStatus = &mlopsv1alpha1.BuildStatus{
+			Phase:     "Running",
+			Message:   "Build created and started",
+			BuildName: buildInfo.Name,
+			Strategy:  strategyName,
+			StartTime: &metav1.Time{Time: time.Now()},
+		}
+		if err := r.Status().Update(ctx, job); err != nil {
+			logger.Error(err, "Failed to update build status")
+			return ctrl.Result{}, err
+		}
+
+		// Requeue to check build status
+		logger.Info("Build created, requeuing to check status", "buildName", buildInfo.Name)
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
+	// Build exists, check its status
+	logger.Info("Checking build status", "buildName", buildName, "status", buildInfo.Status)
+
+	// Calculate duration if build has started
+	var duration string
+	if job.Status.BuildStatus != nil && job.Status.BuildStatus.StartTime != nil {
+		elapsed := time.Since(job.Status.BuildStatus.StartTime.Time)
+		duration = elapsed.Round(time.Second).String()
+	}
+
+	switch buildInfo.Status {
+	case build.BuildStatusComplete:
+		// Build completed successfully
+		logger.Info("Build completed successfully", "image", buildInfo.ImageReference, "duration", duration)
+
+		// Update build status with completion details
+		job.Status.BuildStatus = &mlopsv1alpha1.BuildStatus{
+			Phase:          "Complete",
+			Message:        "Build completed successfully",
+			BuildName:      buildInfo.Name,
+			Strategy:       strategyName,
+			ImageReference: buildInfo.ImageReference,
+			StartTime:      job.Status.BuildStatus.StartTime,
+			CompletionTime: &metav1.Time{Time: time.Now()},
+			Duration:       duration,
+		}
+		if err := r.Status().Update(ctx, job); err != nil {
+			logger.Error(err, "Failed to update build status")
+			return ctrl.Result{}, err
+		}
+
+		// Transition to BuildComplete phase
+		return r.transitionPhase(ctx, job, PhaseBuildComplete, "Build completed, ready for validation")
+
+	case build.BuildStatusFailed:
+		// Build failed
+		logger.Error(nil, "Build failed", "message", buildInfo.Message, "duration", duration)
+
+		// Update build status with failure details
+		job.Status.BuildStatus = &mlopsv1alpha1.BuildStatus{
+			Phase:          "Failed",
+			Message:        fmt.Sprintf("Build failed: %s", buildInfo.Message),
+			BuildName:      buildInfo.Name,
+			Strategy:       strategyName,
+			StartTime:      job.Status.BuildStatus.StartTime,
+			CompletionTime: &metav1.Time{Time: time.Now()},
+			Duration:       duration,
+		}
+		if err := r.Status().Update(ctx, job); err != nil {
+			logger.Error(err, "Failed to update build status")
+			return ctrl.Result{}, err
+		}
+
+		// Transition to Failed phase
+		return r.transitionPhase(ctx, job, PhaseFailed, fmt.Sprintf("Build failed: %s", buildInfo.Message))
+
+	case build.BuildStatusPending, build.BuildStatusRunning:
+		// Build still in progress
+		logger.Info("Build in progress, requeuing", "status", buildInfo.Status, "duration", duration)
+
+		// Update build status with current progress
+		if job.Status.BuildStatus != nil {
+			job.Status.BuildStatus.Phase = string(buildInfo.Status)
+			job.Status.BuildStatus.Message = fmt.Sprintf("Build %s", buildInfo.Status)
+			job.Status.BuildStatus.Duration = duration
+			if err := r.Status().Update(ctx, job); err != nil {
+				logger.Error(err, "Failed to update build status")
+			}
+		}
+
+		// Requeue after 30 seconds to check again
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+
+	default:
+		logger.Info("Unknown build status, requeuing", "status", buildInfo.Status)
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+}
+
+// reconcileBuildComplete handles the BuildComplete phase
+// Immediately transitions to ValidationRunning phase
+func (r *NotebookValidationJobReconciler) reconcileBuildComplete(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling BuildComplete phase")
+
+	// Verify build status contains image reference
+	if job.Status.BuildStatus == nil || job.Status.BuildStatus.ImageReference == "" {
+		logger.Error(nil, "BuildComplete phase but no image reference found")
+		return r.transitionPhase(ctx, job, PhaseFailed, "Build completed but no image reference available")
+	}
+
+	logger.Info("Build completed with image, transitioning to validation", "image", job.Status.BuildStatus.ImageReference)
+
+	// Transition to ValidationRunning phase
+	return r.transitionPhase(ctx, job, PhaseValidationRunning, "Build complete, starting validation")
+}
+
+// reconcileValidationRunning handles the ValidationRunning phase
+// Delegates to the existing reconcileValidation logic
+func (r *NotebookValidationJobReconciler) reconcileValidationRunning(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling ValidationRunning phase")
+
+	// Use existing reconcileValidation logic
+	// This function already handles pod creation, monitoring, and result collection
+	return r.reconcileValidation(ctx, job)
 }
 
 // reconcileValidation handles the main validation workflow
@@ -222,19 +492,16 @@ func (r *NotebookValidationJobReconciler) reconcileValidation(ctx context.Contex
 		}
 	}
 
-	// Step 2: Handle build integration if enabled (Phase 4.5: S2I Build Integration)
+	// Step 2: Determine container image to use (ADR-037: Use built image from BuildStatus if available)
 	containerImage := job.Spec.PodConfig.ContainerImage
-	if isBuildEnabled(job) {
-		logger.Info("Build integration enabled, handling build workflow")
-		builtImage, err := r.handleBuildIntegration(ctx, job)
-		if err != nil {
-			logger.Error(err, "Build integration failed, falling back to container image")
-			// Don't fail the job - fall back to container image
-			// The error is already logged and status updated in handleBuildIntegration
-		} else {
-			logger.Info("Build completed successfully, using built image", "image", builtImage)
-			containerImage = builtImage
-		}
+	if job.Status.BuildStatus != nil && job.Status.BuildStatus.ImageReference != "" {
+		// Use built image from BuildStatus (set by reconcileBuilding)
+		logger.Info("Using built image from BuildStatus", "image", job.Status.BuildStatus.ImageReference)
+		containerImage = job.Status.BuildStatus.ImageReference
+	} else if isBuildEnabled(job) {
+		// Build is enabled but no built image yet (should not happen in state machine flow)
+		// This is a safety check for legacy jobs
+		logger.Info("Build enabled but no built image in BuildStatus, using spec image", "image", containerImage)
 	}
 
 	// Step 3: Check if validation pod already exists

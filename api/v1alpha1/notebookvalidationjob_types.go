@@ -374,7 +374,8 @@ type CustomPlatformSpec struct {
 // NotebookValidationJobStatus defines the observed state of NotebookValidationJob
 type NotebookValidationJobStatus struct {
 	// Phase represents the current phase of the validation job
-	// +kubebuilder:validation:Enum=Pending;Running;Succeeded;Failed
+	// State machine: Initializing → Building → BuildComplete → ValidationRunning → Succeeded/Failed
+	// +kubebuilder:validation:Enum=Initializing;Building;BuildComplete;ValidationRunning;Succeeded;Failed;Pending;Running
 	// +optional
 	Phase string `json:"phase,omitempty"`
 
@@ -445,6 +446,10 @@ type BuildStatus struct {
 	// CompletionTime is when the build completed
 	// +optional
 	CompletionTime *metav1.Time `json:"completionTime,omitempty"`
+
+	// Duration is the build duration in human-readable format (e.g., "5m30s")
+	// +optional
+	Duration string `json:"duration,omitempty"`
 
 	// BuildName is the name of the build resource
 	// +optional
