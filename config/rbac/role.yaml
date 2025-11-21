@@ -176,3 +176,14 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - security.openshift.io
+  resources:
+  - securitycontextconstraints
+  verbs:
+  - get
+  - list
+  - use
+  resourceNames:
+  - pipelines-scc
+  - privileged
