@@ -54,6 +54,7 @@ rules:
   - create
   - get
   - list
+  - watch
 - apiGroups:
   - ""
   resources:
@@ -62,6 +63,18 @@ rules:
   - create
   - get
   - list
+  - watch
+- apiGroups:
+  - security.openshift.io
+  resources:
+  - securitycontextconstraints
+  verbs:
+  - get
+  - list
+  - use
+  resourceNames:
+  - pipelines-scc
+  - privileged
 - apiGroups:
   - apps
   resources:
