@@ -171,16 +171,40 @@ jobs:
           echo "Deploying operator with webhook support..."
           make deploy IMG="${IMAGE}"
 
-          echo "Waiting for operator to be ready..."
+          echo "Waiting for operator deployment to be available..."
           oc wait --for=condition=available deployment/notebook-validator-controller-manager \
             -n ${{ env.OPERATOR_NAMESPACE }} --timeout=5m
+
+          echo "Waiting for operator pods to be ready..."
+          oc wait --for=condition=ready pod -l control-plane=controller-manager \
+            -n ${{ env.OPERATOR_NAMESPACE }} --timeout=2m
 
           echo "Verifying webhook certificate..."
           oc get certificate -n ${{ env.OPERATOR_NAMESPACE }}
           oc get secret webhook-server-cert -n ${{ env.OPERATOR_NAMESPACE }}
 
-          echo "✅ Operator deployed successfully with webhook"
+          echo "Waiting for webhook to be fully initialized..."
+          # Wait for CA bundle to be injected by cert-manager into MutatingWebhookConfiguration
+          for i in {1..30}; do
+            CA_BUNDLE=$(oc get mutatingwebhookconfiguration notebook-validator-mutating-webhook-configuration \
+              -o jsonpath='{.webhooks[0].clientConfig.caBundle}' 2>/dev/null || echo "")
+
+            if [ -n "$CA_BUNDLE" ] && [ "$CA_BUNDLE" != "Cg==" ]; then
+              echo "✅ Webhook CA bundle injected successfully"
+              break
+            fi
+
+            echo "Waiting for CA bundle injection (attempt $i/30)..."
+            sleep 2
+          done
+
+          # Give webhook server additional time to fully initialize after CA injection
+          echo "Allowing webhook server to initialize..."
+          sleep 10
+
+          echo "✅ Operator deployed successfully with webhook ready"
           oc get pods -n ${{ env.OPERATOR_NAMESPACE }}
+          oc get mutatingwebhookconfiguration notebook-validator-mutating-webhook-configuration -o yaml | grep -A 5 "caBundle"
 
       - name: Setup test credentials
         run: |
