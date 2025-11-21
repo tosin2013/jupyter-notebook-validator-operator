@@ -164,7 +164,7 @@ func TestIntegrationTektonDetection(t *testing.T) {
 	k8sClient, testScheme, cleanup := setupIntegrationTest(t)
 	defer cleanup()
 
-	strategy := NewTektonStrategy(k8sClient, testScheme)
+	strategy := NewTektonStrategy(k8sClient, k8sClient, testScheme)
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
 
@@ -191,7 +191,7 @@ func TestIntegrationStrategyRegistry(t *testing.T) {
 	k8sClient, testScheme, cleanup := setupIntegrationTest(t)
 	defer cleanup()
 
-	registry := NewStrategyRegistry(k8sClient, testScheme)
+	registry := NewStrategyRegistry(k8sClient, k8sClient, testScheme)
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
 
@@ -296,7 +296,7 @@ func TestIntegrationTektonBuild(t *testing.T) {
 	k8sClient, testScheme, cleanup := setupIntegrationTest(t)
 	defer cleanup()
 
-	strategy := NewTektonStrategy(k8sClient, testScheme)
+	strategy := NewTektonStrategy(k8sClient, k8sClient, testScheme)
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
 
@@ -357,7 +357,7 @@ func TestIntegrationAutoStrategySelection(t *testing.T) {
 	k8sClient, testScheme, cleanup := setupIntegrationTest(t)
 	defer cleanup()
 
-	registry := NewStrategyRegistry(k8sClient, testScheme)
+	registry := NewStrategyRegistry(k8sClient, k8sClient, testScheme)
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
 
@@ -397,7 +397,7 @@ func TestIntegrationBuildWithCustomRegistry(t *testing.T) {
 	k8sClient, testScheme, cleanup := setupIntegrationTest(t)
 	defer cleanup()
 
-	strategy := NewTektonStrategy(k8sClient, testScheme)
+	strategy := NewTektonStrategy(k8sClient, k8sClient, testScheme)
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
 

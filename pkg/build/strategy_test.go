@@ -68,7 +68,7 @@ func TestStrategyRegistry(t *testing.T) {
 	_ = mlopsv1alpha1.AddToScheme(scheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	registry := NewStrategyRegistry(fakeClient, scheme)
+	registry := NewStrategyRegistry(fakeClient, fakeClient, scheme)
 
 	if registry == nil {
 		t.Fatal("NewStrategyRegistry returned nil")
@@ -102,7 +102,7 @@ func TestGetStrategy(t *testing.T) {
 	_ = mlopsv1alpha1.AddToScheme(scheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	registry := NewStrategyRegistry(fakeClient, scheme)
+	registry := NewStrategyRegistry(fakeClient, fakeClient, scheme)
 
 	tests := []struct {
 		name         string
@@ -139,7 +139,7 @@ func TestDetectAvailableStrategies(t *testing.T) {
 	_ = mlopsv1alpha1.AddToScheme(scheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	registry := NewStrategyRegistry(fakeClient, scheme)
+	registry := NewStrategyRegistry(fakeClient, fakeClient, scheme)
 	ctx := context.Background()
 
 	available, err := registry.DetectAvailableStrategies(ctx)
@@ -158,7 +158,7 @@ func TestSelectStrategy(t *testing.T) {
 	_ = mlopsv1alpha1.AddToScheme(scheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	registry := NewStrategyRegistry(fakeClient, scheme)
+	registry := NewStrategyRegistry(fakeClient, fakeClient, scheme)
 	ctx := context.Background()
 
 	tests := []struct {

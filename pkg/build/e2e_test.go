@@ -181,7 +181,7 @@ func TestE2ETektonWorkflow(t *testing.T) {
 	defer cancel()
 
 	// Create Tekton strategy
-	tektonStrategy := NewTektonStrategy(k8sClient, testScheme)
+	tektonStrategy := NewTektonStrategy(k8sClient, k8sClient, testScheme)
 
 	// Check if Tekton is available
 	available, err := tektonStrategy.IsAvailable(ctx)

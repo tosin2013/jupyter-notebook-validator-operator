@@ -20,7 +20,7 @@ func TestNewTektonStrategy(t *testing.T) {
 	_ = tektonv1.AddToScheme(testScheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(testScheme).Build()
 
-	strategy := NewTektonStrategy(fakeClient, testScheme)
+	strategy := NewTektonStrategy(fakeClient, fakeClient, testScheme)
 
 	if strategy == nil {
 		t.Fatal("NewTektonStrategy returned nil")
@@ -39,7 +39,7 @@ func TestTektonStrategyName(t *testing.T) {
 	_ = tektonv1.AddToScheme(testScheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(testScheme).Build()
 
-	strategy := NewTektonStrategy(fakeClient, testScheme)
+	strategy := NewTektonStrategy(fakeClient, fakeClient, testScheme)
 
 	if strategy.Name() != "tekton" {
 		t.Errorf("Name() = %v, want tekton", strategy.Name())
@@ -54,7 +54,7 @@ func TestTektonStrategyDetect(t *testing.T) {
 	_ = tektonv1.AddToScheme(testScheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(testScheme).Build()
 
-	strategy := NewTektonStrategy(fakeClient, testScheme)
+	strategy := NewTektonStrategy(fakeClient, fakeClient, testScheme)
 	ctx := context.Background()
 
 	// In a test environment without real Tekton, detection should return false or error
@@ -77,7 +77,7 @@ func TestTektonStrategyValidateConfig(t *testing.T) {
 	_ = tektonv1.AddToScheme(testScheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(testScheme).Build()
 
-	strategy := NewTektonStrategy(fakeClient, testScheme)
+	strategy := NewTektonStrategy(fakeClient, fakeClient, testScheme)
 
 	tests := []ValidateConfigTestCase{
 		{
@@ -161,7 +161,7 @@ func TestTektonStrategyCreateBuild(t *testing.T) {
 		WithObjects(gitCloneTask, buildahTask).
 		Build()
 
-	strategy := NewTektonStrategy(fakeClient, testScheme)
+	strategy := NewTektonStrategy(fakeClient, fakeClient, testScheme)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -343,7 +343,7 @@ func TestTektonStrategyGetBuildStatus(t *testing.T) {
 		WithObjects(pipelineRun).
 		Build()
 
-	strategy := NewTektonStrategy(fakeClient, scheme)
+	strategy := NewTektonStrategy(fakeClient, fakeClient, scheme)
 	ctx := context.Background()
 
 	buildInfo, err := strategy.GetBuildStatus(ctx, "test-build")
@@ -378,7 +378,7 @@ func TestTektonStrategyDeleteBuild(t *testing.T) {
 		WithObjects(pipelineRun).
 		Build()
 
-	strategy := NewTektonStrategy(fakeClient, scheme)
+	strategy := NewTektonStrategy(fakeClient, fakeClient, scheme)
 	ctx := context.Background()
 
 	err := strategy.DeleteBuild(ctx, "test-build")

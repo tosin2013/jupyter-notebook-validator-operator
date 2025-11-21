@@ -142,6 +142,7 @@ func main() {
 
 	if err = (&controller.NotebookValidationJobReconciler{
 		Client:     mgr.GetClient(),
+		APIReader:  mgr.GetAPIReader(),
 		Scheme:     mgr.GetScheme(),
 		RestConfig: mgr.GetConfig(),
 	}).SetupWithManager(mgr); err != nil {

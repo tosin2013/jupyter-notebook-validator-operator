@@ -26,15 +26,17 @@ const (
 
 // TektonStrategy implements the Strategy interface for Tekton Pipelines
 type TektonStrategy struct {
-	client client.Client
-	scheme *runtime.Scheme
+	client    client.Client
+	apiReader client.Reader // Non-cached client for SCC Gets
+	scheme    *runtime.Scheme
 }
 
 // NewTektonStrategy creates a new Tekton build strategy
-func NewTektonStrategy(client client.Client, scheme *runtime.Scheme) *TektonStrategy {
+func NewTektonStrategy(client client.Client, apiReader client.Reader, scheme *runtime.Scheme) *TektonStrategy {
 	return &TektonStrategy{
-		client: client,
-		scheme: scheme,
+		client:    client,
+		apiReader: apiReader,
+		scheme:    scheme,
 	}
 }
 
@@ -217,9 +219,10 @@ func (t *TektonStrategy) ensurePipelineServiceAccount(ctx context.Context, names
 func (t *TektonStrategy) grantSCCToServiceAccount(ctx context.Context, namespace, serviceAccount, sccName string) error {
 	logger := log.FromContext(ctx)
 
-	// Get the SCC
+	// Get the SCC using APIReader (non-cached) to avoid triggering watch/list attempts
+	// Since we only need to Get specific SCCs by name, we don't need caching
 	scc := &securityv1.SecurityContextConstraints{}
-	err := t.client.Get(ctx, client.ObjectKey{Name: sccName}, scc)
+	err := t.apiReader.Get(ctx, client.ObjectKey{Name: sccName}, scc)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// SCC doesn't exist - likely Kubernetes without OpenShift

@@ -78,6 +78,7 @@ const (
 // NotebookValidationJobReconciler reconciles a NotebookValidationJob object
 type NotebookValidationJobReconciler struct {
 	client.Client
+	APIReader  client.Reader // Non-cached client for direct API access (used for SCCs)
 	Scheme     *runtime.Scheme
 	RestConfig *rest.Config
 }
@@ -297,12 +298,8 @@ func (r *NotebookValidationJobReconciler) reconcileBuilding(ctx context.Context,
 		}
 	}
 
-	// Initialize build registry
-	registry := build.NewStrategyRegistry(r.Client, r.Scheme)
-	s2iStrategy := build.NewS2IStrategy(r.Client, r.Scheme)
-	tektonStrategy := build.NewTektonStrategy(r.Client, r.Scheme)
-	registry.Register(s2iStrategy)
-	registry.Register(tektonStrategy)
+	// Initialize build registry with all available strategies
+	registry := build.NewStrategyRegistry(r.Client, r.APIReader, r.Scheme)
 
 	// Get the configured strategy
 	strategyName := job.Spec.PodConfig.BuildConfig.Strategy

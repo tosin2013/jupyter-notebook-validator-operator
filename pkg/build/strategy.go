@@ -104,7 +104,7 @@ func NewRegistry(client client.Client) *Registry {
 }
 
 // NewStrategyRegistry creates a new build strategy registry with all available strategies
-func NewStrategyRegistry(client client.Client, scheme *runtime.Scheme) *Registry {
+func NewStrategyRegistry(client client.Client, apiReader client.Reader, scheme *runtime.Scheme) *Registry {
 	registry := &Registry{
 		strategies: make(map[string]Strategy),
 		client:     client,
@@ -113,7 +113,7 @@ func NewStrategyRegistry(client client.Client, scheme *runtime.Scheme) *Registry
 
 	// Register all available strategies
 	registry.Register(NewS2IStrategy(client, scheme))
-	registry.Register(NewTektonStrategy(client, scheme))
+	registry.Register(NewTektonStrategy(client, apiReader, scheme))
 
 	return registry
 }
