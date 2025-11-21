@@ -251,12 +251,36 @@ func (t *TektonStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Not
 		pipeline = existingPipeline
 	}
 
-	// ADR-030 Phase 1: Verify Pipeline was actually created
+	// ADR-030 Phase 1: Verify Pipeline was actually created with retry
+	// Kubernetes API may take a moment to reflect the created resource
 	verifyPipeline := &tektonv1.Pipeline{}
-	if err := t.client.Get(ctx, client.ObjectKey{Name: pipeline.Name, Namespace: job.Namespace}, verifyPipeline); err != nil {
-		return nil, fmt.Errorf("pipeline creation verification failed: %w", err)
+	maxRetries := 5
+	retryDelay := 100 * time.Millisecond
+	var lastErr error
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			time.Sleep(retryDelay)
+			retryDelay *= 2 // Exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms
+		}
+
+		lastErr = t.client.Get(ctx, client.ObjectKey{Name: pipeline.Name, Namespace: job.Namespace}, verifyPipeline)
+		if lastErr == nil {
+			logger.Info("Pipeline verified successfully", "pipeline", pipeline.Name, "namespace", job.Namespace, "attempts", attempt+1)
+			break
+		}
+
+		if !errors.IsNotFound(lastErr) {
+			// Non-NotFound error, fail immediately
+			return nil, fmt.Errorf("pipeline creation verification failed: %w", lastErr)
+		}
+
+		logger.V(1).Info("Pipeline not found yet, retrying", "attempt", attempt+1, "maxRetries", maxRetries)
 	}
-	logger.Info("Pipeline verified successfully", "pipeline", pipeline.Name, "namespace", job.Namespace)
+
+	if lastErr != nil {
+		return nil, fmt.Errorf("pipeline creation verification failed after %d retries: %w", maxRetries, lastErr)
+	}
 
 	// Create PipelineRun
 	pipelineRun := t.createPipelineRun(job, buildName, pipeline.Name)
@@ -274,12 +298,36 @@ func (t *TektonStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Not
 		pipelineRun = existingPipelineRun
 	}
 
-	// ADR-030 Phase 1: Verify PipelineRun was actually created
+	// ADR-030 Phase 1: Verify PipelineRun was actually created with retry
+	// Kubernetes API may take a moment to reflect the created resource
 	verifyPipelineRun := &tektonv1.PipelineRun{}
-	if err := t.client.Get(ctx, client.ObjectKey{Name: pipelineRun.Name, Namespace: job.Namespace}, verifyPipelineRun); err != nil {
-		return nil, fmt.Errorf("pipelinerun creation verification failed: %w", err)
+	prMaxRetries := 5
+	prRetryDelay := 100 * time.Millisecond
+	var prLastErr error
+
+	for attempt := 0; attempt < prMaxRetries; attempt++ {
+		if attempt > 0 {
+			time.Sleep(prRetryDelay)
+			prRetryDelay *= 2 // Exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms
+		}
+
+		prLastErr = t.client.Get(ctx, client.ObjectKey{Name: pipelineRun.Name, Namespace: job.Namespace}, verifyPipelineRun)
+		if prLastErr == nil {
+			logger.Info("PipelineRun verified successfully", "pipelineRun", pipelineRun.Name, "namespace", job.Namespace, "attempts", attempt+1)
+			break
+		}
+
+		if !errors.IsNotFound(prLastErr) {
+			// Non-NotFound error, fail immediately
+			return nil, fmt.Errorf("pipelinerun creation verification failed: %w", prLastErr)
+		}
+
+		logger.V(1).Info("PipelineRun not found yet, retrying", "attempt", attempt+1, "maxRetries", prMaxRetries)
 	}
-	logger.Info("PipelineRun verified successfully", "pipelineRun", pipelineRun.Name, "namespace", job.Namespace)
+
+	if prLastErr != nil {
+		return nil, fmt.Errorf("pipelinerun creation verification failed after %d retries: %w", prMaxRetries, prLastErr)
+	}
 
 	// ADR-030 Phase 1: Only report success after verification
 	now := time.Now()
@@ -314,6 +362,8 @@ func (t *TektonStrategy) createBuildPipeline(job *mlopsv1alpha1.NotebookValidati
 				{Name: "base-image", Type: tektonv1.ParamTypeString, Default: &tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: baseImage}},
 				// ADR-031 Phase 2: Add custom Dockerfile path parameter
 				{Name: "dockerfile-path", Type: tektonv1.ParamTypeString, Default: &tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: ""}},
+				// ADR-038: Add notebook path for requirements.txt fallback chain detection
+				{Name: "notebook-path", Type: tektonv1.ParamTypeString, Default: &tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: ""}},
 			},
 			Workspaces: []tektonv1.PipelineWorkspaceDeclaration{
 				{Name: "shared-workspace"},
@@ -351,6 +401,7 @@ func (t *TektonStrategy) createBuildPipeline(job *mlopsv1alpha1.NotebookValidati
 							Params: []tektonv1.ParamSpec{
 								{Name: "BASE_IMAGE", Type: tektonv1.ParamTypeString},
 								{Name: "DOCKERFILE_PATH", Type: tektonv1.ParamTypeString},
+								{Name: "NOTEBOOK_PATH", Type: tektonv1.ParamTypeString, Default: &tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: ""}},
 							},
 							Workspaces: []tektonv1.WorkspaceDeclaration{
 								{Name: "source"},
@@ -393,16 +444,47 @@ fi
 # Generate Dockerfile from baseImage
 echo "📝 Generating Dockerfile from baseImage: $(params.BASE_IMAGE)"
 
-# Check if requirements.txt exists
-if [ -f "$(workspaces.source.path)/requirements.txt" ]; then
-    echo "📦 Found requirements.txt, will install dependencies"
+# ADR-038: Requirements.txt fallback chain detection
+# Try to find requirements.txt in order of specificity:
+# 1. Notebook directory (most specific)
+# 2. Tier directory (notebooks/)
+# 3. Repository root (project-wide)
+
+REQUIREMENTS_FILE=""
+REQUIREMENTS_LOCATION=""
+
+# Extract notebook directory from NOTEBOOK_PATH parameter (if available)
+# Format: "notebooks/02-anomaly-detection/notebook.ipynb" → "notebooks/02-anomaly-detection"
+NOTEBOOK_DIR=$(dirname "$(params.NOTEBOOK_PATH)" 2>/dev/null || echo "")
+
+# 1. Try notebook-specific requirements.txt
+if [ -n "$NOTEBOOK_DIR" ] && [ -f "$(workspaces.source.path)/$NOTEBOOK_DIR/requirements.txt" ]; then
+    REQUIREMENTS_FILE="$NOTEBOOK_DIR/requirements.txt"
+    REQUIREMENTS_LOCATION="notebook directory ($NOTEBOOK_DIR)"
+# 2. Try tier-level requirements.txt
+elif [ -f "$(workspaces.source.path)/notebooks/requirements.txt" ]; then
+    REQUIREMENTS_FILE="notebooks/requirements.txt"
+    REQUIREMENTS_LOCATION="tier directory (notebooks/)"
+# 3. Try repository root requirements.txt
+elif [ -f "$(workspaces.source.path)/requirements.txt" ]; then
+    REQUIREMENTS_FILE="requirements.txt"
+    REQUIREMENTS_LOCATION="repository root"
+fi
+
+# Generate Dockerfile based on whether requirements.txt was found
+if [ -n "$REQUIREMENTS_FILE" ]; then
+    echo "📦 Found requirements.txt in $REQUIREMENTS_LOCATION"
     cat > $(workspaces.source.path)/Dockerfile <<EOF
 # Auto-generated by Jupyter Notebook Validator Operator
-# ADR-031: Support both baseImage and custom Dockerfile
+# ADR-038: Requirements.txt auto-detection with fallback chain
+# Source: $REQUIREMENTS_LOCATION
 FROM $(params.BASE_IMAGE)
 
+# Install notebook execution tools
+RUN pip install --no-cache-dir papermill nbformat
+
 # Install dependencies from requirements.txt
-COPY requirements.txt /tmp/requirements.txt
+COPY $REQUIREMENTS_FILE /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 # Copy source code to /opt/app-root/src/ (S2I standard location)
@@ -411,13 +493,20 @@ COPY . /opt/app-root/src/
 
 # Set working directory
 WORKDIR /opt/app-root/src
+
+# Health check
+RUN python -c "import sys; print(f'Python {sys.version}')" && \
+    python -c "import papermill; print(f'Papermill {papermill.__version__}')"
 EOF
 else
-    echo "📦 No requirements.txt found, skipping dependency installation"
+    echo "📦 No requirements.txt found in any location, using base image only"
     cat > $(workspaces.source.path)/Dockerfile <<EOF
 # Auto-generated by Jupyter Notebook Validator Operator
-# ADR-031: Support both baseImage and custom Dockerfile
+# ADR-038: No requirements.txt found, using base image only
 FROM $(params.BASE_IMAGE)
+
+# Install notebook execution tools
+RUN pip install --no-cache-dir papermill nbformat
 
 # Copy source code to /opt/app-root/src/ (S2I standard location)
 # This matches S2I behavior so validation pod can find notebooks
@@ -439,6 +528,7 @@ cat $(workspaces.source.path)/Dockerfile
 					Params: []tektonv1.Param{
 						{Name: "BASE_IMAGE", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: "$(params.base-image)"}},
 						{Name: "DOCKERFILE_PATH", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: "$(params.dockerfile-path)"}},
+						{Name: "NOTEBOOK_PATH", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: "$(params.notebook-path)"}},
 					},
 					Workspaces: []tektonv1.WorkspacePipelineTaskBinding{
 						{Name: "source", Workspace: "shared-workspace"},
@@ -509,6 +599,8 @@ func (t *TektonStrategy) createPipelineRun(job *mlopsv1alpha1.NotebookValidation
 				{Name: "base-image", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: baseImage}},
 				// ADR-031 Phase 2: Pass custom Dockerfile path
 				{Name: "dockerfile-path", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: dockerfilePath}},
+				// ADR-038: Pass notebook path for requirements.txt fallback chain
+				{Name: "notebook-path", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: job.Spec.Notebook.Path}},
 			},
 			Workspaces: func() []tektonv1.WorkspaceBinding {
 				workspaces := []tektonv1.WorkspaceBinding{

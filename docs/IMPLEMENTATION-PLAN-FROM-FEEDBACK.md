@@ -1,9 +1,26 @@
 # Implementation Plan: Production Feedback Enhancements
 
 **Source**: OPERATOR-FEEDBACK.md from OpenShift AI Ops Self-Healing Platform Team
-**Date**: 2025-11-20
+**Date**: 2025-11-20 (Updated: 2025-11-20)
 **Target Version**: v0.2.0 - v0.4.0
 **Repository**: https://github.com/tosin2013/jupyter-notebook-validator-operator
+
+---
+
+## 📊 **Current Progress Status** (Updated 2025-11-20)
+
+**Phase 1 Progress**: 1/6 complete (17%)
+- ✅ **ADR-037**: Build-Validation Sequencing (COMPLETE) - Week 1-2
+- 🔄 **ADR-038**: Requirements.txt Auto-Detection (IN PROGRESS) - Week 2-3
+- ⏳ **ADR-039**: Dependency Version Pinning (PENDING) - Week 3
+- ⏳ **ADR-040**: Shared Image Strategy (PENDING) - Week 4
+- ⏳ **ADR-041**: Exit Code Validation (PENDING) - Week 5-6
+
+**Latest Updates** (2025-11-20):
+- ✅ Removed legacy blocking build functions
+- ✅ Added Tekton retry logic with exponential backoff
+- ✅ All tests passing, linting clean
+- 🚀 **Ready for**: ADR-038 implementation (requirements.txt auto-detection)
 
 ---
 
@@ -11,8 +28,9 @@
 
 This implementation plan addresses **7 new ADRs** and **11 enhancements** identified from production deployment feedback. The plan is organized into 3 phases over 3 months, targeting a seamless **Develop → Validate → Deploy** workflow.
 
-**Current State**: ⚠️ Operator has race conditions, environment drift, and missing developer workflow features.
-**Desired State**: ✅ Operator orchestrates complete notebook lifecycle with reproducible environments.
+**Previous State**: ⚠️ Operator had race conditions, environment drift, and missing developer workflow features.
+**Current State**: ✅ Race condition resolved (ADR-037), state machine operational.
+**Next Goal**: Enable requirements.txt auto-detection (ADR-038).
 
 ---
 
@@ -20,45 +38,59 @@ This implementation plan addresses **7 new ADRs** and **11 enhancements** identi
 
 **Goal**: Make operator production-ready by eliminating false negatives/positives and enabling reproducible builds.
 
-### Week 1-2: Build-Validation Sequencing
+### Week 1-2: Build-Validation Sequencing ✅ **COMPLETE**
 
 **ADR-037: Build-Validation Sequencing and State Machine**
 
+**Status**: ✅ **IMPLEMENTED** (Completed 2025-11-17, Enhanced 2025-11-20)
+
 **Tasks**:
-- [ ] Write ADR-037 documenting state machine design
-- [ ] Implement build completion gate in `notebookvalidationjob_controller.go`
-- [ ] Add status fields: `buildStatus.phase`, `buildStatus.imageReference`, `buildStatus.duration`
-- [ ] Add requeue logic: Wait for build completion before starting validation
-- [ ] Update CRD with new status fields
-- [ ] Add unit tests for state transitions
-- [ ] Add E2E test: Build completion before validation
+- [x] Write ADR-037 documenting state machine design ✅ `docs/adrs/037-build-validation-sequencing-and-state-machine.md`
+- [x] Implement build completion gate in `notebookvalidationjob_controller.go` ✅ State machine with phases
+- [x] Add status fields: `buildStatus.phase`, `buildStatus.imageReference`, `buildStatus.duration` ✅ Complete
+- [x] Add requeue logic: Wait for build completion before starting validation ✅ 30s requeue in Building phase
+- [x] Update CRD with new status fields ✅ `api/v1alpha1/notebookvalidationjob_types.go`
+- [x] Add unit tests for state transitions ✅ `internal/controller/notebookvalidationjob_controller_test.go`
+- [x] Add E2E test: Build completion before validation ✅ GitHub Actions E2E tests
+- [x] **BONUS**: Add Tekton PipelineRun verification retry logic (2025-11-20) ✅ Fixes race condition
 
 **Success Criteria**:
 - ✅ Zero validation attempts before build completes
 - ✅ Status shows clear build progress
 - ✅ All E2E tests pass with build-enabled jobs
+- ✅ Tekton builds handle API propagation delays gracefully (exponential backoff retry)
 
-**Files to Modify**:
-- `api/v1alpha1/notebookvalidationjob_types.go` (add status fields)
-- `internal/controller/notebookvalidationjob_controller.go` (add gating logic)
-- `internal/controller/build_integration_helper.go` (expose build status)
+**Files Modified**:
+- ✅ `api/v1alpha1/notebookvalidationjob_types.go` (status fields added)
+- ✅ `internal/controller/notebookvalidationjob_controller.go` (state machine implemented)
+- ✅ `internal/controller/build_integration_helper.go` (cleaned up, removed legacy functions)
+- ✅ `pkg/build/tekton_strategy.go` (added retry logic with exponential backoff)
+
+**Implementation Notes** (2025-11-20):
+- Removed legacy blocking functions (`handleBuildIntegration`, `waitForBuildCompletion`, `updateBuildStatus`, `populateAvailableImages`) that were replaced by state machine
+- Added retry logic for Tekton Pipeline/PipelineRun verification to handle Kubernetes API propagation delays
+- Retry mechanism: 5 attempts with exponential backoff (100ms, 200ms, 400ms, 800ms, 1600ms)
+- This fixes the race condition where PipelineRun creation verification failed immediately
+- All tests pass, linting clean, ready for E2E testing
 
 ---
 
-### Week 2-3: Requirements.txt Auto-Detection
+### Week 2-3: Requirements.txt Auto-Detection ✅ **IMPLEMENTATION COMPLETE** (Code Ready, Testing Pending)
 
 **ADR-038: Requirements.txt Auto-Detection and Dockerfile Generation Strategy**
 
+**Status**: ✅ **CORE IMPLEMENTATION COMPLETE** (Completed 2025-11-21)
+
 **Tasks**:
-- [ ] Write ADR-038 documenting detection and generation strategy
-- [ ] Implement requirements.txt detection algorithm (fallback chain)
-- [ ] Create Dockerfile generator from requirements.txt
-- [ ] Add `autoGenerateRequirements` flag to CRD spec
-- [ ] Integrate with S2I build strategy
-- [ ] Integrate with Tekton build strategy
-- [ ] Add validation: Warn if both requirements.txt and Dockerfile exist
-- [ ] Update documentation with developer workflow examples
-- [ ] Add E2E test: Build from requirements.txt (no Dockerfile)
+- [x] Write ADR-038 documenting detection and generation strategy ✅ `docs/adrs/038-requirements-auto-detection-and-dockerfile-generation.md`
+- [x] Implement requirements.txt detection algorithm (fallback chain) ✅ `pkg/build/dockerfile_generator.go`
+- [x] Create Dockerfile generator from requirements.txt ✅ `pkg/build/dockerfile_generator.go`
+- [x] Add `autoGenerateRequirements` flag to CRD spec ✅ `api/v1alpha1/notebookvalidationjob_types.go`
+- [x] Integrate with S2I build strategy ✅ `pkg/build/s2i_strategy.go` (inline Dockerfile generation)
+- [x] Integrate with Tekton build strategy ✅ `pkg/build/tekton_strategy.go` (Pipeline script with fallback chain)
+- [x] Add validation: Warn if both requirements.txt and Dockerfile exist ✅ `pkg/build/dockerfile_generator.go` (ValidateDockerfileGeneration)
+- [ ] Update documentation with developer workflow examples ⏳ Pending
+- [ ] Add E2E test: Build from requirements.txt (no Dockerfile) ⏳ Pending
 
 **Success Criteria**:
 - ✅ Operator auto-detects notebook-specific requirements.txt

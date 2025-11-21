@@ -231,16 +231,34 @@ type BuildConfigSpec struct {
 	// +optional
 	Dockerfile string `json:"dockerfile,omitempty"`
 
-	// AutoGenerateRequirements specifies whether to auto-generate requirements.txt if missing
-	// Uses pipreqs to analyze notebook imports
-	// +kubebuilder:default=false
+	// AutoGenerateRequirements specifies whether to auto-detect and use requirements.txt
+	// ADR-038: Enable automatic detection with fallback chain
+	// When true, operator searches for requirements.txt in notebook dir → tier dir → repo root
+	// When false, only uses explicitly specified RequirementsFile or Dockerfile
+	// +kubebuilder:default=true
 	// +optional
 	AutoGenerateRequirements bool `json:"autoGenerateRequirements,omitempty"`
 
-	// RequirementsFile specifies the path to requirements.txt in the Git repository
-	// +kubebuilder:default="requirements.txt"
+	// RequirementsFile specifies explicit path to requirements.txt in the Git repository
+	// If specified, this path is used directly without fallback chain
+	// Example: "notebooks/tier2/requirements.txt"
 	// +optional
 	RequirementsFile string `json:"requirementsFile,omitempty"`
+
+	// RequirementsSources specifies custom fallback chain for requirements.txt detection
+	// ADR-038: Advanced use case for complex repository structures
+	// If not specified, uses default chain: notebook-dir → tier-dir → repo-root
+	// Example: ["notebooks/tier2/requirements.txt", "notebooks/requirements.txt", "requirements.txt"]
+	// +optional
+	RequirementsSources []string `json:"requirementsSources,omitempty"`
+
+	// PreferDockerfile specifies whether to prefer Dockerfile over requirements.txt
+	// ADR-038: When both requirements.txt and Dockerfile exist, this determines priority
+	// If false (default), uses requirements.txt to generate Dockerfile
+	// If true, uses existing Dockerfile and ignores requirements.txt
+	// +kubebuilder:default=false
+	// +optional
+	PreferDockerfile bool `json:"preferDockerfile,omitempty"`
 
 	// FallbackStrategy specifies what to do when requirements.txt is missing
 	// +kubebuilder:validation:Enum=warn;fail;auto

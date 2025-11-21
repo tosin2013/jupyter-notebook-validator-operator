@@ -80,6 +80,7 @@ func (s *S2IStrategy) Detect(ctx context.Context, client client.Client) (bool, e
 }
 
 // CreateBuild creates an S2I build for the notebook
+// ADR-038: Supports requirements.txt auto-detection with Docker build strategy
 func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (*BuildInfo, error) {
 	// Check if BuildConfig is provided
 	if job.Spec.PodConfig.BuildConfig == nil {
@@ -98,6 +99,36 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 	}
 
 	logger := log.FromContext(ctx)
+
+	// ADR-038: Determine build strategy based on requirements.txt detection
+	// For S2I, we generate an inline Dockerfile when AutoGenerateRequirements is true
+	var inlineDockerfile string
+	var buildStrategyType buildv1.BuildStrategyType
+	var sourceStrategy *buildv1.SourceBuildStrategy
+	var dockerStrategy *buildv1.DockerBuildStrategy
+
+	if buildConfig.AutoGenerateRequirements && !buildConfig.PreferDockerfile {
+		// Use Docker build strategy with generated Dockerfile
+		// Note: We generate a simple Dockerfile that handles requirements.txt at build time
+		buildStrategyType = buildv1.DockerBuildStrategyType
+		inlineDockerfile = generateInlineDockerfile(job, baseImage)
+		dockerStrategy = &buildv1.DockerBuildStrategy{}
+		logger.Info("Using Docker build strategy with auto-generated Dockerfile",
+			"buildName", buildName,
+			"autoGenerate", buildConfig.AutoGenerateRequirements)
+	} else {
+		// Use traditional S2I source build strategy
+		buildStrategyType = buildv1.SourceBuildStrategyType
+		sourceStrategy = &buildv1.SourceBuildStrategy{
+			From: corev1.ObjectReference{
+				Kind: "DockerImage",
+				Name: baseImage,
+			},
+		}
+		logger.Info("Using S2I source build strategy",
+			"buildName", buildName,
+			"baseImage", baseImage)
+	}
 
 	// Create ImageStream first (required for BuildConfig output)
 	imageStream := &imagev1.ImageStream{
@@ -145,6 +176,11 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 						ContextDir: "",
 					}
 
+					// ADR-038: Add inline Dockerfile if using Docker strategy
+					if buildStrategyType == buildv1.DockerBuildStrategyType && inlineDockerfile != "" {
+						source.Dockerfile = &inlineDockerfile
+					}
+
 					// Add Git credentials secret if specified
 					if job.Spec.Notebook.Git.CredentialsSecret != "" {
 						source.SourceSecret = &corev1.LocalObjectReference{
@@ -155,13 +191,9 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 					return source
 				}(),
 				Strategy: buildv1.BuildStrategy{
-					Type: buildv1.SourceBuildStrategyType,
-					SourceStrategy: &buildv1.SourceBuildStrategy{
-						From: corev1.ObjectReference{
-							Kind: "DockerImage",
-							Name: baseImage,
-						},
-					},
+					Type:           buildStrategyType,
+					SourceStrategy: sourceStrategy,
+					DockerStrategy: dockerStrategy,
 				},
 				Output: buildv1.BuildOutput{
 					To: &corev1.ObjectReference{
@@ -635,4 +667,54 @@ func (s *S2IStrategy) ValidateConfig(config *mlopsv1alpha1.BuildConfigSpec) erro
 	// BaseImage is optional - we have a default
 	// No specific validation needed for S2I
 	return nil
+}
+
+// generateInlineDockerfile generates an inline Dockerfile for S2I Docker build strategy
+// ADR-038: Used when AutoGenerateRequirements is true
+// This creates a simple Dockerfile that handles requirements.txt detection at build time
+func generateInlineDockerfile(job *mlopsv1alpha1.NotebookValidationJob, baseImage string) string {
+	// Determine potential requirements.txt locations based on notebook path
+	notebookPath := job.Spec.Notebook.Path
+	notebookDir := strings.TrimSuffix(notebookPath, "/"+strings.Split(notebookPath, "/")[len(strings.Split(notebookPath, "/"))-1])
+
+	// ADR-038 fallback chain:
+	// 1. Notebook directory: notebooks/02-anomaly-detection/requirements.txt
+	// 2. Tier directory: notebooks/requirements.txt
+	// 3. Repository root: requirements.txt
+
+	dockerfile := fmt.Sprintf(`FROM %s
+
+# ADR-038: Auto-generated Dockerfile with requirements.txt fallback chain
+# This Dockerfile checks for requirements.txt in multiple locations and installs dependencies
+
+# Install notebook execution tools
+RUN pip install --no-cache-dir papermill nbformat
+
+# Copy project files
+COPY . /workspace
+WORKDIR /workspace
+
+# ADR-038 Fallback chain: Install dependencies from requirements.txt if found
+# 1. Try notebook-specific requirements.txt
+# 2. Fall back to tier-level requirements.txt
+# 3. Fall back to repository root requirements.txt
+RUN if [ -f "%s/requirements.txt" ]; then \
+        echo "Installing from notebook directory: %s/requirements.txt"; \
+        pip install --no-cache-dir -r %s/requirements.txt; \
+    elif [ -f "notebooks/requirements.txt" ]; then \
+        echo "Installing from tier directory: notebooks/requirements.txt"; \
+        pip install --no-cache-dir -r notebooks/requirements.txt; \
+    elif [ -f "requirements.txt" ]; then \
+        echo "Installing from repository root: requirements.txt"; \
+        pip install --no-cache-dir -r requirements.txt; \
+    else \
+        echo "No requirements.txt found, using base image dependencies only"; \
+    fi
+
+# Health check
+RUN python -c "import sys; print(f'Python {sys.version}')" && \
+    python -c "import papermill; print(f'Papermill {papermill.__version__}')"
+`, baseImage, notebookDir, notebookDir, notebookDir)
+
+	return dockerfile
 }
