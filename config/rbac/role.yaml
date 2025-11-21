@@ -148,6 +148,8 @@ rules:
   - securitycontextconstraints
   verbs:
   - get
+  - list
+  - update
   - use
 - apiGroups:
   - serving.kserve.io

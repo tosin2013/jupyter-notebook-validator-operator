@@ -93,7 +93,7 @@ type NotebookValidationJobReconciler struct {
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch;update
 //+kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create
-//+kubebuilder:rbac:groups=security.openshift.io,resources=securitycontextconstraints,verbs=get;use,resourceNames=pipelines-scc;privileged
+//+kubebuilder:rbac:groups=security.openshift.io,resources=securitycontextconstraints,verbs=get;list;update;use,resourceNames=pipelines-scc;privileged
 //+kubebuilder:rbac:groups=serving.kserve.io,resources=inferenceservices,verbs=get;list;watch
 //+kubebuilder:rbac:groups=serving.kserve.io,resources=servingruntimes,verbs=get;list;watch
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
