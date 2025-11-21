@@ -36,6 +36,7 @@ import (
 
 	buildv1 "github.com/openshift/api/build/v1"
 	imagev1 "github.com/openshift/api/image/v1"
+	securityv1 "github.com/openshift/api/security/v1"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
@@ -58,6 +59,9 @@ func init() {
 
 	// Register OpenShift Image API for ImageStream support
 	utilruntime.Must(imagev1.AddToScheme(scheme))
+
+	// Register OpenShift Security API for SCC support (ADR-039)
+	utilruntime.Must(securityv1.AddToScheme(scheme))
 
 	// Register Tekton Pipeline API for Tekton support
 	utilruntime.Must(tektonv1.AddToScheme(scheme))

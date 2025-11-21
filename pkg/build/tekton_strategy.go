@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	securityv1 "github.com/openshift/api/security/v1"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -158,47 +159,103 @@ func (t *TektonStrategy) ensureTasksInNamespace(ctx context.Context, namespace s
 }
 
 // ensurePipelineServiceAccount ensures the pipeline ServiceAccount exists in the namespace
-// The buildah task requires privileged access, so we need to use a ServiceAccount with pipelines-scc
+// The buildah task requires privileged access, so we automatically grant pipelines-scc
+// This implements ADR-039: Automatic SCC Management for Tekton Builds
 func (t *TektonStrategy) ensurePipelineServiceAccount(ctx context.Context, namespace string) error {
 	logger := log.FromContext(ctx)
 
-	// Check if pipeline ServiceAccount already exists
+	// Step 1: Ensure pipeline ServiceAccount exists
 	sa := &corev1.ServiceAccount{}
 	err := t.client.Get(ctx, client.ObjectKey{
 		Name:      "pipeline",
 		Namespace: namespace,
 	}, sa)
 
-	if err == nil {
-		// ServiceAccount exists
-		logger.V(1).Info("pipeline ServiceAccount already exists", "namespace", namespace)
-		return nil
-	}
-
-	if !errors.IsNotFound(err) {
+	if err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("failed to check pipeline ServiceAccount: %w", err)
 	}
 
-	// ServiceAccount doesn't exist, create it
-	logger.Info("Creating pipeline ServiceAccount", "namespace", namespace)
-	newSA := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "pipeline",
-			Namespace: namespace,
-			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "jupyter-notebook-validator-operator",
-				"app.kubernetes.io/component":  "tekton-build",
+	if errors.IsNotFound(err) {
+		// ServiceAccount doesn't exist, create it
+		logger.Info("Creating pipeline ServiceAccount", "namespace", namespace)
+		newSA := &corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "pipeline",
+				Namespace: namespace,
+				Labels: map[string]string{
+					"app.kubernetes.io/managed-by": "jupyter-notebook-validator-operator",
+					"app.kubernetes.io/component":  "tekton-build",
+				},
 			},
-		},
+		}
+
+		if err := t.client.Create(ctx, newSA); err != nil {
+			return fmt.Errorf("failed to create pipeline ServiceAccount: %w", err)
+		}
+		logger.Info("Successfully created pipeline ServiceAccount", "namespace", namespace)
+	} else {
+		logger.V(1).Info("pipeline ServiceAccount already exists", "namespace", namespace)
 	}
 
-	if err := t.client.Create(ctx, newSA); err != nil {
-		return fmt.Errorf("failed to create pipeline ServiceAccount: %w", err)
+	// Step 2: Automatically grant pipelines-scc to the ServiceAccount
+	// ADR-039: Operator should automatically configure SCC for builds
+	if err := t.grantSCCToServiceAccount(ctx, namespace, "pipeline", "pipelines-scc"); err != nil {
+		// Log warning but don't fail - this might be a Kubernetes cluster without SCCs
+		logger.Info("Failed to grant SCC (might be Kubernetes without OpenShift SCCs)",
+			"error", err,
+			"namespace", namespace,
+			"serviceAccount", "pipeline",
+			"scc", "pipelines-scc")
+		logger.Info("If on OpenShift, manually grant SCC: oc adm policy add-scc-to-user pipelines-scc -z pipeline -n " + namespace)
 	}
 
-	logger.Info("Successfully created pipeline ServiceAccount", "namespace", namespace)
-	logger.Info("NOTE: The pipeline ServiceAccount needs pipelines-scc to run buildah tasks. " +
-		"Please ensure it has the necessary SCC: oc adm policy add-scc-to-user pipelines-scc -z pipeline -n " + namespace)
+	return nil
+}
+
+// grantSCCToServiceAccount grants a SecurityContextConstraint to a ServiceAccount
+// This automates the manual "oc adm policy add-scc-to-user" command
+func (t *TektonStrategy) grantSCCToServiceAccount(ctx context.Context, namespace, serviceAccount, sccName string) error {
+	logger := log.FromContext(ctx)
+
+	// Get the SCC
+	scc := &securityv1.SecurityContextConstraints{}
+	err := t.client.Get(ctx, client.ObjectKey{Name: sccName}, scc)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// SCC doesn't exist - likely Kubernetes without OpenShift
+			return fmt.Errorf("SCC %s not found (Kubernetes cluster?): %w", sccName, err)
+		}
+		return fmt.Errorf("failed to get SCC %s: %w", sccName, err)
+	}
+
+	// Check if ServiceAccount already has the SCC
+	serviceAccountUser := fmt.Sprintf("system:serviceaccount:%s:%s", namespace, serviceAccount)
+	for _, user := range scc.Users {
+		if user == serviceAccountUser {
+			logger.V(1).Info("ServiceAccount already has SCC",
+				"namespace", namespace,
+				"serviceAccount", serviceAccount,
+				"scc", sccName)
+			return nil
+		}
+	}
+
+	// Add ServiceAccount to SCC users
+	logger.Info("Granting SCC to ServiceAccount",
+		"namespace", namespace,
+		"serviceAccount", serviceAccount,
+		"scc", sccName)
+
+	scc.Users = append(scc.Users, serviceAccountUser)
+
+	if err := t.client.Update(ctx, scc); err != nil {
+		return fmt.Errorf("failed to update SCC %s: %w", sccName, err)
+	}
+
+	logger.Info("Successfully granted SCC to ServiceAccount",
+		"namespace", namespace,
+		"serviceAccount", serviceAccount,
+		"scc", sccName)
 
 	return nil
 }
