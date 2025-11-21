@@ -44,6 +44,34 @@ var _ webhook.Defaulter = &NotebookValidationJob{}
 func (r *NotebookValidationJob) Default() {
 	notebookvalidationjoblog.Info("default", "name", r.Name, "namespace", r.Namespace)
 
+	// Convert credentials array to envFrom (syntactic sugar)
+	// ADR-014: Simplified credential injection pattern
+	// The credentials field is a convenient shorthand that gets converted to envFrom with secretRef
+	if len(r.Spec.PodConfig.Credentials) > 0 {
+		notebookvalidationjoblog.Info("converting credentials to envFrom",
+			"name", r.Name,
+			"namespace", r.Namespace,
+			"credentials", r.Spec.PodConfig.Credentials)
+
+		// Convert each credential secret name to an envFrom entry
+		for _, secretName := range r.Spec.PodConfig.Credentials {
+			r.Spec.PodConfig.EnvFrom = append(r.Spec.PodConfig.EnvFrom, EnvFromSource{
+				SecretRef: &SecretEnvSource{
+					Name: secretName,
+				},
+			})
+		}
+
+		// Clear the credentials field after conversion to avoid confusion
+		// The field is only used for input; envFrom is the canonical representation
+		r.Spec.PodConfig.Credentials = nil
+
+		notebookvalidationjoblog.Info("credentials converted to envFrom",
+			"name", r.Name,
+			"namespace", r.Namespace,
+			"envFromCount", len(r.Spec.PodConfig.EnvFrom))
+	}
+
 	// Set default ServiceAccount to "default" if not specified
 	// This allows the validation pod to run in any namespace without requiring
 	// manual ServiceAccount creation. Users can override this by specifying
