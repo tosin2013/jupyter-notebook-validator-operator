@@ -17,6 +17,9 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"context"
+	"fmt"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -38,24 +41,28 @@ func (r *NotebookValidationJob) SetupWebhookWithManager(mgr ctrl.Manager) error 
 
 //+kubebuilder:webhook:path=/mutate-mlops-mlops-dev-v1alpha1-notebookvalidationjob,mutating=true,failurePolicy=fail,sideEffects=None,groups=mlops.mlops.dev,resources=notebookvalidationjobs,verbs=create;update,versions=v1alpha1,name=mnotebookvalidationjob.kb.io,admissionReviewVersions=v1
 
-var _ webhook.Defaulter = &NotebookValidationJob{}
+var _ webhook.CustomDefaulter = &NotebookValidationJob{}
 
-// Default implements webhook.Defaulter so a webhook will be registered for the type
-func (r *NotebookValidationJob) Default() {
-	notebookvalidationjoblog.Info("default", "name", r.Name, "namespace", r.Namespace)
+// Default implements webhook.CustomDefaulter so a webhook will be registered for the type
+func (r *NotebookValidationJob) Default(ctx context.Context, obj runtime.Object) error {
+	job, ok := obj.(*NotebookValidationJob)
+	if !ok {
+		return fmt.Errorf("expected a NotebookValidationJob object but got %T", obj)
+	}
+	notebookvalidationjoblog.Info("default", "name", job.Name, "namespace", job.Namespace)
 
 	// Convert credentials array to envFrom (syntactic sugar)
 	// ADR-014: Simplified credential injection pattern
 	// The credentials field is a convenient shorthand that gets converted to envFrom with secretRef
-	if len(r.Spec.PodConfig.Credentials) > 0 {
+	if len(job.Spec.PodConfig.Credentials) > 0 {
 		notebookvalidationjoblog.Info("converting credentials to envFrom",
-			"name", r.Name,
-			"namespace", r.Namespace,
-			"credentials", r.Spec.PodConfig.Credentials)
+			"name", job.Name,
+			"namespace", job.Namespace,
+			"credentials", job.Spec.PodConfig.Credentials)
 
 		// Convert each credential secret name to an envFrom entry
-		for _, secretName := range r.Spec.PodConfig.Credentials {
-			r.Spec.PodConfig.EnvFrom = append(r.Spec.PodConfig.EnvFrom, EnvFromSource{
+		for _, secretName := range job.Spec.PodConfig.Credentials {
+			job.Spec.PodConfig.EnvFrom = append(job.Spec.PodConfig.EnvFrom, EnvFromSource{
 				SecretRef: &SecretEnvSource{
 					Name: secretName,
 				},
@@ -64,12 +71,12 @@ func (r *NotebookValidationJob) Default() {
 
 		// Clear the credentials field after conversion to avoid confusion
 		// The field is only used for input; envFrom is the canonical representation
-		r.Spec.PodConfig.Credentials = nil
+		job.Spec.PodConfig.Credentials = nil
 
 		notebookvalidationjoblog.Info("credentials converted to envFrom",
-			"name", r.Name,
-			"namespace", r.Namespace,
-			"envFromCount", len(r.Spec.PodConfig.EnvFrom))
+			"name", job.Name,
+			"namespace", job.Namespace,
+			"envFromCount", len(job.Spec.PodConfig.EnvFrom))
 	}
 
 	// Set default ServiceAccount to "default" if not specified
@@ -83,18 +90,20 @@ func (r *NotebookValidationJob) Default() {
 	// - Follows the principle of least surprise - "default" SA exists in all namespaces
 	// - Users can grant additional permissions to "default" SA if needed
 	// - Future enhancement: implement annotation-based injection for custom SAs
-	if r.Spec.PodConfig.ServiceAccountName == "" {
+	if job.Spec.PodConfig.ServiceAccountName == "" {
 		notebookvalidationjoblog.Info("injecting default ServiceAccount",
-			"name", r.Name,
-			"namespace", r.Namespace,
+			"name", job.Name,
+			"namespace", job.Namespace,
 			"serviceAccount", "default")
-		r.Spec.PodConfig.ServiceAccountName = "default"
+		job.Spec.PodConfig.ServiceAccountName = "default"
 	}
 
 	// Set default timeout if not specified
-	if r.Spec.Timeout == "" {
-		r.Spec.Timeout = "30m"
+	if job.Spec.Timeout == "" {
+		job.Spec.Timeout = "30m"
 	}
+
+	return nil
 }
 
 // TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
