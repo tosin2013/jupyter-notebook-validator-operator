@@ -295,6 +295,22 @@ jobs:
           echo "Test notebooks cloned successfully"
           ls -la notebooks/
 
+      - name: Clean up any leftover test resources
+        run: |
+          echo "Cleaning up any leftover resources from previous runs..."
+
+          # Delete any existing NotebookValidationJobs
+          oc delete notebookvalidationjobs --all -n ${{ env.TEST_NAMESPACE }} --ignore-not-found=true
+
+          # Delete any leftover validation pods
+          oc delete pods -l app=notebook-validation -n ${{ env.TEST_NAMESPACE }} --ignore-not-found=true
+
+          # Wait for resources to be fully deleted
+          echo "Waiting for resources to be deleted..."
+          sleep 5
+
+          echo "✅ Cleanup complete"
+
       - name: Run Tier 1 tests (Simple notebooks)
         if: github.event.inputs.test_tier == '1' || github.event.inputs.test_tier == 'all' || github.event.inputs.test_tier == ''
         env:
