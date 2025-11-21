@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Implemented (2025-11-21)
 
 ## Context
 
@@ -121,6 +121,52 @@ The operator will automatically create and manage Tekton-formatted Git credentia
 
 ### Alternative 3: Custom Tekton Task
 **Rejected**: Would require maintaining custom Tekton tasks instead of using upstream git-clone task.
+
+## Implementation Status
+
+### Completed Components
+
+1. **Automatic Secret Conversion** ✅
+   - Implemented: `pkg/build/tekton_strategy.go:ensureTektonGitCredentials()`
+   - Called from: `CreateBuild()` before PipelineRun creation
+   - Tested: E2E Tier 2 tests
+
+2. **RBAC Permissions** ✅
+   - Added kubebuilder markers: `internal/controller/notebookvalidationjob_controller.go:91,94,95`
+   - Permissions: `secrets` (create, watch), `serviceaccounts` (watch), `securitycontextconstraints` (get, list, use)
+   - Generated: `config/rbac/role.yaml`
+
+3. **Documentation** ✅
+   - ADR-042 created and maintained
+   - Code comments in place
+   - E2E test coverage
+
+### S2I Comparison
+
+**Important**: S2I BuildConfig does NOT need credential conversion.
+
+**S2I Implementation** (`pkg/build/s2i_strategy.go:184-189`):
+```go
+// Add Git credentials secret if specified
+if job.Spec.Notebook.Git.CredentialsSecret != "" {
+    source.SourceSecret = &corev1.LocalObjectReference{
+        Name: job.Spec.Notebook.Git.CredentialsSecret,
+    }
+}
+```
+
+OpenShift BuildConfig's `SourceSecret` field **natively supports** the standard username/password format. No conversion is needed.
+
+**Why Tekton Needs Conversion**:
+- Tekton git-clone task uses upstream Tekton catalog tasks
+- These tasks expect Git credential helper format (`.git-credentials` file)
+- OpenShift BuildConfig uses OpenShift-native credential injection
+
+**Summary**:
+| Build Strategy | Secret Format | Conversion | File |
+|---------------|---------------|------------|------|
+| S2I | Standard | Not needed | s2i_strategy.go |
+| Tekton | Tekton format | **Auto-converted** | tekton_strategy.go |
 
 ## Implementation Notes
 
