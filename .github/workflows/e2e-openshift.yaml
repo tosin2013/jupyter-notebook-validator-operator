@@ -331,11 +331,14 @@ jobs:
           # KServe tests require manual infrastructure setup
 
           # Test 03: AWS credentials
+          echo "Creating Tier 3 Test 03: AWS credentials..."
           cat <<EOF | oc apply -n ${TEST_NS} -f -
           apiVersion: mlops.mlops.dev/v1alpha1
           kind: NotebookValidationJob
           metadata:
             name: tier3-test-03-aws-credentials
+            labels:
+              tier: "3"
           spec:
             notebook:
               git:
@@ -353,12 +356,19 @@ jobs:
             timeout: "15m"
           EOF
 
+          # Wait 10 seconds to avoid git-clone workspace contention
+          echo "Waiting 10s before creating next test..."
+          sleep 10
+
           # Test 04: Database credentials
+          echo "Creating Tier 3 Test 04: Database credentials..."
           cat <<EOF | oc apply -n ${TEST_NS} -f -
           apiVersion: mlops.mlops.dev/v1alpha1
           kind: NotebookValidationJob
           metadata:
             name: tier3-test-04-database-credentials
+            labels:
+              tier: "3"
           spec:
             notebook:
               git:
@@ -376,12 +386,19 @@ jobs:
             timeout: "15m"
           EOF
 
+          # Wait 10 seconds to avoid git-clone workspace contention
+          echo "Waiting 10s before creating next test..."
+          sleep 10
+
           # Test 05: MLflow credentials
+          echo "Creating Tier 3 Test 05: MLflow credentials..."
           cat <<EOF | oc apply -n ${TEST_NS} -f -
           apiVersion: mlops.mlops.dev/v1alpha1
           kind: NotebookValidationJob
           metadata:
             name: tier3-test-05-mlflow-credentials
+            labels:
+              tier: "3"
           spec:
             notebook:
               git:
@@ -398,6 +415,8 @@ jobs:
                 - "mlflow-credentials"
             timeout: "15m"
           EOF
+
+          echo "All Tier 3 tests created with staggered timing to avoid workspace contention"
 
           # Wait for tests to complete
           echo "Waiting for Tier 3 tests to complete (may take 10-15 minutes)..."
