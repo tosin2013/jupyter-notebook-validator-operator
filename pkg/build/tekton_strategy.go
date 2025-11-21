@@ -819,7 +819,7 @@ func (t *TektonStrategy) GetBuildStatus(ctx context.Context, buildName string) (
 	for i := range pipelineRunList.Items {
 		if pipelineRunList.Items[i].Name == buildName {
 			logger.V(1).Info("Found PipelineRun", "name", buildName)
-			return t.getPipelineRunStatus(&pipelineRunList.Items[i]), nil
+			return t.getPipelineRunStatus(ctx, &pipelineRunList.Items[i]), nil
 		}
 	}
 
@@ -845,7 +845,8 @@ func (t *TektonStrategy) GetBuildStatus(ctx context.Context, buildName string) (
 }
 
 // getPipelineRunStatus extracts status from a PipelineRun
-func (t *TektonStrategy) getPipelineRunStatus(pr *tektonv1.PipelineRun) *BuildInfo {
+func (t *TektonStrategy) getPipelineRunStatus(ctx context.Context, pr *tektonv1.PipelineRun) *BuildInfo {
+	logger := log.FromContext(ctx)
 	info := &BuildInfo{
 		Name: pr.Name,
 	}
@@ -876,11 +877,27 @@ func (t *TektonStrategy) getPipelineRunStatus(pr *tektonv1.PipelineRun) *BuildIn
 
 	// ADR-031: Extract image reference from PipelineRun parameters
 	// The image-reference parameter contains the built image location
+	imageRefFound := false
 	for _, param := range pr.Spec.Params {
 		if param.Name == "image-reference" {
 			info.ImageReference = param.Value.StringVal
+			imageRefFound = true
+			logger.V(1).Info("Extracted image reference from PipelineRun",
+				"imageRef", info.ImageReference,
+				"pipelineRun", pr.Name)
 			break
 		}
+	}
+
+	if !imageRefFound {
+		// Log all parameter names for debugging
+		paramNames := make([]string, len(pr.Spec.Params))
+		for i, param := range pr.Spec.Params {
+			paramNames[i] = param.Name
+		}
+		logger.Error(nil, "image-reference parameter not found in PipelineRun",
+			"pipelineRun", pr.Name,
+			"availableParams", paramNames)
 	}
 
 	return info
@@ -980,7 +997,7 @@ func (t *TektonStrategy) GetLatestBuild(ctx context.Context, pipelineName string
 	}
 
 	logger.Info("Using most recent PipelineRun", "pipelineRunName", mostRecent.Name)
-	return t.getPipelineRunStatus(mostRecent), nil
+	return t.getPipelineRunStatus(ctx, mostRecent), nil
 }
 
 // TriggerBuild manually triggers a Tekton build (creates a new PipelineRun)
