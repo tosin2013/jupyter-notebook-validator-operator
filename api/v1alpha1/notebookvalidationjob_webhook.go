@@ -34,6 +34,7 @@ var notebookvalidationjoblog = logf.Log.WithName("notebookvalidationjob-resource
 func (r *NotebookValidationJob) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(r).
+		WithDefaulter(r).
 		Complete()
 }
 
