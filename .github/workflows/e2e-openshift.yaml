@@ -184,7 +184,25 @@ jobs:
           oc get secret webhook-server-cert -n ${{ env.OPERATOR_NAMESPACE }}
 
           echo "Waiting for webhook to be fully initialized..."
-          # Wait for CA bundle to be injected by cert-manager into MutatingWebhookConfiguration
+
+          # Step 1: Wait for webhook service to have endpoints (backing pods)
+          echo "Waiting for webhook service endpoints..."
+          for i in {1..30}; do
+            ENDPOINTS=$(oc get endpoints notebook-validator-webhook-service \
+              -n ${{ env.OPERATOR_NAMESPACE }} \
+              -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || echo "")
+
+            if [ -n "$ENDPOINTS" ]; then
+              echo "✅ Webhook service has endpoints: $ENDPOINTS"
+              break
+            fi
+
+            echo "Waiting for webhook endpoints (attempt $i/30)..."
+            sleep 2
+          done
+
+          # Step 2: Wait for CA bundle to be injected by cert-manager into MutatingWebhookConfiguration
+          echo "Waiting for CA bundle injection..."
           for i in {1..30}; do
             CA_BUNDLE=$(oc get mutatingwebhookconfiguration notebook-validator-mutating-webhook-configuration \
               -o jsonpath='{.webhooks[0].clientConfig.caBundle}' 2>/dev/null || echo "")
@@ -198,7 +216,7 @@ jobs:
             sleep 2
           done
 
-          # Give webhook server additional time to fully initialize after CA injection
+          # Step 3: Give webhook server additional time to fully initialize after CA injection
           echo "Allowing webhook server to initialize..."
           sleep 10
 
