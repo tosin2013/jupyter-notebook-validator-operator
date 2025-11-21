@@ -263,6 +263,17 @@ jobs:
 
           echo "✅ Test credentials created successfully"
 
+          # Wait for secrets to be synced and accessible
+          # This ensures the operator's controller-runtime cache has time to sync
+          echo "Waiting for secrets to be accessible..."
+          for secret in git-credentials aws-credentials database-credentials mlflow-credentials; do
+            oc get secret ${secret} -n ${{ env.TEST_NAMESPACE }} --ignore-not-found
+          done
+
+          # Give controller cache additional time to sync
+          echo "Allowing controller cache to sync secrets..."
+          sleep 5
+
       # Note: git-credentials secret is already created in "Setup test credentials" step above
       # with username=oauth2 which is the correct format for GitHub PAT authentication
 
