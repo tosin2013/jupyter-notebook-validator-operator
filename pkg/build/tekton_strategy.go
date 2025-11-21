@@ -260,6 +260,107 @@ func (t *TektonStrategy) grantSCCToServiceAccount(ctx context.Context, namespace
 	return nil
 }
 
+// ensureTektonGitCredentials creates a Tekton-formatted Git credentials secret from a standard secret
+// Tekton git-clone task expects .git-credentials and .gitconfig files for HTTPS authentication
+// This converts the standard username/password format to Tekton's basic-auth workspace format
+func (t *TektonStrategy) ensureTektonGitCredentials(ctx context.Context, namespace, sourceSecretName string) error {
+	logger := log.FromContext(ctx)
+
+	tektonSecretName := sourceSecretName + "-tekton"
+
+	// Check if Tekton secret already exists
+	existingSecret := &corev1.Secret{}
+	err := t.client.Get(ctx, client.ObjectKey{
+		Name:      tektonSecretName,
+		Namespace: namespace,
+	}, existingSecret)
+
+	if err == nil {
+		// Secret exists, check if it's managed by us
+		if existingSecret.Labels["app.kubernetes.io/managed-by"] == "jupyter-notebook-validator-operator" {
+			logger.V(1).Info("Tekton Git credentials secret already exists", "secret", tektonSecretName, "namespace", namespace)
+			// TODO: Check if source secret has changed and update if needed
+		} else {
+			logger.Info("Tekton Git credentials secret exists but not managed by operator, skipping", "secret", tektonSecretName, "namespace", namespace)
+		}
+		return nil
+	}
+
+	if !errors.IsNotFound(err) {
+		return fmt.Errorf("failed to check Tekton git credentials secret %s: %w", tektonSecretName, err)
+	}
+
+	// Tekton secret doesn't exist, create it from source secret
+	logger.Info("Creating Tekton Git credentials secret from source secret", "source", sourceSecretName, "target", tektonSecretName, "namespace", namespace)
+
+	// Get the source secret
+	sourceSecret := &corev1.Secret{}
+	if err := t.client.Get(ctx, client.ObjectKey{
+		Name:      sourceSecretName,
+		Namespace: namespace,
+	}, sourceSecret); err != nil {
+		return fmt.Errorf("failed to get source git credentials secret %s: %w", sourceSecretName, err)
+	}
+
+	// Extract username and password from source secret
+	username, usernameExists := sourceSecret.Data["username"]
+	if !usernameExists {
+		return fmt.Errorf("source secret %s does not contain 'username' key", sourceSecretName)
+	}
+
+	var password []byte
+	var passwordExists bool
+	if password, passwordExists = sourceSecret.Data["password"]; !passwordExists {
+		// Try 'token' as fallback
+		if password, passwordExists = sourceSecret.Data["token"]; !passwordExists {
+			return fmt.Errorf("source secret %s does not contain 'password' or 'token' key", sourceSecretName)
+		}
+	}
+
+	// Create Tekton-formatted secret with .git-credentials and .gitconfig
+	// Format documented at: https://tekton.dev/docs/pipelines/auth/
+
+	// .git-credentials format: https://<username>:<password>@<hostname>
+	// We'll use a generic format that works with most Git hosting providers
+	gitCredentials := fmt.Sprintf("https://%s:%s@github.com\n", string(username), string(password))
+
+	// .gitconfig to use the credentials helper
+	gitConfig := `[credential]
+	helper = store
+`
+
+	tektonSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tektonSecretName,
+			Namespace: namespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/managed-by":   "jupyter-notebook-validator-operator",
+				"app.kubernetes.io/component":    "tekton-build",
+				"mlops.redhat.com/secret-type":   "git-credentials",
+				"mlops.redhat.com/source-secret": sourceSecretName,
+			},
+			Annotations: map[string]string{
+				"mlops.redhat.com/description":   "Tekton-formatted Git credentials converted from standard secret",
+				"mlops.redhat.com/source-secret": sourceSecretName,
+				"mlops.redhat.com/created-at":    time.Now().Format(time.RFC3339),
+				"tekton.dev/git-0":               "https://github.com", // Tekton annotation for Git credentials
+			},
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			".git-credentials": []byte(gitCredentials),
+			".gitconfig":       []byte(gitConfig),
+		},
+	}
+
+	if err := t.client.Create(ctx, tektonSecret); err != nil {
+		return fmt.Errorf("failed to create Tekton git credentials secret %s: %w", tektonSecretName, err)
+	}
+
+	logger.Info("Successfully created Tekton Git credentials secret", "secret", tektonSecretName, "namespace", namespace)
+	return nil
+}
+
 // CreateBuild creates a Tekton TaskRun for building the notebook image
 func (t *TektonStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (*BuildInfo, error) {
 	logger := log.FromContext(ctx)
@@ -279,6 +380,16 @@ func (t *TektonStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Not
 	logger.Info("Ensuring pipeline ServiceAccount exists", "namespace", job.Namespace)
 	if err := t.ensurePipelineServiceAccount(ctx, job.Namespace); err != nil {
 		return nil, fmt.Errorf("failed to ensure pipeline ServiceAccount: %w", err)
+	}
+
+	// Ensure Tekton-formatted Git credentials secret exists if credentials are specified
+	if job.Spec.Notebook.Git.CredentialsSecret != "" {
+		logger.Info("Ensuring Tekton-formatted Git credentials secret",
+			"namespace", job.Namespace,
+			"sourceSecret", job.Spec.Notebook.Git.CredentialsSecret)
+		if err := t.ensureTektonGitCredentials(ctx, job.Namespace, job.Spec.Notebook.Git.CredentialsSecret); err != nil {
+			return nil, fmt.Errorf("failed to ensure Tekton git credentials: %w", err)
+		}
 	}
 
 	buildConfig := job.Spec.PodConfig.BuildConfig
