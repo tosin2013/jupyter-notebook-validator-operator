@@ -39,7 +39,7 @@ type GitCredentials struct {
 }
 
 // getGitImage returns the appropriate Git container image based on the platform
-// ADR-005: OpenShift Compatibility - Platform-specific Git images
+// ADR-042: Git Init Container Image Compatibility - Custom RHEL9-based image
 func getGitImage() string {
 	// Priority 1: Check for manual override via environment variable
 	// This allows users to specify their own git image if needed
@@ -47,21 +47,14 @@ func getGitImage() string {
 		return gitImage
 	}
 
-	// Priority 2: Check if running on OpenShift
-	// OpenShift detection: Check for OPENSHIFT_BUILD_NAMESPACE or use a deployment-set env var
-	// The operator deployment should set PLATFORM=openshift when deployed on OpenShift
-	platform := os.Getenv("PLATFORM")
-	if platform == "openshift" || os.Getenv("OPENSHIFT_BUILD_NAMESPACE") != "" {
-		// Running on OpenShift - use the exact same git-init image that OpenShift Pipelines uses
-		// This image is referenced by SHA256 digest (Red Hat best practice)
-		// Discovered from: oc get task git-clone -n openshift-pipelines -o yaml
-		// This ensures compatibility with OpenShift SCC and works with arbitrary UIDs
-		return "registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:4fabae1312c1aaf8a57bd2de63bd040956faa0c728453f2a4b4002705fba0f0c"
-	}
-
-	// Priority 3: Default to bitnami/git for vanilla Kubernetes
-	// bitnami/git runs as non-root user (UID 1001) which is more secure for standard K8s
-	return "bitnami/git:latest"
+	// Priority 2: Use custom RHEL9-based git-init image for all platforms
+	// This image provides bash + git (compatible with our script-based approach)
+	// Built from: https://github.com/tosin2013/git-init-rhel9
+	// - Based on ubi9/ubi-minimal (Red Hat Universal Base Image)
+	// - Includes git, bash, openssh-clients, ca-certificates
+	// - Runs as non-root user (UID 1001, group 0) for OpenShift SCC compatibility
+	// - Works with bash scripts: /bin/bash -c "git clone..."
+	return "quay.io/takinosh/git-init-rhel9:latest"
 }
 
 // resolveGitCredentials reads and parses Git credentials from a Kubernetes Secret
