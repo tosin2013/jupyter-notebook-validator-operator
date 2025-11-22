@@ -173,8 +173,10 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 			echo "Cloning repository (HTTPS)..."
 			# Disable credential helper to avoid leaking credentials
 			git config --global credential.helper ""
+			# Suppress git output to avoid credential leakage
+			export GIT_TERMINAL_PROMPT=0
 			# Clone with embedded credentials
-			git clone --depth 1 --branch %s "%s" /workspace/repo 2>&1 | sed 's/%s/***REDACTED***/g'
+			git clone --depth 1 --branch %s "%s" /workspace/repo 2>&1 || { echo "Git clone failed"; exit 1; }
 			echo "Clone successful"
 			ls -la /workspace/repo
 			echo "Verifying notebook exists: %s"
@@ -183,7 +185,7 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 				exit 1
 			fi
 			echo "Notebook found successfully"
-		`, gitRef, sanitizedURL, creds.Password, notebookPath, notebookPath, notebookPath)
+		`, gitRef, sanitizedURL, notebookPath, notebookPath, notebookPath)
 
 	case GitCredTypeSSH:
 		// SSH clone with private key
