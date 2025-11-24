@@ -175,26 +175,40 @@ jobs:
           echo "Uninstalling CRDs..."
           make uninstall || true
 
-          # Force delete operator resources if they still exist
-          echo "Force deleting operator resources..."
+          # Clean up OLD operator namespace (jupyter-validator-system) if it exists
+          echo "Cleaning up old operator namespace (jupyter-validator-system)..."
+          oc delete deployment jupyter-validator-notebook-validator-controller-manager \
+            -n jupyter-validator-system --ignore-not-found=true --timeout=60s || true
+          oc delete service jupyter-validator-webhook-service \
+            -n jupyter-validator-system --ignore-not-found=true || true
+          oc delete namespace jupyter-validator-system --ignore-not-found=true --wait=false || true
+
+          # Clean up NEW operator namespace (current namespace)
+          echo "Cleaning up operator resources in ${{ env.OPERATOR_NAMESPACE }}..."
           oc delete deployment notebook-validator-controller-manager \
             -n ${{ env.OPERATOR_NAMESPACE }} --ignore-not-found=true --timeout=60s || true
           oc delete service notebook-validator-webhook-service \
             -n ${{ env.OPERATOR_NAMESPACE }} --ignore-not-found=true || true
+
+          # Delete webhooks (cluster-scoped resources)
+          echo "Cleaning up webhook configurations..."
           oc delete mutatingwebhookconfiguration notebook-validator-mutating-webhook-configuration \
             --ignore-not-found=true || true
           oc delete validatingwebhookconfiguration notebook-validator-validating-webhook-configuration \
             --ignore-not-found=true || true
 
-          # Wait for operator pods to fully terminate
-          echo "Waiting for operator pods to terminate..."
+          # Wait for operator pods to fully terminate in BOTH namespaces
+          echo "Waiting for operator pods to terminate in all namespaces..."
           for i in {1..30}; do
-            PODS=$(oc get pods -l control-plane=controller-manager -n ${{ env.OPERATOR_NAMESPACE }} --no-headers 2>/dev/null | wc -l)
-            if [ "$PODS" -eq 0 ]; then
+            OLD_PODS=$(oc get pods -n jupyter-validator-system --no-headers 2>/dev/null | wc -l)
+            NEW_PODS=$(oc get pods -l control-plane=controller-manager -n ${{ env.OPERATOR_NAMESPACE }} --no-headers 2>/dev/null | wc -l)
+            TOTAL_PODS=$((OLD_PODS + NEW_PODS))
+
+            if [ "$TOTAL_PODS" -eq 0 ]; then
               echo "✅ All operator pods terminated"
               break
             fi
-            echo "Waiting for $PODS operator pod(s) to terminate (attempt $i/30)..."
+            echo "Waiting for pods to terminate: old_ns=$OLD_PODS, new_ns=$NEW_PODS (attempt $i/30)..."
             sleep 2
           done
 
