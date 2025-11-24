@@ -1,0 +1,17 @@
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: test-permission-error
+  namespace: jupyter-notebook-validator-operator
+spec:
+  notebook:
+    path: "tier1/01-simple-notebook.ipynb"
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+  podConfig:
+    # Use a minimal image without Papermill to trigger permission error
+    containerImage: "python:3.11-slim"
+    buildConfig:
+      enabled: false
+

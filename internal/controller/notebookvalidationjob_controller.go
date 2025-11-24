@@ -336,30 +336,84 @@ func (r *NotebookValidationJobReconciler) reconcileBuilding(ctx context.Context,
 		}
 	}
 
-	// Initialize build registry with all available strategies
-	registry := build.NewStrategyRegistry(r.Client, r.APIReader, r.Scheme)
-
 	// Get the configured strategy
 	strategyName := job.Spec.PodConfig.BuildConfig.Strategy
 	if strategyName == "" {
 		strategyName = "s2i" // Default to S2I
 	}
 
-	strategy := registry.GetStrategy(strategyName)
+	// ADR-043: Dispatch to strategy-specific reconciliation
+	// S2I and Tekton have different naming conventions and lookup patterns
+	switch strategyName {
+	case "s2i":
+		return r.reconcileBuildingS2I(ctx, job)
+	case "tekton":
+		return r.reconcileBuildingTekton(ctx, job)
+	default:
+		logger.Error(nil, "Unknown build strategy", "strategy", strategyName)
+		return r.transitionPhase(ctx, job, PhaseFailed, fmt.Sprintf("Unknown build strategy: %s", strategyName))
+	}
+}
+
+// reconcileBuildingS2I handles S2I/BuildConfig build reconciliation
+func (r *NotebookValidationJobReconciler) reconcileBuildingS2I(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling S2I build")
+
+	registry := build.NewStrategyRegistry(r.Client, r.APIReader, r.Scheme)
+	strategy := registry.GetStrategy("s2i")
 	if strategy == nil {
-		logger.Error(nil, "Build strategy not found", "strategy", strategyName)
-		return r.transitionPhase(ctx, job, PhaseFailed, fmt.Sprintf("Build strategy not found: %s", strategyName))
+		return r.transitionPhase(ctx, job, PhaseFailed, "S2I build strategy not available")
 	}
 
-	// Check if build needs to be created
+	// S2I: BuildConfig creates Builds with -1, -2 suffixes
+	// Use GetLatestBuild to find by buildconfig label
 	buildName := fmt.Sprintf("%s-build", job.Name)
-	// ADR-042: Use GetLatestBuild for build discovery
-	// This works for both Tekton (PipelineRuns) and S2I (Builds with -1, -2 suffixes)
+	// ADR-042: Use GetLatestBuild for S2I build discovery
+	// This finds Builds with -1, -2 suffixes by buildconfig label
 	buildInfo, err := strategy.GetLatestBuild(ctx, buildName)
+
+	return r.handleBuildStatus(ctx, job, strategy, "s2i", buildName, buildInfo, err)
+}
+
+// reconcileBuildingTekton handles Tekton/Pipeline build reconciliation
+func (r *NotebookValidationJobReconciler) reconcileBuildingTekton(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling Tekton build")
+
+	registry := build.NewStrategyRegistry(r.Client, r.APIReader, r.Scheme)
+	strategy := registry.GetStrategy("tekton")
+	if strategy == nil {
+		return r.transitionPhase(ctx, job, PhaseFailed, "Tekton build strategy not available")
+	}
+
+	// Tekton: PipelineRuns are named {job-name}-build, but Pipeline is {job-name}-pipeline
+	// GetLatestBuild searches by tekton.dev/pipeline label, so we need to pass pipeline name
+	pipelineName := fmt.Sprintf("%s-pipeline", job.Name)
+	// ADR-043: Use pipeline name for Tekton build discovery
+	// This finds PipelineRuns by tekton.dev/pipeline label
+	buildInfo, err := strategy.GetLatestBuild(ctx, pipelineName)
+
+	// For CreateBuild, we still use buildName format
+	buildName := fmt.Sprintf("%s-build", job.Name)
+	return r.handleBuildStatus(ctx, job, strategy, "tekton", buildName, buildInfo, err)
+}
+
+// handleBuildStatus is a common handler for build status checking (used by both S2I and Tekton)
+func (r *NotebookValidationJobReconciler) handleBuildStatus(
+	ctx context.Context,
+	job *mlopsv1alpha1.NotebookValidationJob,
+	strategy build.Strategy,
+	strategyName string,
+	buildName string,
+	buildInfo *build.BuildInfo,
+	err error) (ctrl.Result, error) {
+
+	logger := log.FromContext(ctx)
 
 	if err != nil {
 		// Build doesn't exist yet, create it
-		logger.Info("Build not found, creating new build", "buildName", buildName)
+		logger.Info("Build not found, creating new build", "buildName", buildName, "strategy", strategyName)
 
 		// Validate strategy availability
 		available, detectErr := strategy.Detect(ctx, r.Client)
@@ -403,7 +457,7 @@ func (r *NotebookValidationJobReconciler) reconcileBuilding(ctx context.Context,
 	}
 
 	// Build exists, check its status
-	logger.Info("Checking build status", "buildName", buildName, "status", buildInfo.Status)
+	logger.Info("Checking build status", "buildName", buildName, "status", buildInfo.Status, "strategy", strategyName)
 
 	// Calculate duration if build has started
 	var duration string
@@ -415,7 +469,7 @@ func (r *NotebookValidationJobReconciler) reconcileBuilding(ctx context.Context,
 	switch buildInfo.Status {
 	case build.BuildStatusComplete:
 		// Build completed successfully
-		logger.Info("Build completed successfully", "image", buildInfo.ImageReference, "duration", duration)
+		logger.Info("Build completed successfully", "image", buildInfo.ImageReference, "duration", duration, "strategy", strategyName)
 
 		// Update build status with completion details
 		originalBuildStatus := job.Status.BuildStatus
@@ -441,7 +495,7 @@ func (r *NotebookValidationJobReconciler) reconcileBuilding(ctx context.Context,
 
 	case build.BuildStatusFailed:
 		// Build failed
-		logger.Error(nil, "Build failed", "message", buildInfo.Message, "duration", duration)
+		logger.Error(nil, "Build failed", "message", buildInfo.Message, "duration", duration, "strategy", strategyName)
 
 		// Update build status with failure details
 		originalBuildStatus := job.Status.BuildStatus
@@ -466,7 +520,7 @@ func (r *NotebookValidationJobReconciler) reconcileBuilding(ctx context.Context,
 
 	case build.BuildStatusPending, build.BuildStatusRunning:
 		// Build still in progress
-		logger.Info("Build in progress, requeuing", "status", buildInfo.Status, "duration", duration)
+		logger.Info("Build in progress, requeuing", "status", buildInfo.Status, "duration", duration, "strategy", strategyName)
 
 		// Update build status with current progress
 		if job.Status.BuildStatus != nil {
@@ -485,7 +539,7 @@ func (r *NotebookValidationJobReconciler) reconcileBuilding(ctx context.Context,
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 
 	default:
-		logger.Info("Unknown build status, requeuing", "status", buildInfo.Status)
+		logger.Info("Unknown build status, requeuing", "status", buildInfo.Status, "strategy", strategyName)
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 }
