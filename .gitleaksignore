@@ -1,0 +1,16 @@
+# Gitleaks ignore file
+# These are false positives - examples, tests, and documentation
+
+# Documentation examples
+CLAUDE.md:private-key:317
+config/samples/git-credentials-example.yaml:private-key:35
+config/samples/git-credentials-ssh.yaml:private-key:26
+docs/GITHUB_SECRETS_SETUP.md:generic-api-key:61
+docs/adrs/009-secret-management-and-git-credentials.md:private-key:209
+docs/NOTEBOOK_CREDENTIALS_GUIDE.md:generic-api-key:817
+
+# Test fixtures and test code
+internal/controller/git_helper_test.go:private-key:155
+internal/controller/git_helper_test.go:private-key:160
+internal/controller/git_helper_test.go:private-key:421
+pkg/logging/sanitize_test.go:private-key:230
