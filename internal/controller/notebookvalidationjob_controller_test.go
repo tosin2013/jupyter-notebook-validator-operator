@@ -276,7 +276,9 @@ var _ = Describe("NotebookValidationJob Controller", func() {
 			Expect(k8sClient.Create(ctx, job)).To(Succeed())
 
 			By("Setting status to Succeeded")
+			now := metav1.Now()
 			job.Status.Phase = PhaseSucceeded
+			job.Status.CompletionTime = &now
 			Expect(k8sClient.Status().Update(ctx, job)).To(Succeed())
 
 			// Verify status was set
@@ -325,7 +327,9 @@ var _ = Describe("NotebookValidationJob Controller", func() {
 			Expect(k8sClient.Create(ctx, job)).To(Succeed())
 
 			By("Setting status to Failed")
+			now := metav1.Now()
 			job.Status.Phase = PhaseFailed
+			job.Status.CompletionTime = &now
 			Expect(k8sClient.Status().Update(ctx, job)).To(Succeed())
 
 			// Verify status was set

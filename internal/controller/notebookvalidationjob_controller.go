@@ -181,8 +181,39 @@ func (r *NotebookValidationJobReconciler) Reconcile(ctx context.Context, req ctr
 
 	// Check if validation is already complete
 	if job.Status.Phase == PhaseSucceeded || job.Status.Phase == PhaseFailed {
-		logger.Info("NotebookValidationJob already complete", "phase", job.Status.Phase)
-		return ctrl.Result{}, nil
+		// Sanity check: If phase is terminal but completion time is not set,
+		// this might be stale cache data from a conflict error. Re-fetch from etcd.
+		if job.Status.CompletionTime == nil {
+			logger.Info("Terminal phase detected without completion time - re-fetching from etcd to verify",
+				"phase", job.Status.Phase,
+				"resourceVersion", job.ResourceVersion)
+
+			// Force fetch from etcd (bypass cache)
+			freshJob := &mlopsv1alpha1.NotebookValidationJob{}
+			if err := r.Client.Get(ctx, req.NamespacedName, freshJob); err != nil {
+				logger.Error(err, "Failed to re-fetch job from etcd")
+				return ctrl.Result{}, err
+			}
+
+			// Update our local reference to the fresh object
+			*job = *freshJob
+			logger.Info("Re-fetched job from etcd",
+				"phase", job.Status.Phase,
+				"completionTime", job.Status.CompletionTime,
+				"resourceVersion", job.ResourceVersion)
+
+			// If still in terminal phase with completion time, it's legitimate
+			if (job.Status.Phase == PhaseSucceeded || job.Status.Phase == PhaseFailed) && job.Status.CompletionTime != nil {
+				logger.Info("NotebookValidationJob already complete (verified from etcd)", "phase", job.Status.Phase)
+				return ctrl.Result{}, nil
+			}
+
+			// Otherwise, continue processing with fresh data
+			logger.Info("Job was not actually complete - continuing with fresh data", "phase", job.Status.Phase)
+		} else {
+			logger.Info("NotebookValidationJob already complete", "phase", job.Status.Phase)
+			return ctrl.Result{}, nil
+		}
 	}
 
 	// Check retry limit
