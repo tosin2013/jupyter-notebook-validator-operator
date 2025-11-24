@@ -571,6 +571,93 @@ jobs:
           echo ""
           echo "Note: KServe tests (01, 02) require manual infrastructure setup and are not run in CI/CD"
 
+      - name: Run Tier 4 tests (S2I/BuildConfig)
+        if: github.event.inputs.test_tier == '4' || github.event.inputs.test_tier == 'all' || github.event.inputs.test_tier == ''
+        env:
+          TEST_REPO_URL: ${{ env.TEST_REPO }}
+          TEST_NS: ${{ env.TEST_NAMESPACE }}
+        run: |
+          echo "=== Running Tier 4 Tests (S2I/BuildConfig validation) ==="
+
+          # Test 01: S2I Python build with pandas
+          echo "Creating Tier 4 Test 01: S2I Python build..."
+          cat <<EOF | oc apply -n ${TEST_NS} -f -
+          apiVersion: mlops.mlops.dev/v1alpha1
+          kind: NotebookValidationJob
+          metadata:
+            name: tier4-test-01-s2i-python-build
+            labels:
+              tier: "4"
+          spec:
+            notebook:
+              git:
+                url: "${TEST_REPO_URL}"
+                ref: "main"
+                credentialsSecret: "git-credentials"
+              path: "notebooks/tier4-s2i/01-s2i-python-build.ipynb"
+            podConfig:
+              containerImage: "quay.io/jupyter/minimal-notebook:latest"
+              buildConfig:
+                enabled: true
+                strategy: "s2i"
+            timeout: "15m"
+          EOF
+
+          # Wait 10 seconds before creating next test
+          echo "Waiting 10s before creating next test..."
+          sleep 10
+
+          # Test 02: S2I custom requirements
+          echo "Creating Tier 4 Test 02: S2I custom requirements..."
+          cat <<EOF | oc apply -n ${TEST_NS} -f -
+          apiVersion: mlops.mlops.dev/v1alpha1
+          kind: NotebookValidationJob
+          metadata:
+            name: tier4-test-02-s2i-custom-requirements
+            labels:
+              tier: "4"
+          spec:
+            notebook:
+              git:
+                url: "${TEST_REPO_URL}"
+                ref: "main"
+                credentialsSecret: "git-credentials"
+              path: "notebooks/tier4-s2i/02-s2i-custom-requirements.ipynb"
+            podConfig:
+              containerImage: "quay.io/jupyter/minimal-notebook:latest"
+              buildConfig:
+                enabled: true
+                strategy: "s2i"
+            timeout: "15m"
+          EOF
+
+          echo "All Tier 4 tests created with staggered timing"
+
+          # Wait for tests to complete
+          echo "Waiting for Tier 4 tests to complete (may take 10-15 minutes)..."
+          for i in {1..180}; do
+            COMPLETED=$(oc get notebookvalidationjobs -n ${TEST_NS} -l tier=4 -o jsonpath='{.items[?(@.status.phase=="Succeeded")].metadata.name}' | wc -w)
+            FAILED=$(oc get notebookvalidationjobs -n ${TEST_NS} -l tier=4 -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
+
+            if [ $((COMPLETED + FAILED)) -eq 2 ]; then
+              break
+            fi
+
+            echo "Progress: ${COMPLETED} succeeded, ${FAILED} failed (waiting...)"
+            sleep 10
+          done
+
+          # Check results
+          oc get notebookvalidationjobs -n ${TEST_NS}
+
+          FAILED=$(oc get notebookvalidationjobs -n ${TEST_NS} -l tier=4 -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
+          if [ $FAILED -gt 0 ]; then
+            echo "❌ Some Tier 4 tests failed!"
+            exit 1
+          fi
+
+          echo "✅ Tier 4 tests completed successfully"
+
       - name: Collect test results
         if: always()
         run: |
