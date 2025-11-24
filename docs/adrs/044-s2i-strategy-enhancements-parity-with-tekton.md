@@ -316,6 +316,8 @@ INFO  If on OpenShift, manually grant SCC: oc adm policy...
 ## References
 
 - **S2I Strategy**: `pkg/build/s2i_strategy.go`
+- **Tekton Strategy**: `pkg/build/tekton_strategy.go`
+- **SCC Helper** (shared): `pkg/build/scc_helper.go` (refactoring to eliminate duplication)
 - **Strategy Registry**: `pkg/build/strategy.go:115`
 - **S2I Tests**: `pkg/build/s2i_strategy_test.go`
 - **Related ADRs**:
@@ -345,9 +347,76 @@ INFO  If on OpenShift, manually grant SCC: oc adm policy...
 3. **Developer Experience**: Consistent behavior regardless of strategy choice
 4. **ADR Compliance**: Implementation plan requires these for production readiness
 
+### Code Quality Improvements (Post-Implementation)
+
+**Refactoring to Eliminate Code Duplication** (commit: TBD):
+
+After initial implementation, the SCC management code was identical between S2I and Tekton strategies (lines 87-187 in s2i_strategy.go and 221-319 in tekton_strategy.go). This triggered `dupl` linter warnings about code duplication.
+
+**Solution**: Extracted shared SCC management to `pkg/build/scc_helper.go`
+
+**New Architecture**:
+```
+pkg/build/
+├── scc_helper.go          ← New: Shared SCC management
+│   ├── NewSCCHelper()
+│   ├── EnsureServiceAccount()
+│   ├── GrantSCCToServiceAccount()
+│   └── EnsureBuildServiceAccountWithSCC()
+├── s2i_strategy.go        ← Refactored: Uses SCCHelper
+└── tekton_strategy.go     ← Refactored: Uses SCCHelper
+```
+
+**Benefits**:
+1. ✅ **Eliminated Duplication**: Removed ~100 lines of duplicate code
+2. ✅ **Single Source of Truth**: SCC logic maintained in one place
+3. ✅ **Easier Testing**: Can test SCC helper independently
+4. ✅ **Cleaner Linting**: No more `dupl` warnings
+5. ✅ **Better Maintainability**: Security fixes apply to both strategies automatically
+6. ✅ **Extensibility**: New build strategies can easily reuse SCCHelper
+
+**Code Comparison**:
+
+Before (101 lines per strategy):
+```go
+// s2i_strategy.go:87-187
+func (s *S2IStrategy) ensureBuildServiceAccount(ctx, namespace) {
+    // Step 1: Create ServiceAccount (40 lines)
+    // Step 2: Grant SCC (60 lines)
+}
+func (s *S2IStrategy) grantSCCToServiceAccount(...) {
+    // SCC management (60 lines)
+}
+```
+
+After (14 lines per strategy):
+```go
+// s2i_strategy.go:87-100
+func (s *S2IStrategy) ensureBuildServiceAccount(ctx, namespace) {
+    sccHelper := NewSCCHelper(s.client, s.apiReader)
+    labels := map[string]string{
+        "app.kubernetes.io/managed-by": "jupyter-notebook-validator-operator",
+        "app.kubernetes.io/component":  "s2i-build",
+    }
+    return sccHelper.EnsureBuildServiceAccountWithSCC(ctx, namespace, "builder", "pipelines-scc", labels)
+}
+```
+
+**Shared Helper** (`pkg/build/scc_helper.go`):
+```go
+type SCCHelper struct {
+    client    client.Client
+    apiReader client.Reader
+}
+
+func (h *SCCHelper) EnsureServiceAccount(ctx, namespace, name, labels)
+func (h *SCCHelper) GrantSCCToServiceAccount(ctx, namespace, sa, scc)
+func (h *SCCHelper) EnsureBuildServiceAccountWithSCC(ctx, namespace, sa, scc, labels)
+```
+
 ### Future Enhancements
 
-If additional build strategies are added (e.g., Buildpacks, Kaniko), they should implement:
-- ✅ Retry logic with exponential backoff
-- ✅ Automatic ServiceAccount and SCC management
-- ✅ Graceful degradation on non-OpenShift clusters
+If additional build strategies are added (e.g., Buildpacks, Kaniko), they should:
+- ✅ Use `NewSCCHelper()` for ServiceAccount and SCC management
+- ✅ Implement retry logic with exponential backoff
+- ✅ Ensure graceful degradation on non-OpenShift clusters

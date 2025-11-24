@@ -9,7 +9,6 @@ import (
 
 	buildv1 "github.com/openshift/api/build/v1"
 	imagev1 "github.com/openshift/api/image/v1"
-	securityv1 "github.com/openshift/api/security/v1"
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -84,106 +83,19 @@ func (s *S2IStrategy) Detect(ctx context.Context, client client.Client) (bool, e
 
 // ensureBuildServiceAccount ensures that a ServiceAccount exists for S2I builds
 // ADR-039 (adapted for S2I): Automatic SCC Management for S2I Builds
+// ADR-044: Refactored to use shared SCCHelper to eliminate code duplication
 func (s *S2IStrategy) ensureBuildServiceAccount(ctx context.Context, namespace string) error {
-	logger := log.FromContext(ctx)
+	// Use shared SCC helper for ServiceAccount and SCC management
+	sccHelper := NewSCCHelper(s.client, s.apiReader)
 
-	// Step 1: Ensure builder ServiceAccount exists
-	sa := &corev1.ServiceAccount{}
-	err := s.client.Get(ctx, client.ObjectKey{
-		Name:      "builder",
-		Namespace: namespace,
-	}, sa)
-
-	if err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf("failed to check builder ServiceAccount: %w", err)
+	labels := map[string]string{
+		"app.kubernetes.io/managed-by": "jupyter-notebook-validator-operator",
+		"app.kubernetes.io/component":  "s2i-build",
 	}
 
-	if errors.IsNotFound(err) {
-		// ServiceAccount doesn't exist, create it
-		logger.Info("Creating builder ServiceAccount", "namespace", namespace)
-		newSA := &corev1.ServiceAccount{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "builder",
-				Namespace: namespace,
-				Labels: map[string]string{
-					"app.kubernetes.io/managed-by": "jupyter-notebook-validator-operator",
-					"app.kubernetes.io/component":  "s2i-build",
-				},
-			},
-		}
-
-		if err := s.client.Create(ctx, newSA); err != nil {
-			return fmt.Errorf("failed to create builder ServiceAccount: %w", err)
-		}
-		logger.Info("Successfully created builder ServiceAccount", "namespace", namespace)
-	} else {
-		logger.V(1).Info("builder ServiceAccount already exists", "namespace", namespace)
-	}
-
-	// Step 2: Automatically grant pipelines-scc to the ServiceAccount for builds
-	// ADR-039 (adapted): Operator should automatically configure SCC for S2I builds
 	// SECURITY: Use pipelines-scc (not anyuid) for better security posture
 	// pipelines-scc is more restrictive (SETFCAP only) while still supporting builds
-	if err := s.grantSCCToServiceAccount(ctx, namespace, "builder", "pipelines-scc"); err != nil {
-		// Log warning but don't fail - this might be a Kubernetes cluster without SCCs
-		logger.Info("Failed to grant SCC (might be Kubernetes without OpenShift SCCs)",
-			"error", err,
-			"namespace", namespace,
-			"serviceAccount", "builder",
-			"scc", "pipelines-scc")
-		logger.Info("If on OpenShift, manually grant SCC: oc adm policy add-scc-to-user pipelines-scc -z builder -n " + namespace)
-	}
-
-	return nil
-}
-
-// grantSCCToServiceAccount grants a SecurityContextConstraint to a ServiceAccount
-// This automates the manual "oc adm policy add-scc-to-user" command
-func (s *S2IStrategy) grantSCCToServiceAccount(ctx context.Context, namespace, serviceAccount, sccName string) error {
-	logger := log.FromContext(ctx)
-
-	// Get the SCC using APIReader (non-cached) to avoid triggering watch/list attempts
-	// Since we only need to Get specific SCCs by name, we don't need caching
-	scc := &securityv1.SecurityContextConstraints{}
-	err := s.apiReader.Get(ctx, client.ObjectKey{Name: sccName}, scc)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			// SCC doesn't exist - likely Kubernetes without OpenShift
-			return fmt.Errorf("SCC %s not found (Kubernetes cluster?): %w", sccName, err)
-		}
-		return fmt.Errorf("failed to get SCC %s: %w", sccName, err)
-	}
-
-	// Check if ServiceAccount already has the SCC
-	serviceAccountUser := fmt.Sprintf("system:serviceaccount:%s:%s", namespace, serviceAccount)
-	for _, user := range scc.Users {
-		if user == serviceAccountUser {
-			logger.V(1).Info("ServiceAccount already has SCC",
-				"namespace", namespace,
-				"serviceAccount", serviceAccount,
-				"scc", sccName)
-			return nil
-		}
-	}
-
-	// Add ServiceAccount to SCC users
-	logger.Info("Granting SCC to ServiceAccount",
-		"namespace", namespace,
-		"serviceAccount", serviceAccount,
-		"scc", sccName)
-
-	scc.Users = append(scc.Users, serviceAccountUser)
-
-	if err := s.client.Update(ctx, scc); err != nil {
-		return fmt.Errorf("failed to update SCC %s: %w", sccName, err)
-	}
-
-	logger.Info("Successfully granted SCC to ServiceAccount",
-		"namespace", namespace,
-		"serviceAccount", serviceAccount,
-		"scc", sccName)
-
-	return nil
+	return sccHelper.EnsureBuildServiceAccountWithSCC(ctx, namespace, "builder", "pipelines-scc", labels)
 }
 
 // CreateBuild creates an S2I build for the notebook
