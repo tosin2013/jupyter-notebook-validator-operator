@@ -165,6 +165,20 @@ jobs:
 
       - name: Install operator
         run: |
+          echo "Cleaning up any previous operator installation..."
+          make undeploy || true
+          make uninstall || true
+
+          # Wait for resources to be deleted
+          echo "Waiting for previous operator resources to be deleted..."
+          oc delete deployment notebook-validator-controller-manager \
+            -n ${{ env.OPERATOR_NAMESPACE }} --ignore-not-found=true --timeout=30s || true
+          oc delete mutatingwebhookconfiguration notebook-validator-mutating-webhook-configuration \
+            --ignore-not-found=true || true
+          oc delete validatingwebhookconfiguration notebook-validator-validating-webhook-configuration \
+            --ignore-not-found=true || true
+          sleep 5
+
           echo "Installing CRDs..."
           make install
 
