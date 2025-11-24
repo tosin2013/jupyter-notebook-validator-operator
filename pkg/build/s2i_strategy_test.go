@@ -20,7 +20,7 @@ func TestNewS2IStrategy(t *testing.T) {
 	_ = imagev1.AddToScheme(scheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	strategy := NewS2IStrategy(fakeClient, scheme)
+	strategy := NewS2IStrategy(fakeClient, fakeClient, scheme)
 
 	if strategy == nil {
 		t.Fatal("NewS2IStrategy returned nil")
@@ -39,7 +39,7 @@ func TestS2IStrategyName(t *testing.T) {
 	_ = imagev1.AddToScheme(scheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	strategy := NewS2IStrategy(fakeClient, scheme)
+	strategy := NewS2IStrategy(fakeClient, fakeClient, scheme)
 
 	if strategy.Name() != "s2i" {
 		t.Errorf("Name() = %v, want s2i", strategy.Name())
@@ -54,7 +54,7 @@ func TestS2IStrategyDetect(t *testing.T) {
 	_ = imagev1.AddToScheme(scheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	strategy := NewS2IStrategy(fakeClient, scheme)
+	strategy := NewS2IStrategy(fakeClient, fakeClient, scheme)
 	ctx := context.Background()
 
 	// In a test environment without real OpenShift, detection should return false or error
@@ -77,7 +77,7 @@ func TestS2IStrategyValidateConfig(t *testing.T) {
 	_ = imagev1.AddToScheme(scheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	strategy := NewS2IStrategy(fakeClient, scheme)
+	strategy := NewS2IStrategy(fakeClient, fakeClient, scheme)
 
 	tests := []ValidateConfigTestCase{
 		{
@@ -119,7 +119,7 @@ func TestS2IStrategyCreateBuild(t *testing.T) {
 	_ = imagev1.AddToScheme(scheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	strategy := NewS2IStrategy(fakeClient, scheme)
+	strategy := NewS2IStrategy(fakeClient, fakeClient, scheme)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -267,7 +267,7 @@ func TestS2IStrategyGetBuildStatus(t *testing.T) {
 		WithObjects(build).
 		Build()
 
-	strategy := NewS2IStrategy(fakeClient, scheme)
+	strategy := NewS2IStrategy(fakeClient, fakeClient, scheme)
 	ctx := context.Background()
 
 	buildInfo, err := strategy.GetBuildStatus(ctx, "test-build")
@@ -302,7 +302,7 @@ func TestS2IStrategyDeleteBuild(t *testing.T) {
 		WithObjects(build).
 		Build()
 
-	strategy := NewS2IStrategy(fakeClient, scheme)
+	strategy := NewS2IStrategy(fakeClient, fakeClient, scheme)
 	ctx := context.Background()
 
 	err := strategy.DeleteBuild(ctx, "test-build")

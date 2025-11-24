@@ -9,6 +9,7 @@ import (
 
 	buildv1 "github.com/openshift/api/build/v1"
 	imagev1 "github.com/openshift/api/image/v1"
+	securityv1 "github.com/openshift/api/security/v1"
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -25,15 +26,17 @@ const (
 
 // S2IStrategy implements the Strategy interface for OpenShift Source-to-Image builds
 type S2IStrategy struct {
-	client client.Client
-	scheme *runtime.Scheme
+	client    client.Client
+	apiReader client.Reader // Non-cached client for SCC Gets
+	scheme    *runtime.Scheme
 }
 
 // NewS2IStrategy creates a new S2I build strategy
-func NewS2IStrategy(client client.Client, scheme *runtime.Scheme) *S2IStrategy {
+func NewS2IStrategy(client client.Client, apiReader client.Reader, scheme *runtime.Scheme) *S2IStrategy {
 	return &S2IStrategy{
-		client: client,
-		scheme: scheme,
+		client:    client,
+		apiReader: apiReader,
+		scheme:    scheme,
 	}
 }
 
@@ -79,8 +82,112 @@ func (s *S2IStrategy) Detect(ctx context.Context, client client.Client) (bool, e
 	return true, nil
 }
 
+// ensureBuildServiceAccount ensures that a ServiceAccount exists for S2I builds
+// ADR-039 (adapted for S2I): Automatic SCC Management for S2I Builds
+func (s *S2IStrategy) ensureBuildServiceAccount(ctx context.Context, namespace string) error {
+	logger := log.FromContext(ctx)
+
+	// Step 1: Ensure builder ServiceAccount exists
+	sa := &corev1.ServiceAccount{}
+	err := s.client.Get(ctx, client.ObjectKey{
+		Name:      "builder",
+		Namespace: namespace,
+	}, sa)
+
+	if err != nil && !errors.IsNotFound(err) {
+		return fmt.Errorf("failed to check builder ServiceAccount: %w", err)
+	}
+
+	if errors.IsNotFound(err) {
+		// ServiceAccount doesn't exist, create it
+		logger.Info("Creating builder ServiceAccount", "namespace", namespace)
+		newSA := &corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "builder",
+				Namespace: namespace,
+				Labels: map[string]string{
+					"app.kubernetes.io/managed-by": "jupyter-notebook-validator-operator",
+					"app.kubernetes.io/component":  "s2i-build",
+				},
+			},
+		}
+
+		if err := s.client.Create(ctx, newSA); err != nil {
+			return fmt.Errorf("failed to create builder ServiceAccount: %w", err)
+		}
+		logger.Info("Successfully created builder ServiceAccount", "namespace", namespace)
+	} else {
+		logger.V(1).Info("builder ServiceAccount already exists", "namespace", namespace)
+	}
+
+	// Step 2: Automatically grant anyuid SCC to the ServiceAccount for Docker builds
+	// ADR-039 (adapted): Operator should automatically configure SCC for S2I Docker builds
+	if err := s.grantSCCToServiceAccount(ctx, namespace, "builder", "anyuid"); err != nil {
+		// Log warning but don't fail - this might be a Kubernetes cluster without SCCs
+		logger.Info("Failed to grant SCC (might be Kubernetes without OpenShift SCCs)",
+			"error", err,
+			"namespace", namespace,
+			"serviceAccount", "builder",
+			"scc", "anyuid")
+		logger.Info("If on OpenShift, manually grant SCC: oc adm policy add-scc-to-user anyuid -z builder -n " + namespace)
+	}
+
+	return nil
+}
+
+// grantSCCToServiceAccount grants a SecurityContextConstraint to a ServiceAccount
+// This automates the manual "oc adm policy add-scc-to-user" command
+func (s *S2IStrategy) grantSCCToServiceAccount(ctx context.Context, namespace, serviceAccount, sccName string) error {
+	logger := log.FromContext(ctx)
+
+	// Get the SCC using APIReader (non-cached) to avoid triggering watch/list attempts
+	// Since we only need to Get specific SCCs by name, we don't need caching
+	scc := &securityv1.SecurityContextConstraints{}
+	err := s.apiReader.Get(ctx, client.ObjectKey{Name: sccName}, scc)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// SCC doesn't exist - likely Kubernetes without OpenShift
+			return fmt.Errorf("SCC %s not found (Kubernetes cluster?): %w", sccName, err)
+		}
+		return fmt.Errorf("failed to get SCC %s: %w", sccName, err)
+	}
+
+	// Check if ServiceAccount already has the SCC
+	serviceAccountUser := fmt.Sprintf("system:serviceaccount:%s:%s", namespace, serviceAccount)
+	for _, user := range scc.Users {
+		if user == serviceAccountUser {
+			logger.V(1).Info("ServiceAccount already has SCC",
+				"namespace", namespace,
+				"serviceAccount", serviceAccount,
+				"scc", sccName)
+			return nil
+		}
+	}
+
+	// Add ServiceAccount to SCC users
+	logger.Info("Granting SCC to ServiceAccount",
+		"namespace", namespace,
+		"serviceAccount", serviceAccount,
+		"scc", sccName)
+
+	scc.Users = append(scc.Users, serviceAccountUser)
+
+	if err := s.client.Update(ctx, scc); err != nil {
+		return fmt.Errorf("failed to update SCC %s: %w", sccName, err)
+	}
+
+	logger.Info("Successfully granted SCC to ServiceAccount",
+		"namespace", namespace,
+		"serviceAccount", serviceAccount,
+		"scc", sccName)
+
+	return nil
+}
+
 // CreateBuild creates an S2I build for the notebook
 // ADR-038: Supports requirements.txt auto-detection with Docker build strategy
+// ADR-039 (adapted): Automatic SCC management for S2I builds
+// ADR-030 (adapted): Retry logic with exponential backoff for resource verification
 func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (*BuildInfo, error) {
 	// Check if BuildConfig is provided
 	if job.Spec.PodConfig.BuildConfig == nil {
@@ -99,6 +206,14 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 	}
 
 	logger := log.FromContext(ctx)
+
+	// ADR-039 (adapted): Ensure ServiceAccount exists and has required SCCs
+	if err := s.ensureBuildServiceAccount(ctx, job.Namespace); err != nil {
+		// Log warning but don't fail - SCC management might not be available on Kubernetes
+		logger.Info("Failed to ensure build ServiceAccount (continuing anyway)",
+			"error", err,
+			"namespace", job.Namespace)
+	}
 
 	// ADR-038: Determine build strategy based on requirements.txt detection
 	// For S2I, we generate an inline Dockerfile when AutoGenerateRequirements is true
@@ -218,9 +333,45 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 			logger.Error(err, "Failed to create BuildConfig", "buildConfigName", buildName)
 			return nil, fmt.Errorf("failed to create BuildConfig: %w", err)
 		}
-		logger.Info("BuildConfig already exists", "buildConfigName", buildName)
+		logger.Info("BuildConfig already exists, fetching existing", "buildConfigName", buildName)
+		existingBC := &buildv1.BuildConfig{}
+		if err := s.client.Get(ctx, client.ObjectKey{Name: buildName, Namespace: job.Namespace}, existingBC); err != nil {
+			return nil, fmt.Errorf("failed to get existing BuildConfig: %w", err)
+		}
+		bc = existingBC
 	} else {
 		logger.Info("BuildConfig created successfully", "buildConfigName", buildName)
+	}
+
+	// ADR-030 (adapted): Verify BuildConfig was actually created with retry
+	// Kubernetes API may take a moment to reflect the created resource
+	verifyBC := &buildv1.BuildConfig{}
+	maxRetries := 5
+	retryDelay := 100 * time.Millisecond
+	var lastErr error
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			time.Sleep(retryDelay)
+			retryDelay *= 2 // Exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms
+		}
+
+		lastErr = s.client.Get(ctx, client.ObjectKey{Name: buildName, Namespace: job.Namespace}, verifyBC)
+		if lastErr == nil {
+			logger.Info("BuildConfig verified successfully", "buildConfig", buildName, "namespace", job.Namespace, "attempts", attempt+1)
+			break
+		}
+
+		if !errors.IsNotFound(lastErr) {
+			// Non-NotFound error, fail immediately
+			return nil, fmt.Errorf("buildconfig creation verification failed: %w", lastErr)
+		}
+
+		logger.V(1).Info("BuildConfig not found yet, retrying", "attempt", attempt+1, "maxRetries", maxRetries)
+	}
+
+	if lastErr != nil {
+		return nil, fmt.Errorf("buildconfig creation verification failed after %d retries: %w", maxRetries, lastErr)
 	}
 
 	// BuildConfig created with ConfigChange trigger - build will start automatically

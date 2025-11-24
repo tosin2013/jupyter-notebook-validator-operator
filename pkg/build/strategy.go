@@ -112,7 +112,7 @@ func NewStrategyRegistry(client client.Client, apiReader client.Reader, scheme *
 	}
 
 	// Register all available strategies
-	registry.Register(NewS2IStrategy(client, scheme))
+	registry.Register(NewS2IStrategy(client, apiReader, scheme))
 	registry.Register(NewTektonStrategy(client, apiReader, scheme))
 
 	return registry
