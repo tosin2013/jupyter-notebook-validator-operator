@@ -348,6 +348,7 @@ func (r *NotebookValidationJobReconciler) reconcileBuilding(ctx context.Context,
 		}
 
 		// Update build status
+		originalBuildStatus := job.Status.BuildStatus
 		job.Status.BuildStatus = &mlopsv1alpha1.BuildStatus{
 			Phase:     "Running",
 			Message:   "Build created and started",
@@ -356,6 +357,8 @@ func (r *NotebookValidationJobReconciler) reconcileBuilding(ctx context.Context,
 			StartTime: &metav1.Time{Time: time.Now()},
 		}
 		if err := r.Status().Update(ctx, job); err != nil {
+			// Restore original build status on failure
+			job.Status.BuildStatus = originalBuildStatus
 			logger.Error(err, "Failed to update build status")
 			return ctrl.Result{}, err
 		}
@@ -381,6 +384,7 @@ func (r *NotebookValidationJobReconciler) reconcileBuilding(ctx context.Context,
 		logger.Info("Build completed successfully", "image", buildInfo.ImageReference, "duration", duration)
 
 		// Update build status with completion details
+		originalBuildStatus := job.Status.BuildStatus
 		job.Status.BuildStatus = &mlopsv1alpha1.BuildStatus{
 			Phase:          "Complete",
 			Message:        "Build completed successfully",
@@ -392,6 +396,8 @@ func (r *NotebookValidationJobReconciler) reconcileBuilding(ctx context.Context,
 			Duration:       duration,
 		}
 		if err := r.Status().Update(ctx, job); err != nil {
+			// Restore original build status on failure
+			job.Status.BuildStatus = originalBuildStatus
 			logger.Error(err, "Failed to update build status")
 			return ctrl.Result{}, err
 		}
@@ -404,6 +410,7 @@ func (r *NotebookValidationJobReconciler) reconcileBuilding(ctx context.Context,
 		logger.Error(nil, "Build failed", "message", buildInfo.Message, "duration", duration)
 
 		// Update build status with failure details
+		originalBuildStatus := job.Status.BuildStatus
 		job.Status.BuildStatus = &mlopsv1alpha1.BuildStatus{
 			Phase:          "Failed",
 			Message:        fmt.Sprintf("Build failed: %s", buildInfo.Message),
@@ -414,6 +421,8 @@ func (r *NotebookValidationJobReconciler) reconcileBuilding(ctx context.Context,
 			Duration:       duration,
 		}
 		if err := r.Status().Update(ctx, job); err != nil {
+			// Restore original build status on failure
+			job.Status.BuildStatus = originalBuildStatus
 			logger.Error(err, "Failed to update build status")
 			return ctrl.Result{}, err
 		}
@@ -427,10 +436,13 @@ func (r *NotebookValidationJobReconciler) reconcileBuilding(ctx context.Context,
 
 		// Update build status with current progress
 		if job.Status.BuildStatus != nil {
+			originalBuildStatus := job.Status.BuildStatus.DeepCopy()
 			job.Status.BuildStatus.Phase = string(buildInfo.Status)
 			job.Status.BuildStatus.Message = fmt.Sprintf("Build %s", buildInfo.Status)
 			job.Status.BuildStatus.Duration = duration
 			if err := r.Status().Update(ctx, job); err != nil {
+				// Restore original build status on failure
+				job.Status.BuildStatus = originalBuildStatus
 				logger.Error(err, "Failed to update build status")
 			}
 		}
