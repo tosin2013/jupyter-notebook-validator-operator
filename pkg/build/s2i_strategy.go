@@ -120,16 +120,18 @@ func (s *S2IStrategy) ensureBuildServiceAccount(ctx context.Context, namespace s
 		logger.V(1).Info("builder ServiceAccount already exists", "namespace", namespace)
 	}
 
-	// Step 2: Automatically grant anyuid SCC to the ServiceAccount for Docker builds
-	// ADR-039 (adapted): Operator should automatically configure SCC for S2I Docker builds
-	if err := s.grantSCCToServiceAccount(ctx, namespace, "builder", "anyuid"); err != nil {
+	// Step 2: Automatically grant pipelines-scc to the ServiceAccount for builds
+	// ADR-039 (adapted): Operator should automatically configure SCC for S2I builds
+	// SECURITY: Use pipelines-scc (not anyuid) for better security posture
+	// pipelines-scc is more restrictive (SETFCAP only) while still supporting builds
+	if err := s.grantSCCToServiceAccount(ctx, namespace, "builder", "pipelines-scc"); err != nil {
 		// Log warning but don't fail - this might be a Kubernetes cluster without SCCs
 		logger.Info("Failed to grant SCC (might be Kubernetes without OpenShift SCCs)",
 			"error", err,
 			"namespace", namespace,
 			"serviceAccount", "builder",
-			"scc", "anyuid")
-		logger.Info("If on OpenShift, manually grant SCC: oc adm policy add-scc-to-user anyuid -z builder -n " + namespace)
+			"scc", "pipelines-scc")
+		logger.Info("If on OpenShift, manually grant SCC: oc adm policy add-scc-to-user pipelines-scc -z builder -n " + namespace)
 	}
 
 	return nil

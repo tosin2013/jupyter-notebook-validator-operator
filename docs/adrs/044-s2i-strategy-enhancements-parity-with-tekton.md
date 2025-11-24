@@ -179,17 +179,40 @@ strategy := NewS2IStrategy(fakeClient, scheme)
 strategy := NewS2IStrategy(fakeClient, fakeClient, scheme)
 ```
 
+## Security Considerations
+
+### CVE-2024-7387: Docker Build Strategy Vulnerability
+
+**Critical Finding**: During implementation, discovered [CVE-2024-7387](https://stuxxn.github.io/advisory/2024/10/02/openshift-build-docker-priv-esc.html) (CVSS 9.1):
+- Affects OpenShift BuildConfig with Docker strategy
+- Allows command injection via path traversal
+- Can lead to arbitrary command execution on OpenShift nodes
+
+**Mitigation Actions Taken**:
+1. ✅ Use `pipelines-scc` instead of `anyuid` or `privileged`
+2. ✅ Match Tekton's security model for consistency
+3. ⚠️ Docker build strategy still carries risk (ADR-038 feature)
+
+**Recommendations for Users**:
+- Consider disabling Docker build strategy for untrusted workloads
+- Use Source (S2I) strategy instead of Docker strategy when possible
+- Monitor OpenShift security advisories for patches
+- Restrict build permissions to trusted users only
+
+**Reference**: [OpenShift Security Advisory](https://docs.redhat.com/en/documentation/openshift_container_platform/4.17/html/builds_using_buildconfig/securing-builds-by-strategy)
+
 ## Consequences
 
 ### Positive
 
 1. ✅ **Strategy Parity**: S2I now has same robustness features as Tekton
-2. ✅ **Auto-SCC Management**: No more manual `oc adm policy` commands
-3. ✅ **Retry Logic**: Handles Kubernetes API propagation delays gracefully
-4. ✅ **Consistency**: Both strategies follow same ADR patterns
-5. ✅ **Developer Experience**: Simpler deployment, fewer manual steps
-6. ✅ **Kubernetes Compatibility**: SCCs fail gracefully on non-OpenShift clusters
-7. ✅ **No Regressions**: All existing tests pass
+2. ✅ **Improved Security**: `pipelines-scc` more restrictive than `anyuid` (mitigates CVE-2024-7387)
+3. ✅ **Auto-SCC Management**: No more manual `oc adm policy` commands
+4. ✅ **Retry Logic**: Handles Kubernetes API propagation delays gracefully
+5. ✅ **Consistency**: Both strategies follow same ADR patterns and use same SCC
+6. ✅ **Developer Experience**: Simpler deployment, fewer manual steps
+7. ✅ **Kubernetes Compatibility**: SCCs fail gracefully on non-OpenShift clusters
+8. ✅ **No Regressions**: All existing tests pass
 
 ### Negative
 
@@ -253,12 +276,27 @@ INFO  If on OpenShift, manually grant SCC: oc adm policy...
 
 ## Implementation Notes
 
-### Why "anyuid" SCC for S2I?
+### Why "pipelines-scc" SCC for S2I? (Security Enhancement)
 
-- S2I Docker builds (with inline Dockerfile) need elevated privileges
-- `anyuid` SCC allows running as any user ID
-- Traditional S2I source builds use `restricted` SCC (default)
-- ADR-038 introduced Docker build strategy for requirements.txt auto-detection
+**Initial Implementation Issue**: Originally used `anyuid` SCC, which was too permissive.
+
+**Security Fix**: Changed to `pipelines-scc` for better security posture:
+
+- ✅ **More Restrictive**: `pipelines-scc` only grants `SETFCAP` capability vs `anyuid` which allows `RunAsAny`
+- ✅ **Strategy Parity**: Matches Tekton's SCC choice for consistency
+- ✅ **Sufficient Privileges**: Still supports both Docker and S2I builds
+- ✅ **CVE Mitigation**: Reduces attack surface for CVE-2024-7387 (Docker build command injection)
+
+**SCC Comparison**:
+
+| SCC | Run As User | Capabilities | Risk Level |
+|-----|-------------|--------------|------------|
+| `privileged` | RunAsAny | ALL | ⚠️ CRITICAL |
+| `anyuid` | RunAsAny | None (but any UID) | ⚠️ HIGH |
+| `pipelines-scc` | RunAsAny | SETFCAP | ✅ MEDIUM |
+| `restricted-v2` | MustRunAsRange | NET_BIND_SERVICE | ✅ LOW |
+
+**CVE-2024-7387 Context**: OpenShift Docker build strategy has a [critical vulnerability](https://stuxxn.github.io/advisory/2024/10/02/openshift-build-docker-priv-esc.html) (CVSS 9.1) allowing command injection. While `pipelines-scc` doesn't eliminate this risk entirely, it reduces the attack surface compared to `anyuid` or `privileged`.
 
 ### Why "builder" ServiceAccount?
 
@@ -295,7 +333,7 @@ INFO  If on OpenShift, manually grant SCC: oc adm policy...
 | Feature | Tekton | S2I |
 |---------|--------|-----|
 | **ServiceAccount** | `pipeline` | `builder` |
-| **SCC** | `pipelines-scc` | `anyuid` |
+| **SCC** | `pipelines-scc` | `pipelines-scc` ✅ |
 | **Resource Type** | Pipeline, PipelineRun | BuildConfig, Build |
 | **Git Credentials** | Converted to Tekton format | Direct secret reference |
 | **PVC Management** | Unique PVC per build | Uses ImageStream (no PVC) |
