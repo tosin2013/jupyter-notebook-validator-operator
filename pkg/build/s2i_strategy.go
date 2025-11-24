@@ -247,12 +247,8 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 			logger.Error(err, "Failed to create BuildConfig", "buildConfigName", buildName)
 			return nil, fmt.Errorf("failed to create BuildConfig: %w", err)
 		}
-		logger.Info("BuildConfig already exists, fetching existing", "buildConfigName", buildName)
-		existingBC := &buildv1.BuildConfig{}
-		if err := s.client.Get(ctx, client.ObjectKey{Name: buildName, Namespace: job.Namespace}, existingBC); err != nil {
-			return nil, fmt.Errorf("failed to get existing BuildConfig: %w", err)
-		}
-		bc = existingBC
+		logger.Info("BuildConfig already exists, will be verified in retry loop", "buildConfigName", buildName)
+		// Note: existingBC not needed - verification loop below will confirm it exists
 	} else {
 		logger.Info("BuildConfig created successfully", "buildConfigName", buildName)
 	}
