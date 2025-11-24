@@ -45,26 +45,18 @@ func TestGetGitImage(t *testing.T) {
 			description: "Should use GIT_INIT_IMAGE when set",
 		},
 		{
-			name: "OpenShift platform via PLATFORM env",
+			name: "default - unified RHEL9 git-init image",
 			envVars: map[string]string{
 				"PLATFORM": "openshift",
 			},
-			expected:    "registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:4fabae1312c1aaf8a57bd2de63bd040956faa0c728453f2a4b4002705fba0f0c",
-			description: "Should use OpenShift git-init image when PLATFORM=openshift",
+			expected:    "quay.io/takinosh/git-init-rhel9:latest",
+			description: "Should use unified RHEL9 git-init image for all platforms",
 		},
 		{
-			name: "OpenShift platform via OPENSHIFT_BUILD_NAMESPACE",
-			envVars: map[string]string{
-				"OPENSHIFT_BUILD_NAMESPACE": "my-namespace",
-			},
-			expected:    "registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:4fabae1312c1aaf8a57bd2de63bd040956faa0c728453f2a4b4002705fba0f0c",
-			description: "Should use OpenShift git-init image when OPENSHIFT_BUILD_NAMESPACE is set",
-		},
-		{
-			name:        "default Kubernetes",
+			name:        "default - no environment variables set",
 			envVars:     map[string]string{},
-			expected:    "bitnami/git:latest",
-			description: "Should use bitnami/git for vanilla Kubernetes",
+			expected:    "quay.io/takinosh/git-init-rhel9:latest",
+			description: "Should use unified RHEL9 git-init image by default",
 		},
 	}
 
