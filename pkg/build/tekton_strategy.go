@@ -11,6 +11,7 @@ import (
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -80,6 +81,60 @@ func (t *TektonStrategy) Detect(ctx context.Context, client client.Client) (bool
 
 	logger.Info("Tekton available: TaskRun API detected", "taskRunCount", len(taskRunList.Items))
 	return true, nil
+}
+
+// ensureBuildPVC creates a unique PVC for the build if it doesn't exist
+// ADR-040: Use unique PVC per build to avoid workspace contention with ReadWriteOnce
+func (t *TektonStrategy) ensureBuildPVC(ctx context.Context, namespace, pvcName string) error {
+	logger := log.FromContext(ctx)
+
+	// Check if PVC already exists
+	existingPVC := &corev1.PersistentVolumeClaim{}
+	err := t.client.Get(ctx, client.ObjectKey{
+		Name:      pvcName,
+		Namespace: namespace,
+	}, existingPVC)
+
+	if err == nil {
+		// PVC already exists
+		logger.V(1).Info("Build PVC already exists", "pvc", pvcName, "namespace", namespace)
+		return nil
+	}
+
+	if !errors.IsNotFound(err) {
+		return fmt.Errorf("failed to check build PVC: %w", err)
+	}
+
+	// Create PVC
+	logger.Info("Creating build PVC", "pvc", pvcName, "namespace", namespace)
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pvcName,
+			Namespace: namespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/managed-by":     "jupyter-notebook-validator-operator",
+				"app.kubernetes.io/component":      "tekton-build",
+				"mlops.redhat.com/build-workspace": "true",
+			},
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{
+				corev1.ReadWriteOnce, // RWO is sufficient since each build has its own PVC
+			},
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("1Gi"),
+				},
+			},
+		},
+	}
+
+	if err := t.client.Create(ctx, pvc); err != nil {
+		return fmt.Errorf("failed to create build PVC: %w", err)
+	}
+
+	logger.Info("Successfully created build PVC", "pvc", pvcName, "namespace", namespace)
+	return nil
 }
 
 // ensureTasksInNamespace copies required Tekton Tasks from openshift-pipelines namespace to the target namespace
@@ -398,6 +453,14 @@ func (t *TektonStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Not
 	buildConfig := job.Spec.PodConfig.BuildConfig
 	buildName := fmt.Sprintf("%s-build", job.Name)
 
+	// ADR-040: Create unique PVC per build to avoid workspace contention
+	// This allows concurrent builds without ReadWriteOnce limitations
+	pvcName := fmt.Sprintf("%s-workspace", buildName)
+	logger.Info("Creating unique PVC for build", "pvc", pvcName, "namespace", job.Namespace)
+	if err := t.ensureBuildPVC(ctx, job.Namespace, pvcName); err != nil {
+		return nil, fmt.Errorf("failed to ensure build PVC: %w", err)
+	}
+
 	// Get registry configuration from strategyConfig or use defaults
 	registry := "image-registry.openshift-image-registry.svc:5000"
 	if val, ok := buildConfig.StrategyConfig["registry"]; ok {
@@ -454,7 +517,7 @@ func (t *TektonStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Not
 	}
 
 	// Create PipelineRun
-	pipelineRun := t.createPipelineRun(job, buildName, pipeline.Name)
+	pipelineRun := t.createPipelineRun(job, buildName, pipeline.Name, pvcName)
 	if err := t.client.Create(ctx, pipelineRun); err != nil {
 		if !errors.IsAlreadyExists(err) {
 			// ADR-030 Phase 1: Return error instead of continuing silently
@@ -729,7 +792,7 @@ cat $(workspaces.source.path)/Dockerfile
 }
 
 // createPipelineRun creates a PipelineRun for the build pipeline
-func (t *TektonStrategy) createPipelineRun(job *mlopsv1alpha1.NotebookValidationJob, buildName, pipelineName string) *tektonv1.PipelineRun {
+func (t *TektonStrategy) createPipelineRun(job *mlopsv1alpha1.NotebookValidationJob, buildName, pipelineName, pvcName string) *tektonv1.PipelineRun {
 	// Get base image (use default if not specified)
 	baseImage := "quay.io/jupyter/minimal-notebook:latest"
 	if job.Spec.PodConfig.BuildConfig != nil && job.Spec.PodConfig.BuildConfig.BaseImage != "" {
@@ -778,7 +841,8 @@ func (t *TektonStrategy) createPipelineRun(job *mlopsv1alpha1.NotebookValidation
 					{
 						Name: "shared-workspace",
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-							ClaimName: "tier2-build-workspace",
+							// ADR-040: Use unique PVC per build to avoid workspace contention
+							ClaimName: pvcName,
 						},
 					},
 				}

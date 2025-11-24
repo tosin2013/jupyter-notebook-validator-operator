@@ -400,19 +400,8 @@ jobs:
         run: |
           echo "=== Running Tier 2 Tests (Intermediate notebooks with Tekton builds) ==="
 
-          # Create PVC for Tekton builds
-          cat <<EOF | oc apply -n ${TEST_NS} -f -
-          apiVersion: v1
-          kind: PersistentVolumeClaim
-          metadata:
-            name: tier2-build-workspace
-          spec:
-            accessModes:
-              - ReadWriteOnce
-            resources:
-              requests:
-                storage: 1Gi
-          EOF
+          # ADR-040: No longer need shared PVC - operator creates unique PVC per build
+          # This allows concurrent builds without ReadWriteOnce contention
 
           # Create NotebookValidationJob with Tekton build
           cat <<EOF | oc apply -n ${TEST_NS} -f -
