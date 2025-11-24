@@ -965,8 +965,10 @@ func classifyError(err error) string {
 		return ""
 	}
 
-	// Transient errors
-	if errors.IsServerTimeout(err) || errors.IsTimeout(err) || errors.IsServiceUnavailable(err) {
+	// Transient errors - these should requeue without incrementing retry count
+	// Conflicts are transient because they occur when multiple reconciliation loops
+	// try to update the same resource - the next reconciliation will succeed
+	if errors.IsConflict(err) || errors.IsServerTimeout(err) || errors.IsTimeout(err) || errors.IsServiceUnavailable(err) {
 		return "Transient"
 	}
 
