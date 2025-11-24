@@ -251,8 +251,14 @@ func (r *NotebookValidationJobReconciler) transitionPhase(ctx context.Context, j
 	logger := log.FromContext(ctx)
 	logger.Info("Transitioning phase", "oldPhase", job.Status.Phase, "newPhase", newPhase, "message", message)
 
+	// Save original phase in case update fails
+	originalPhase := job.Status.Phase
+
 	job.Status.Phase = newPhase
 	if err := r.Status().Update(ctx, job); err != nil {
+		// Restore original phase on failure to prevent stale in-memory state
+		job.Status.Phase = originalPhase
+
 		logger.Error(err, "Failed to update job phase", "newPhase", newPhase)
 		return ctrl.Result{}, err
 	}
@@ -872,6 +878,13 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 func (r *NotebookValidationJobReconciler) updateJobPhase(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob, phase string, message string) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
+	// Save original values in case update fails
+	originalPhase := job.Status.Phase
+	originalMessage := job.Status.Message
+	originalCompletionTime := job.Status.CompletionTime
+	originalConditions := make([]metav1.Condition, len(job.Status.Conditions))
+	copy(originalConditions, job.Status.Conditions)
+
 	job.Status.Phase = phase
 	job.Status.Message = message
 
@@ -904,6 +917,13 @@ func (r *NotebookValidationJobReconciler) updateJobPhase(ctx context.Context, jo
 	job.Status.Conditions = updateCondition(job.Status.Conditions, condition)
 
 	if err := r.Status().Update(ctx, job); err != nil {
+		// Restore original values on failure to prevent stale in-memory state
+		// from being inadvertently persisted by subsequent reconcile loops
+		job.Status.Phase = originalPhase
+		job.Status.Message = originalMessage
+		job.Status.CompletionTime = originalCompletionTime
+		job.Status.Conditions = originalConditions
+
 		logger.Error(err, "Failed to update job status")
 		return ctrl.Result{}, err
 	}
