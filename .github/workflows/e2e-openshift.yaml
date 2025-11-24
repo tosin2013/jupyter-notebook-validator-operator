@@ -165,20 +165,43 @@ jobs:
 
       - name: Install operator
         run: |
-          echo "Cleaning up any previous operator installation..."
+          echo "=== Cleaning up any previous operator installation ==="
+
+          # Undeploy operator first (removes deployment, services, webhooks)
+          echo "Undeploying operator..."
           make undeploy || true
+
+          # Uninstall CRDs
+          echo "Uninstalling CRDs..."
           make uninstall || true
 
-          # Wait for resources to be deleted
-          echo "Waiting for previous operator resources to be deleted..."
+          # Force delete operator resources if they still exist
+          echo "Force deleting operator resources..."
           oc delete deployment notebook-validator-controller-manager \
-            -n ${{ env.OPERATOR_NAMESPACE }} --ignore-not-found=true --timeout=30s || true
+            -n ${{ env.OPERATOR_NAMESPACE }} --ignore-not-found=true --timeout=60s || true
+          oc delete service notebook-validator-webhook-service \
+            -n ${{ env.OPERATOR_NAMESPACE }} --ignore-not-found=true || true
           oc delete mutatingwebhookconfiguration notebook-validator-mutating-webhook-configuration \
             --ignore-not-found=true || true
           oc delete validatingwebhookconfiguration notebook-validator-validating-webhook-configuration \
             --ignore-not-found=true || true
+
+          # Wait for operator pods to fully terminate
+          echo "Waiting for operator pods to terminate..."
+          for i in {1..30}; do
+            PODS=$(oc get pods -l control-plane=controller-manager -n ${{ env.OPERATOR_NAMESPACE }} --no-headers 2>/dev/null | wc -l)
+            if [ "$PODS" -eq 0 ]; then
+              echo "✅ All operator pods terminated"
+              break
+            fi
+            echo "Waiting for $PODS operator pod(s) to terminate (attempt $i/30)..."
+            sleep 2
+          done
+
+          # Additional wait for cleanup to propagate
           sleep 5
 
+          echo "=== Installing fresh operator ==="
           echo "Installing CRDs..."
           make install
 
@@ -277,16 +300,33 @@ jobs:
 
           echo "✅ Test credentials created successfully"
 
-          # Wait for secrets to be synced and accessible
-          # This ensures the operator's controller-runtime cache has time to sync
-          echo "Waiting for secrets to be accessible..."
+          # Validate secrets are accessible and synced to controller cache
+          # This ensures the operator can actually read the secrets before tests start
+          echo "Validating secrets are accessible..."
           for secret in git-credentials aws-credentials database-credentials mlflow-credentials; do
-            oc get secret ${secret} -n ${{ env.TEST_NAMESPACE }} --ignore-not-found
+            echo "Checking secret: ${secret}"
+            if ! oc get secret ${secret} -n ${{ env.TEST_NAMESPACE }} &>/dev/null; then
+              echo "❌ Secret ${secret} not found!"
+              exit 1
+            fi
+            echo "✅ Secret ${secret} exists"
           done
 
-          # Give controller cache additional time to sync
-          echo "Allowing controller cache to sync secrets..."
-          sleep 5
+          # Give controller cache time to sync secrets (critical for operator to access them)
+          # The operator's controller-runtime cache syncs every ~10s by default
+          echo "Waiting for controller cache to sync secrets (20 seconds)..."
+          sleep 20
+
+          # Verify operator is still healthy and ready
+          echo "Verifying operator is ready..."
+          if ! oc get deployment notebook-validator-controller-manager \
+               -n ${{ env.OPERATOR_NAMESPACE }} \
+               -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' | grep -q "True"; then
+            echo "❌ Operator is not available!"
+            oc get deployment notebook-validator-controller-manager -n ${{ env.OPERATOR_NAMESPACE }} -o yaml
+            exit 1
+          fi
+          echo "✅ Operator is ready and secrets should be synced"
 
       # Note: git-credentials secret is already created in "Setup test credentials" step above
       # with username=oauth2 which is the correct format for GitHub PAT authentication
