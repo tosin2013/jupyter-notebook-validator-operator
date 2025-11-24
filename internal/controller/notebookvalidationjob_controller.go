@@ -353,7 +353,9 @@ func (r *NotebookValidationJobReconciler) reconcileBuilding(ctx context.Context,
 
 	// Check if build needs to be created
 	buildName := fmt.Sprintf("%s-build", job.Name)
-	buildInfo, err := strategy.GetBuildStatus(ctx, buildName)
+	// ADR-042: Use GetLatestBuild for build discovery
+	// This works for both Tekton (PipelineRuns) and S2I (Builds with -1, -2 suffixes)
+	buildInfo, err := strategy.GetLatestBuild(ctx, buildName)
 
 	if err != nil {
 		// Build doesn't exist yet, create it
