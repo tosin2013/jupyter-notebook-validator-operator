@@ -26,13 +26,47 @@ go.work
 *.swo
 *~
 
-# Developer notes and internal documentation (not for end users)
-docs/IMPLEMENTATION-PLAN.md
-docs/*_COMPLETE.md
-docs/*_SUMMARY.md
+# Environment variables and secrets
+.env
+.env.*
+
+# Test artifacts and logs
+*.log
+test-notebooks/
+
+# Temporary files
+*.tmp
+*.bak
+
+# MCP server context (auto-generated, contains session state)
+.mcp-server-context.md
+
+# Test results (local testing artifacts)
+test-results.yaml
+
+# =============================================================================
+# Internal Development Documentation (not for end users)
+# These are progress tracking and implementation notes, not user documentation
+# =============================================================================
+
+# Phase completion and progress summaries
 docs/PHASE*.md
-docs/NEXT_TASK_*.md
-docs/PROGRESS_*.md
+docs/*_PROGRESS*.md
+docs/*_COMPLETE*.md
+docs/*_SUMMARY*.md
+
+# Implementation planning documents
+docs/IMPLEMENTATION*.md
+docs/NEXT_TASK*.md
+docs/NEXT_STEPS*.md
+
+# Date-stamped internal documents
+docs/*_2025-*.md
+
+# Week summaries and internal tracking
+docs/WEEK*.md
+
+# Specific internal documents
 docs/SECRETS_UPDATE_SUMMARY.md
 docs/TEST_REPOSITORY_SETUP.md
 docs/TEST_REPOSITORY_COMPLETE.md
@@ -41,16 +75,12 @@ docs/CELL_ERROR_DISPLAY_FIX.md
 docs/POD_LOG_COLLECTION_COMPLETE.md
 docs/PAPERMILL_INTEGRATION_COMPLETE.md
 docs/TEST_NOTEBOOKS_DEPLOYMENT_SUMMARY.md
+docs/FINAL_STRATEGIC_DECISION.md
+docs/SCRIPT-UPDATE-PROPOSAL.md
+docs/SCRIPT-UPDATE-SUMMARY.md
+docs/ADR-CLEANUP-PLAN.md
+docs/ADR-CLEANUP-SUMMARY.md
 
-# Environment variables and secrets
-.env
-.env.*
-
-# Test artifacts and logs
-*.log
-test-notebooks/
-helm/
-
-# Temporary files
-*.tmp
-*.bak
+# Test result documents (internal)
+docs/*-TEST-RESULTS.md
+docs/TIER*-TEST*.md
