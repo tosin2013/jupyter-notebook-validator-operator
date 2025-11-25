@@ -45,6 +45,26 @@ test-notebooks/
 test-results.yaml
 
 # =============================================================================
+# Root-level development notes (internal session summaries, not for end users)
+# =============================================================================
+ADR-*-IMPLEMENTATION*.md
+ADR-SUMMARY*.md
+*-SESSION-SUMMARY.md
+*-SUMMARY.md
+*-COMPLETE.md
+*-FIXES.md
+*-FINDINGS.md
+*-DEPLOYMENT.md
+*-STATUS.md
+OPERATOR-FEEDBACK.md
+RELEASE_NOTES_*.md
+RESOURCE-CONFLICT-*.md
+
+# Keep these root files:
+# - README.md (user-facing)
+# - CLAUDE.md (development guidance)
+
+# =============================================================================
 # Internal Development Documentation (not for end users)
 # These are progress tracking and implementation notes, not user documentation
 # =============================================================================
