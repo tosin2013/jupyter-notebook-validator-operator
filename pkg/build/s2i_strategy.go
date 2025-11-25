@@ -350,17 +350,7 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 
 // GetBuildStatus returns the current build status
 func (s *S2IStrategy) GetBuildStatus(ctx context.Context, buildName string) (*BuildInfo, error) {
-	// Try to get the build directly by name first (more efficient)
 	build := &buildv1.Build{}
-	// Note: buildName could be either the BuildConfig name (for pending builds)
-	// or a specific build name like "buildconfig-name-1"
-	// We need to handle both cases
-
-	// First, try direct get if it looks like a specific build name (contains -1, -2, etc.)
-	if strings.Contains(buildName, "-") {
-		// Extract potential namespace from context or use default
-		// For now, list and filter approach is more reliable
-	}
 
 	// List all builds and find by name - don't filter by our custom label
 	// since OpenShift auto-created builds won't have it
