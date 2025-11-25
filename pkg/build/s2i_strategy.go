@@ -242,13 +242,14 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 
 	// Create the BuildConfig
 	logger.Info("Creating BuildConfig", "buildConfigName", buildName, "gitURL", job.Spec.Notebook.Git.URL, "hasCredentials", job.Spec.Notebook.Git.CredentialsSecret != "")
+	buildConfigAlreadyExisted := false
 	if err := s.client.Create(ctx, bc); err != nil {
 		if !errors.IsAlreadyExists(err) {
 			logger.Error(err, "Failed to create BuildConfig", "buildConfigName", buildName)
 			return nil, fmt.Errorf("failed to create BuildConfig: %w", err)
 		}
-		logger.Info("BuildConfig already exists, will be verified in retry loop", "buildConfigName", buildName)
-		// Note: existingBC not needed - verification loop below will confirm it exists
+		logger.Info("BuildConfig already exists, will trigger new build manually", "buildConfigName", buildName)
+		buildConfigAlreadyExisted = true
 	} else {
 		logger.Info("BuildConfig created successfully", "buildConfigName", buildName)
 	}
@@ -282,6 +283,54 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 
 	if lastErr != nil {
 		return nil, fmt.Errorf("buildconfig creation verification failed after %d retries: %w", maxRetries, lastErr)
+	}
+
+	// If BuildConfig already existed, we need to manually trigger a new build
+	// since ConfigChange trigger only fires on initial creation or config changes
+	if buildConfigAlreadyExisted {
+		logger.Info("BuildConfig already existed, manually instantiating new build", "buildConfigName", buildName)
+
+		// Create a new Build object directly from the BuildConfig
+		// This is equivalent to `oc start-build <buildconfig-name>`
+		newBuild := &buildv1.Build{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: fmt.Sprintf("%s-", buildName),
+				Namespace:    job.Namespace,
+				Labels: map[string]string{
+					"app":                                  job.Name,
+					"buildconfig":                          buildName,
+					"mlops.redhat.com/notebook-validation": "true",
+				},
+				Annotations: map[string]string{
+					"openshift.io/build-config.name": buildName,
+				},
+			},
+			Spec: buildv1.BuildSpec{
+				CommonSpec: verifyBC.Spec.CommonSpec,
+				TriggeredBy: []buildv1.BuildTriggerCause{
+					{
+						Message: "Manually triggered by notebook-validator operator",
+					},
+				},
+			},
+		}
+
+		if err := s.client.Create(ctx, newBuild); err != nil {
+			logger.Error(err, "Failed to manually create build from existing BuildConfig", "buildConfigName", buildName)
+			return nil, fmt.Errorf("failed to create build from existing BuildConfig: %w", err)
+		}
+
+		logger.Info("Build manually created from existing BuildConfig",
+			"buildConfigName", buildName,
+			"buildName", newBuild.Name)
+
+		now := time.Now()
+		return &BuildInfo{
+			Name:      newBuild.Name,
+			Status:    BuildStatusPending,
+			Message:   "Build manually triggered from existing BuildConfig",
+			StartTime: &now,
+		}, nil
 	}
 
 	// BuildConfig created with ConfigChange trigger - build will start automatically
