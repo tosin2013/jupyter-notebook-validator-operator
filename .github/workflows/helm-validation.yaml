@@ -26,6 +26,8 @@ env:
   KUBECTL_VERSION: 'v1.31.0'
   # Kind image for Kubernetes 1.31 - https://github.com/kubernetes-sigs/kind/releases
   KIND_NODE_IMAGE: 'kindest/node:v1.31.0@sha256:53df588e04085fd41ae12de0c3fe4c72f7013bba32a20e7325357a1ac94ba865'
+  # cert-manager version for webhook certificate management
+  CERT_MANAGER_VERSION: 'v1.13.0'
 
 jobs:
   helm-sync-check:
@@ -146,6 +148,16 @@ jobs:
           kubectl_version: ${{ env.KUBECTL_VERSION }}
           node_image: ${{ env.KIND_NODE_IMAGE }}
 
+      - name: Install cert-manager
+        run: |
+          echo "📦 Installing cert-manager..."
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/${{ env.CERT_MANAGER_VERSION }}/cert-manager.yaml
+          echo "⏳ Waiting for cert-manager to be ready..."
+          kubectl wait --for=condition=available --timeout=120s deployment/cert-manager -n cert-manager
+          kubectl wait --for=condition=available --timeout=120s deployment/cert-manager-webhook -n cert-manager
+          kubectl wait --for=condition=available --timeout=120s deployment/cert-manager-cainjector -n cert-manager
+          echo "✅ cert-manager installed successfully"
+
       - name: Install Chart (Dry-Run)
         run: |
           echo "🧪 Testing Helm install (dry-run)..."
@@ -175,6 +187,16 @@ jobs:
           cluster_name: helm-test
           kubectl_version: ${{ env.KUBECTL_VERSION }}
           node_image: ${{ env.KIND_NODE_IMAGE }}
+
+      - name: Install cert-manager
+        run: |
+          echo "📦 Installing cert-manager..."
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/${{ env.CERT_MANAGER_VERSION }}/cert-manager.yaml
+          echo "⏳ Waiting for cert-manager to be ready..."
+          kubectl wait --for=condition=available --timeout=120s deployment/cert-manager -n cert-manager
+          kubectl wait --for=condition=available --timeout=120s deployment/cert-manager-webhook -n cert-manager
+          kubectl wait --for=condition=available --timeout=120s deployment/cert-manager-cainjector -n cert-manager
+          echo "✅ cert-manager installed successfully"
 
       - name: Install Chart
         run: |
@@ -226,6 +248,16 @@ jobs:
           cluster_name: helm-test
           kubectl_version: ${{ env.KUBECTL_VERSION }}
           node_image: ${{ env.KIND_NODE_IMAGE }}
+
+      - name: Install cert-manager
+        run: |
+          echo "📦 Installing cert-manager..."
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/${{ env.CERT_MANAGER_VERSION }}/cert-manager.yaml
+          echo "⏳ Waiting for cert-manager to be ready..."
+          kubectl wait --for=condition=available --timeout=120s deployment/cert-manager -n cert-manager
+          kubectl wait --for=condition=available --timeout=120s deployment/cert-manager-webhook -n cert-manager
+          kubectl wait --for=condition=available --timeout=120s deployment/cert-manager-cainjector -n cert-manager
+          echo "✅ cert-manager installed successfully"
 
       - name: Install Chart (Initial)
         run: |
