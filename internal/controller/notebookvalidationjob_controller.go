@@ -1058,10 +1058,15 @@ func (r *NotebookValidationJobReconciler) handleReconcileError(ctx context.Conte
 			return r.updateJobPhase(ctx, job, PhaseFailed, fmt.Sprintf("Maximum retries exceeded: %v", err))
 		}
 
-		// Exponential backoff: 1m, 2m, 5m
-		backoff := time.Minute * time.Duration(1<<uint(job.Status.RetryCount-1))
-		if backoff > 5*time.Minute {
+		// Exponential backoff: 1m, 2m, 5m (safe calculation to avoid integer overflow)
+		var backoff time.Duration
+		if job.Status.RetryCount <= 0 {
+			backoff = time.Minute
+		} else if job.Status.RetryCount > 3 {
 			backoff = 5 * time.Minute
+		} else {
+			// #nosec G115 -- RetryCount is bounded above, shift is safe
+			backoff = time.Minute * time.Duration(1<<uint(job.Status.RetryCount-1))
 		}
 
 		logger.Info("Retriable error detected, will retry", "error", err, "retryCount", job.Status.RetryCount, "backoff", backoff)

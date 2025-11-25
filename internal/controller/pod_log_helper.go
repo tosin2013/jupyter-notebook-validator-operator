@@ -464,10 +464,15 @@ func (r *NotebookValidationJobReconciler) handlePodFailure(
 
 	case "retry_with_backoff":
 		if job.Status.RetryCount < MaxRetries {
-			// Exponential backoff: 1m, 2m, 4m
-			backoff := time.Minute * time.Duration(1<<uint(job.Status.RetryCount-1))
-			if backoff > 5*time.Minute {
+			// Exponential backoff: 1m, 2m, 4m (safe calculation to avoid integer overflow)
+			var backoff time.Duration
+			if job.Status.RetryCount <= 0 {
+				backoff = time.Minute
+			} else if job.Status.RetryCount > 3 {
 				backoff = 5 * time.Minute
+			} else {
+				// #nosec G115 -- RetryCount is bounded above, shift is safe
+				backoff = time.Minute * time.Duration(1<<uint(job.Status.RetryCount-1))
 			}
 			logger.Info("Retrying validation with backoff", "retryCount", job.Status.RetryCount, "backoff", backoff)
 			// Delete the failed pod
