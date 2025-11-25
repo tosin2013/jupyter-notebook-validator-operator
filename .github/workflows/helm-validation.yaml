@@ -102,6 +102,7 @@ jobs:
           echo "📝 Rendering Helm templates (${{ matrix.scenario.name }})..."
           helm template test-release helm/jupyter-notebook-validator-operator \
             --namespace jupyter-validator-system \
+            --kube-version ${{ env.KUBECTL_VERSION }} \
             ${{ matrix.scenario.values }} \
             --debug > rendered-${{ matrix.scenario.name }}.yaml
           echo "✅ Templates rendered successfully"
