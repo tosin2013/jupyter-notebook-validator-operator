@@ -24,6 +24,8 @@ on:
 env:
   HELM_VERSION: '3.13.0'
   KUBECTL_VERSION: 'v1.31.0'
+  # Kind image for Kubernetes 1.31 - https://github.com/kubernetes-sigs/kind/releases
+  KIND_NODE_IMAGE: 'kindest/node:v1.31.0@sha256:53df588e04085fd41ae12de0c3fe4c72f7013bba32a20e7325357a1ac94ba865'
 
 jobs:
   helm-sync-check:
@@ -138,10 +140,11 @@ jobs:
           version: ${{ env.HELM_VERSION }}
 
       - name: Create Kind Cluster
-        uses: helm/kind-action@v1.8.0
+        uses: helm/kind-action@v1.10.0
         with:
           cluster_name: helm-test
           kubectl_version: ${{ env.KUBECTL_VERSION }}
+          node_image: ${{ env.KIND_NODE_IMAGE }}
 
       - name: Install Chart (Dry-Run)
         run: |
@@ -167,10 +170,11 @@ jobs:
           version: ${{ env.HELM_VERSION }}
 
       - name: Create Kind Cluster
-        uses: helm/kind-action@v1.8.0
+        uses: helm/kind-action@v1.10.0
         with:
           cluster_name: helm-test
           kubectl_version: ${{ env.KUBECTL_VERSION }}
+          node_image: ${{ env.KIND_NODE_IMAGE }}
 
       - name: Install Chart
         run: |
@@ -217,10 +221,11 @@ jobs:
           version: ${{ env.HELM_VERSION }}
 
       - name: Create Kind Cluster
-        uses: helm/kind-action@v1.8.0
+        uses: helm/kind-action@v1.10.0
         with:
           cluster_name: helm-test
           kubectl_version: ${{ env.KUBECTL_VERSION }}
+          node_image: ${{ env.KIND_NODE_IMAGE }}
 
       - name: Install Chart (Initial)
         run: |
