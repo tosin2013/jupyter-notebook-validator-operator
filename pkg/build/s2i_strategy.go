@@ -803,9 +803,10 @@ func generateInlineDockerfile(job *mlopsv1alpha1.NotebookValidationJob, baseImag
 # Install notebook execution tools
 RUN pip install --no-cache-dir papermill nbformat
 
-# Copy project files
-COPY . /workspace
-WORKDIR /workspace
+# Copy source code to /opt/app-root/src/ (S2I standard location)
+# This matches S2I behavior so validation pod can find notebooks
+COPY . /opt/app-root/src/
+WORKDIR /opt/app-root/src
 
 # ADR-038 Fallback chain: Install dependencies from requirements.txt if found
 # 1. Try notebook-specific requirements.txt
