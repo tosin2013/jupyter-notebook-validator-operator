@@ -496,7 +496,7 @@ spec:
   - name: Architecture Decision Records
     url: https://github.com/tosin2013/jupyter-notebook-validator-operator/tree/main/docs/adrs
   maintainers:
-  - email: tosin.akinosho@gmail.com
+  - email: takinosh@redhat.com
     name: Tosin Akinosho
   maturity: alpha
   minKubeVersion: 1.31.0
