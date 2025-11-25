@@ -261,10 +261,12 @@ spec:
                       When specified, the operator will build a custom image before validation
                     properties:
                       autoGenerateRequirements:
-                        default: false
+                        default: true
                         description: |-
-                          AutoGenerateRequirements specifies whether to auto-generate requirements.txt if missing
-                          Uses pipreqs to analyze notebook imports
+                          AutoGenerateRequirements specifies whether to auto-detect and use requirements.txt
+                          ADR-038: Enable automatic detection with fallback chain
+                          When true, operator searches for requirements.txt in notebook dir → tier dir → repo root
+                          When false, only uses explicitly specified RequirementsFile or Dockerfile
                         type: boolean
                       baseImage:
                         default: quay.io/jupyter/minimal-notebook:latest
@@ -291,11 +293,29 @@ spec:
                         - fail
                         - auto
                         type: string
+                      preferDockerfile:
+                        default: false
+                        description: |-
+                          PreferDockerfile specifies whether to prefer Dockerfile over requirements.txt
+                          ADR-038: When both requirements.txt and Dockerfile exist, this determines priority
+                          If false (default), uses requirements.txt to generate Dockerfile
+                          If true, uses existing Dockerfile and ignores requirements.txt
+                        type: boolean
                       requirementsFile:
-                        default: requirements.txt
-                        description: RequirementsFile specifies the path to requirements.txt
-                          in the Git repository
+                        description: |-
+                          RequirementsFile specifies explicit path to requirements.txt in the Git repository
+                          If specified, this path is used directly without fallback chain
+                          Example: "notebooks/tier2/requirements.txt"
                         type: string
+                      requirementsSources:
+                        description: |-
+                          RequirementsSources specifies custom fallback chain for requirements.txt detection
+                          ADR-038: Advanced use case for complex repository structures
+                          If not specified, uses default chain: notebook-dir → tier-dir → repo-root
+                          Example: ["notebooks/tier2/requirements.txt", "notebooks/requirements.txt", "requirements.txt"]
+                        items:
+                          type: string
+                        type: array
                       strategy:
                         default: s2i
                         description: Strategy specifies the build strategy to use
@@ -496,6 +516,10 @@ spec:
                   completionTime:
                     description: CompletionTime is when the build completed
                     format: date-time
+                    type: string
+                  duration:
+                    description: Duration is the build duration in human-readable
+                      format (e.g., "5m30s")
                     type: string
                   imageReference:
                     description: ImageReference is the reference to the built image
@@ -848,13 +872,18 @@ spec:
                 - success
                 type: object
               phase:
-                description: Phase represents the current phase of the validation
-                  job
+                description: |-
+                  Phase represents the current phase of the validation job
+                  State machine: Initializing → Building → BuildComplete → ValidationRunning → Succeeded/Failed
                 enum:
-                - Pending
-                - Running
+                - Initializing
+                - Building
+                - BuildComplete
+                - ValidationRunning
                 - Succeeded
                 - Failed
+                - Pending
+                - Running
                 type: string
               results:
                 description: Results contains cell-by-cell execution results
