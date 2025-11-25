@@ -198,12 +198,23 @@ jobs:
           kubectl wait --for=condition=available --timeout=120s deployment/cert-manager-cainjector -n cert-manager
           echo "✅ cert-manager installed successfully"
 
+      - name: Build and Load Operator Image
+        run: |
+          echo "🏗️  Building operator image..."
+          docker build -t jupyter-notebook-validator-operator:helm-test .
+          echo "📦 Loading image into Kind cluster..."
+          kind load docker-image jupyter-notebook-validator-operator:helm-test --name helm-test
+          echo "✅ Operator image loaded successfully"
+
       - name: Install Chart
         run: |
           echo "📦 Installing Helm chart..."
           helm install test-release helm/jupyter-notebook-validator-operator \
             --namespace jupyter-validator-system \
             --create-namespace \
+            --set image.repository=jupyter-notebook-validator-operator \
+            --set image.tag=helm-test \
+            --set image.pullPolicy=Never \
             --wait \
             --timeout 5m
           echo "✅ Chart installed successfully"
@@ -259,12 +270,23 @@ jobs:
           kubectl wait --for=condition=available --timeout=120s deployment/cert-manager-cainjector -n cert-manager
           echo "✅ cert-manager installed successfully"
 
+      - name: Build and Load Operator Image
+        run: |
+          echo "🏗️  Building operator image..."
+          docker build -t jupyter-notebook-validator-operator:helm-test .
+          echo "📦 Loading image into Kind cluster..."
+          kind load docker-image jupyter-notebook-validator-operator:helm-test --name helm-test
+          echo "✅ Operator image loaded successfully"
+
       - name: Install Chart (Initial)
         run: |
           echo "📦 Installing Helm chart (initial)..."
           helm install test-release helm/jupyter-notebook-validator-operator \
             --namespace jupyter-validator-system \
             --create-namespace \
+            --set image.repository=jupyter-notebook-validator-operator \
+            --set image.tag=helm-test \
+            --set image.pullPolicy=Never \
             --wait \
             --timeout 5m
 
@@ -273,6 +295,9 @@ jobs:
           echo "⬆️  Upgrading Helm chart..."
           helm upgrade test-release helm/jupyter-notebook-validator-operator \
             --namespace jupyter-validator-system \
+            --set image.repository=jupyter-notebook-validator-operator \
+            --set image.tag=helm-test \
+            --set image.pullPolicy=Never \
             --wait \
             --timeout 5m
           echo "✅ Chart upgraded successfully"
