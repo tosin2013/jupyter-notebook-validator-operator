@@ -57,7 +57,8 @@ ADR-SUMMARY*.md
 *-DEPLOYMENT.md
 *-STATUS.md
 OPERATOR-FEEDBACK.md
-RELEASE_NOTES_*.md
+# Keep release notes in repo for documentation
+# RELEASE_NOTES_*.md
 RESOURCE-CONFLICT-*.md
 
 # Keep these root files:
