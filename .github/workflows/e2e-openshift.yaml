@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       test_tier:
-        description: 'Test tier to run (1, 2, 3, or all)'
+        description: 'Test tier to run (1, 2, 3, 4, or all)'
         required: false
         default: 'all'
         type: choice
@@ -24,6 +24,7 @@ on:
           - '1'
           - '2'
           - '3'
+          - '4'
           - 'all'
 
 # Concurrency control: Only one E2E test run per branch at a time

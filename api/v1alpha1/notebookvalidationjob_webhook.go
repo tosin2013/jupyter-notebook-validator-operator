@@ -35,6 +35,7 @@ func (r *NotebookValidationJob) SetupWebhookWithManager(mgr ctrl.Manager) error 
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(r).
 		WithDefaulter(r).
+		WithValidator(r).
 		Complete()
 }
 
@@ -110,27 +111,39 @@ func (r *NotebookValidationJob) Default(ctx context.Context, obj runtime.Object)
 // TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
 //+kubebuilder:webhook:path=/validate-mlops-mlops-dev-v1alpha1-notebookvalidationjob,mutating=false,failurePolicy=fail,sideEffects=None,groups=mlops.mlops.dev,resources=notebookvalidationjobs,verbs=create;update,versions=v1alpha1,name=vnotebookvalidationjob.kb.io,admissionReviewVersions=v1
 
-var _ webhook.Validator = &NotebookValidationJob{}
+var _ webhook.CustomValidator = &NotebookValidationJob{}
 
-// ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *NotebookValidationJob) ValidateCreate() (admission.Warnings, error) {
-	notebookvalidationjoblog.Info("validate create", "name", r.Name, "namespace", r.Namespace)
+// ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type
+func (r *NotebookValidationJob) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+	job, ok := obj.(*NotebookValidationJob)
+	if !ok {
+		return nil, fmt.Errorf("expected a NotebookValidationJob object but got %T", obj)
+	}
+	notebookvalidationjoblog.Info("validate create", "name", job.Name, "namespace", job.Namespace)
 
 	// TODO(user): fill in your validation logic upon object creation.
 	return nil, nil
 }
 
-// ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *NotebookValidationJob) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-	notebookvalidationjoblog.Info("validate update", "name", r.Name, "namespace", r.Namespace)
+// ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type
+func (r *NotebookValidationJob) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
+	job, ok := newObj.(*NotebookValidationJob)
+	if !ok {
+		return nil, fmt.Errorf("expected a NotebookValidationJob object but got %T", newObj)
+	}
+	notebookvalidationjoblog.Info("validate update", "name", job.Name, "namespace", job.Namespace)
 
 	// TODO(user): fill in your validation logic upon object update.
 	return nil, nil
 }
 
-// ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *NotebookValidationJob) ValidateDelete() (admission.Warnings, error) {
-	notebookvalidationjoblog.Info("validate delete", "name", r.Name, "namespace", r.Namespace)
+// ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type
+func (r *NotebookValidationJob) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+	job, ok := obj.(*NotebookValidationJob)
+	if !ok {
+		return nil, fmt.Errorf("expected a NotebookValidationJob object but got %T", obj)
+	}
+	notebookvalidationjoblog.Info("validate delete", "name", job.Name, "namespace", job.Namespace)
 
 	// TODO(user): fill in your validation logic upon object deletion.
 	return nil, nil

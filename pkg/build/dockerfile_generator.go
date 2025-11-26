@@ -9,6 +9,37 @@ import (
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 )
 
+// validateAndJoinPath safely joins a base path with a user-provided path,
+// preventing path traversal attacks (G304 fix).
+// It returns an error if the resulting path would escape the base directory.
+func validateAndJoinPath(basePath, userPath string) (string, error) {
+	// Clean the user path to normalize it
+	cleanUserPath := filepath.Clean(userPath)
+
+	// Reject absolute paths
+	if filepath.IsAbs(cleanUserPath) {
+		return "", fmt.Errorf("absolute paths are not allowed: %s", userPath)
+	}
+
+	// Reject paths that start with ..
+	if strings.HasPrefix(cleanUserPath, "..") {
+		return "", fmt.Errorf("path traversal not allowed: %s", userPath)
+	}
+
+	// Join the paths
+	fullPath := filepath.Join(basePath, cleanUserPath)
+
+	// Verify the result is still within the base directory
+	// Use Clean on basePath to ensure consistent comparison
+	cleanBase := filepath.Clean(basePath)
+	if !strings.HasPrefix(filepath.Clean(fullPath), cleanBase+string(filepath.Separator)) &&
+		filepath.Clean(fullPath) != cleanBase {
+		return "", fmt.Errorf("path escapes base directory: %s", userPath)
+	}
+
+	return fullPath, nil
+}
+
 // DockerfileGenerationResult contains the generated Dockerfile and metadata
 type DockerfileGenerationResult struct {
 	// Content is the generated Dockerfile content
@@ -48,8 +79,8 @@ func GenerateDockerfile(job *mlopsv1alpha1.NotebookValidationJob, gitRepoPath st
 
 	// Step 2: Check if both requirements.txt and Dockerfile exist
 	if requirementsFile != "" {
-		dockerfilePath := getDockerfilePath(job, gitRepoPath)
-		dockerfileExists := fileExists(dockerfilePath)
+		dockerfilePath, err := getDockerfilePath(job, gitRepoPath)
+		dockerfileExists := err == nil && fileExists(dockerfilePath)
 
 		if dockerfileExists && job.Spec.PodConfig.BuildConfig.PreferDockerfile {
 			// User explicitly prefers Dockerfile
@@ -73,18 +104,20 @@ func findRequirementsFile(job *mlopsv1alpha1.NotebookValidationJob, gitRepoPath 
 
 	// Step 1: Explicit path specified
 	if job.Spec.PodConfig.BuildConfig.RequirementsFile != "" {
-		path := filepath.Join(gitRepoPath, job.Spec.PodConfig.BuildConfig.RequirementsFile)
-		if fileExists(path) {
+		// #nosec G304 -- Path is validated by validateAndJoinPath to prevent traversal
+		path, err := validateAndJoinPath(gitRepoPath, job.Spec.PodConfig.BuildConfig.RequirementsFile)
+		if err == nil && fileExists(path) {
 			return path, "explicit-path"
 		}
-		// Explicit path not found, log warning but continue with fallback
+		// Explicit path not found or invalid, log warning but continue with fallback
 	}
 
 	// Step 2: Custom fallback chain
 	if len(job.Spec.PodConfig.BuildConfig.RequirementsSources) > 0 {
 		for _, source := range job.Spec.PodConfig.BuildConfig.RequirementsSources {
-			path := filepath.Join(gitRepoPath, source)
-			if fileExists(path) {
+			// #nosec G304 -- Path is validated by validateAndJoinPath to prevent traversal
+			path, err := validateAndJoinPath(gitRepoPath, source)
+			if err == nil && fileExists(path) {
 				return path, "custom-chain"
 			}
 		}
@@ -92,18 +125,44 @@ func findRequirementsFile(job *mlopsv1alpha1.NotebookValidationJob, gitRepoPath 
 
 	// Step 3: Auto-detection fallback chain
 	notebookPath := job.Spec.Notebook.Path
+	// Validate notebook path first
+	_, err := validateAndJoinPath(gitRepoPath, notebookPath)
+	if err != nil {
+		// Invalid notebook path, skip notebook-specific requirements
+		notebookPath = ""
+	}
 	notebookDir := filepath.Dir(notebookPath)
 
-	candidates := []struct {
+	// Build candidates with validated paths
+	var candidates []struct {
 		path   string
 		source string
-	}{
-		// Notebook-specific (most specific)
-		{filepath.Join(gitRepoPath, notebookDir, "requirements.txt"), "notebook-directory"},
-		// Tier-level (notebooks directory)
-		{filepath.Join(gitRepoPath, "notebooks", "requirements.txt"), "tier-directory"},
-		// Repository root (project-wide)
-		{filepath.Join(gitRepoPath, "requirements.txt"), "repository-root"},
+	}
+
+	// Notebook-specific (most specific) - only if notebook path is valid
+	if notebookDir != "" && notebookDir != "." {
+		if path, err := validateAndJoinPath(gitRepoPath, filepath.Join(notebookDir, "requirements.txt")); err == nil {
+			candidates = append(candidates, struct {
+				path   string
+				source string
+			}{path, "notebook-directory"})
+		}
+	}
+
+	// Tier-level (notebooks directory)
+	if path, err := validateAndJoinPath(gitRepoPath, "notebooks/requirements.txt"); err == nil {
+		candidates = append(candidates, struct {
+			path   string
+			source string
+		}{path, "tier-directory"})
+	}
+
+	// Repository root (project-wide)
+	if path, err := validateAndJoinPath(gitRepoPath, "requirements.txt"); err == nil {
+		candidates = append(candidates, struct {
+			path   string
+			source string
+		}{path, "repository-root"})
 	}
 
 	for _, candidate := range candidates {
@@ -155,10 +214,15 @@ RUN python -c "import sys; print(f'Python {{sys.version}}')"
 
 // useExistingDockerfile reads and returns existing Dockerfile or generates minimal one
 func useExistingDockerfile(job *mlopsv1alpha1.NotebookValidationJob, gitRepoPath string) (*DockerfileGenerationResult, error) {
-	dockerfilePath := getDockerfilePath(job, gitRepoPath)
+	dockerfilePath, err := getDockerfilePath(job, gitRepoPath)
+	if err != nil {
+		// Invalid Dockerfile path, fall back to generating minimal Dockerfile
+		dockerfilePath = ""
+	}
 
 	// Try to read existing Dockerfile
-	if fileExists(dockerfilePath) {
+	if dockerfilePath != "" && fileExists(dockerfilePath) {
+		// #nosec G304 -- Path is validated by getDockerfilePath using validateAndJoinPath
 		content, err := os.ReadFile(dockerfilePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read Dockerfile: %w", err)
@@ -198,13 +262,14 @@ WORKDIR /workspace
 	}, nil
 }
 
-// getDockerfilePath returns the full path to Dockerfile
-func getDockerfilePath(job *mlopsv1alpha1.NotebookValidationJob, gitRepoPath string) string {
+// getDockerfilePath returns the full path to Dockerfile with path traversal protection
+func getDockerfilePath(job *mlopsv1alpha1.NotebookValidationJob, gitRepoPath string) (string, error) {
 	dockerfilePath := job.Spec.PodConfig.BuildConfig.Dockerfile
 	if dockerfilePath == "" {
 		dockerfilePath = "Dockerfile"
 	}
-	return filepath.Join(gitRepoPath, dockerfilePath)
+	// Validate the path to prevent traversal attacks
+	return validateAndJoinPath(gitRepoPath, dockerfilePath)
 }
 
 // fileExists checks if a file exists
@@ -222,9 +287,9 @@ func ValidateDockerfileGeneration(job *mlopsv1alpha1.NotebookValidationJob, resu
 	if result.RequirementsFile != "" && !result.UsingExistingDockerfile {
 		// Generated from requirements.txt, check if Dockerfile also exists
 		gitRepoPath := filepath.Dir(filepath.Dir(result.RequirementsFile))
-		dockerfilePath := getDockerfilePath(job, gitRepoPath)
+		dockerfilePath, err := getDockerfilePath(job, gitRepoPath)
 
-		if fileExists(dockerfilePath) && !job.Spec.PodConfig.BuildConfig.PreferDockerfile {
+		if err == nil && fileExists(dockerfilePath) && !job.Spec.PodConfig.BuildConfig.PreferDockerfile {
 			warnings = append(warnings, fmt.Sprintf(
 				"Both requirements.txt and Dockerfile exist. Using requirements.txt by default. "+
 					"Set spec.podConfig.buildConfig.preferDockerfile=true to use Dockerfile instead.",
