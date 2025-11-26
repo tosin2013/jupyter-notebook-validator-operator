@@ -1,0 +1,28 @@
+{{- if .Values.operator.metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "jupyter-notebook-validator-operator.metricsServiceName" . | trunc 63 | trimSuffix "-" }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "jupyter-notebook-validator-operator.labels" . | nindent 4 }}
+    control-plane: controller-manager
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+  {{- if .Values.operator.metrics.authProxy.enabled }}
+  - name: https
+    port: {{ .Values.service.port }}
+    protocol: TCP
+    targetPort: https
+  {{- else }}
+  - name: metrics
+    port: {{ .Values.service.metricsPort }}
+    protocol: TCP
+    targetPort: {{ .Values.service.metricsPort }}
+  {{- end }}
+  selector:
+    {{- include "jupyter-notebook-validator-operator.selectorLabels" . | nindent 4 }}
+    control-plane: controller-manager
+{{- end }}
+

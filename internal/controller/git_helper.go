@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -31,10 +32,29 @@ import (
 
 // GitCredentials holds parsed Git authentication credentials
 type GitCredentials struct {
-	Type     string // "https", "ssh", or "none"
+	Type     string // GitCredTypeHTTPS, GitCredTypeSSH, or "none"
 	Username string // For HTTPS
 	Password string // For HTTPS (token or password)
 	SSHKey   string // For SSH (private key)
+}
+
+// getGitImage returns the appropriate Git container image based on the platform
+// ADR-042: Git Init Container Image Compatibility - Custom RHEL9-based image
+func getGitImage() string {
+	// Priority 1: Check for manual override via environment variable
+	// This allows users to specify their own git image if needed
+	if gitImage := os.Getenv("GIT_INIT_IMAGE"); gitImage != "" {
+		return gitImage
+	}
+
+	// Priority 2: Use custom RHEL9-based git-init image for all platforms
+	// This image provides bash + git (compatible with our script-based approach)
+	// Built from: https://github.com/tosin2013/git-init-rhel9
+	// - Based on ubi9/ubi-minimal (Red Hat Universal Base Image)
+	// - Includes git, bash, openssh-clients, ca-certificates
+	// - Runs as non-root user (UID 1001, group 0) for OpenShift SCC compatibility
+	// - Works with bash scripts: /bin/bash -c "git clone..."
+	return "quay.io/takinosh/git-init-rhel9:latest"
 }
 
 // resolveGitCredentials reads and parses Git credentials from a Kubernetes Secret
@@ -74,7 +94,7 @@ func (r *NotebookValidationJobReconciler) resolveGitCredentials(ctx context.Cont
 
 	// Check for SSH key (ADR-009: SSH authentication)
 	if sshKey, exists := secret.Data["ssh-privatekey"]; exists {
-		creds.Type = "ssh"
+		creds.Type = GitCredTypeSSH
 		creds.SSHKey = string(sshKey)
 		logger.Info("Using SSH authentication")
 		return creds, nil
@@ -82,7 +102,7 @@ func (r *NotebookValidationJobReconciler) resolveGitCredentials(ctx context.Cont
 
 	// Check for HTTPS credentials (ADR-009: HTTPS authentication)
 	if username, exists := secret.Data["username"]; exists {
-		creds.Type = "https"
+		creds.Type = GitCredTypeHTTPS
 		creds.Username = string(username)
 
 		// Password or token
@@ -128,6 +148,10 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 		cloneCommand = fmt.Sprintf(`
 			set -e
 			echo "Cloning repository (anonymous)..."
+			# Disable all credential helpers and prompting
+			git config --global credential.helper ""
+			export GIT_TERMINAL_PROMPT=0
+			export GIT_ASKPASS=/bin/true
 			git clone --depth 1 --branch %s %s /workspace/repo
 			echo "Clone successful"
 			ls -la /workspace/repo
@@ -139,7 +163,7 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 			echo "Notebook found successfully"
 		`, gitRef, gitURL, notebookPath, notebookPath, notebookPath)
 
-	case "https":
+	case GitCredTypeHTTPS:
 		// HTTPS clone with credentials
 		// Sanitize credentials for URL (ADR-009: credential sanitization)
 		sanitizedURL := strings.Replace(gitURL, "https://", fmt.Sprintf("https://%s:%s@", creds.Username, creds.Password), 1)
@@ -149,8 +173,10 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 			echo "Cloning repository (HTTPS)..."
 			# Disable credential helper to avoid leaking credentials
 			git config --global credential.helper ""
+			# Suppress git output to avoid credential leakage
+			export GIT_TERMINAL_PROMPT=0
 			# Clone with embedded credentials
-			git clone --depth 1 --branch %s "%s" /workspace/repo 2>&1 | sed 's/%s/***REDACTED***/g'
+			git clone --depth 1 --branch %s "%s" /workspace/repo 2>&1 || { echo "Git clone failed"; exit 1; }
 			echo "Clone successful"
 			ls -la /workspace/repo
 			echo "Verifying notebook exists: %s"
@@ -159,9 +185,9 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 				exit 1
 			fi
 			echo "Notebook found successfully"
-		`, gitRef, sanitizedURL, creds.Password, notebookPath, notebookPath, notebookPath)
+		`, gitRef, sanitizedURL, notebookPath, notebookPath, notebookPath)
 
-	case "ssh":
+	case GitCredTypeSSH:
 		// SSH clone with private key
 		cloneCommand = fmt.Sprintf(`
 			set -e
@@ -194,11 +220,15 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 	}
 
 	// Build init container
+	// ADR-005: OpenShift Compatibility - use platform-specific git image
+	// OpenShift: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:latest
+	// Kubernetes: bitnami/git:latest
+	// Override: GIT_INIT_IMAGE environment variable
 	initContainer := corev1.Container{
-		Name:  "git-clone",
-		Image: "alpine/git:latest",
+		Name:  GitCloneContainerName,
+		Image: getGitImage(),
 		Command: []string{
-			"/bin/sh",
+			"/bin/bash",
 			"-c",
 			cloneCommand,
 		},
@@ -209,9 +239,9 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 			},
 		},
 		SecurityContext: &corev1.SecurityContext{
-			RunAsNonRoot: boolPtr(true),
-			// RunAsUser is intentionally omitted to allow OpenShift to assign a UID
-			// from the namespace's allocated range (ADR-005: OpenShift Compatibility)
+			// ADR-005: OpenShift Compatibility - alpine/git runs as root (UID 0)
+			// OpenShift will override this with a random UID from the namespace range
+			// RunAsNonRoot is intentionally omitted to allow this override
 			AllowPrivilegeEscalation: boolPtr(false),
 			Capabilities: &corev1.Capabilities{
 				Drop: []corev1.Capability{"ALL"},
@@ -227,7 +257,7 @@ func (r *NotebookValidationJobReconciler) buildGitCloneInitContainer(ctx context
 	}
 
 	// Add SSH key as environment variable if using SSH
-	if creds.Type == "ssh" {
+	if creds.Type == GitCredTypeSSH {
 		initContainer.Env = append(initContainer.Env, corev1.EnvVar{
 			Name:  "SSH_PRIVATE_KEY",
 			Value: creds.SSHKey,
@@ -273,7 +303,7 @@ func (r *NotebookValidationJobReconciler) resolveGoldenGitCredentials(ctx contex
 
 	// Check for SSH key (ADR-009: SSH authentication)
 	if sshKey, exists := secret.Data["ssh-privatekey"]; exists {
-		creds.Type = "ssh"
+		creds.Type = GitCredTypeSSH
 		creds.SSHKey = string(sshKey)
 		logger.Info("Using SSH authentication for golden notebook")
 		return creds, nil
@@ -281,7 +311,7 @@ func (r *NotebookValidationJobReconciler) resolveGoldenGitCredentials(ctx contex
 
 	// Check for HTTPS credentials (ADR-009: HTTPS authentication)
 	if username, exists := secret.Data["username"]; exists {
-		creds.Type = "https"
+		creds.Type = GitCredTypeHTTPS
 		creds.Username = string(username)
 
 		// Password or token
@@ -334,7 +364,7 @@ func (r *NotebookValidationJobReconciler) buildGoldenGitCloneInitContainer(ctx c
 			echo "Golden notebook found successfully"
 		`, gitRef, gitURL, notebookPath, notebookPath, notebookPath)
 
-	case "https":
+	case GitCredTypeHTTPS:
 		// HTTPS clone with credentials
 		// Sanitize credentials for URL (ADR-009: credential sanitization)
 		sanitizedURL := strings.Replace(gitURL, "https://", fmt.Sprintf("https://%s:%s@", creds.Username, creds.Password), 1)
@@ -356,7 +386,7 @@ func (r *NotebookValidationJobReconciler) buildGoldenGitCloneInitContainer(ctx c
 			echo "Golden notebook found successfully"
 		`, gitRef, sanitizedURL, creds.Password, notebookPath, notebookPath, notebookPath)
 
-	case "ssh":
+	case GitCredTypeSSH:
 		// SSH clone with private key
 		cloneCommand = fmt.Sprintf(`
 			set -e
@@ -389,11 +419,15 @@ func (r *NotebookValidationJobReconciler) buildGoldenGitCloneInitContainer(ctx c
 	}
 
 	// Build init container
+	// ADR-005: OpenShift Compatibility - use platform-specific git image
+	// OpenShift: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:latest
+	// Kubernetes: bitnami/git:latest
+	// Override: GIT_INIT_IMAGE environment variable
 	initContainer := corev1.Container{
 		Name:  "golden-git-clone",
-		Image: "alpine/git:latest",
+		Image: getGitImage(),
 		Command: []string{
-			"/bin/sh",
+			"/bin/bash",
 			"-c",
 			cloneCommand,
 		},
@@ -404,9 +438,9 @@ func (r *NotebookValidationJobReconciler) buildGoldenGitCloneInitContainer(ctx c
 			},
 		},
 		SecurityContext: &corev1.SecurityContext{
-			RunAsNonRoot: boolPtr(true),
-			// RunAsUser is intentionally omitted to allow OpenShift to assign a UID
-			// from the namespace's allocated range (ADR-005: OpenShift Compatibility)
+			// ADR-005: OpenShift Compatibility - alpine/git runs as root (UID 0)
+			// OpenShift will override this with a random UID from the namespace range
+			// RunAsNonRoot is intentionally omitted to allow this override
 			AllowPrivilegeEscalation: boolPtr(false),
 			Capabilities: &corev1.Capabilities{
 				Drop: []corev1.Capability{"ALL"},
@@ -422,7 +456,7 @@ func (r *NotebookValidationJobReconciler) buildGoldenGitCloneInitContainer(ctx c
 	}
 
 	// Add SSH key as environment variable if using SSH
-	if creds.Type == "ssh" {
+	if creds.Type == GitCredTypeSSH {
 		initContainer.Env = append(initContainer.Env, corev1.EnvVar{
 			Name:  "SSH_PRIVATE_KEY",
 			Value: creds.SSHKey,

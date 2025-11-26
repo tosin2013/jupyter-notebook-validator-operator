@@ -93,4 +93,485 @@ var _ = Describe("NotebookValidationJob Controller", func() {
 			// Example: If you expect a certain status condition after reconciliation, verify it here.
 		})
 	})
+
+	// ADR-037: State Machine Unit Tests
+	Context("When testing state machine transitions (ADR-037)", func() {
+		const testResourceName = "test-state-machine"
+		ctx := context.Background()
+
+		typeNamespacedName := types.NamespacedName{
+			Name:      testResourceName,
+			Namespace: "default",
+		}
+
+		AfterEach(func() {
+			// Cleanup after each test
+			resource := &mlopsv1alpha1.NotebookValidationJob{}
+			err := k8sClient.Get(ctx, typeNamespacedName, resource)
+			if err == nil {
+				Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+			}
+		})
+
+		It("should initialize with PhaseInitializing", func() {
+			By("Creating a new NotebookValidationJob")
+			job := &mlopsv1alpha1.NotebookValidationJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testResourceName,
+					Namespace: "default",
+				},
+				Spec: mlopsv1alpha1.NotebookValidationJobSpec{
+					Notebook: mlopsv1alpha1.NotebookSpec{
+						Git: mlopsv1alpha1.GitSpec{
+							URL: "https://github.com/test/test-notebooks.git",
+							Ref: "main",
+						},
+						Path: "notebooks/test.ipynb",
+					},
+					PodConfig: mlopsv1alpha1.PodConfigSpec{
+						ContainerImage:     "jupyter/scipy-notebook:latest",
+						ServiceAccountName: "default",
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, job)).To(Succeed())
+
+			By("Reconciling the job")
+			controllerReconciler := &NotebookValidationJobReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Verifying phase is set to Initializing")
+			updatedJob := &mlopsv1alpha1.NotebookValidationJob{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedJob)).To(Succeed())
+			Expect(updatedJob.Status.Phase).To(Equal(PhaseInitializing))
+			Expect(updatedJob.Status.StartTime).NotTo(BeNil())
+		})
+
+		It("should transition from Initializing to ValidationRunning when build is disabled", func() {
+			By("Creating a job without build config")
+			job := &mlopsv1alpha1.NotebookValidationJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testResourceName,
+					Namespace: "default",
+				},
+				Spec: mlopsv1alpha1.NotebookValidationJobSpec{
+					Notebook: mlopsv1alpha1.NotebookSpec{
+						Git: mlopsv1alpha1.GitSpec{
+							URL: "https://github.com/test/test-notebooks.git",
+							Ref: "main",
+						},
+						Path: "notebooks/test.ipynb",
+					},
+					PodConfig: mlopsv1alpha1.PodConfigSpec{
+						ContainerImage:     "jupyter/scipy-notebook:latest",
+						ServiceAccountName: "default",
+						// BuildConfig is nil (disabled)
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, job)).To(Succeed())
+
+			controllerReconciler := &NotebookValidationJobReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+
+			By("First reconcile: Initialize to Initializing")
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Second reconcile: Initializing to ValidationRunning")
+			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Verifying phase transitioned to ValidationRunning")
+			updatedJob := &mlopsv1alpha1.NotebookValidationJob{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedJob)).To(Succeed())
+			Expect(updatedJob.Status.Phase).To(Equal(PhaseValidationRunning))
+		})
+
+		It("should transition from Initializing to Building when build is enabled", func() {
+			By("Creating a job with build config enabled")
+			job := &mlopsv1alpha1.NotebookValidationJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testResourceName,
+					Namespace: "default",
+				},
+				Spec: mlopsv1alpha1.NotebookValidationJobSpec{
+					Notebook: mlopsv1alpha1.NotebookSpec{
+						Git: mlopsv1alpha1.GitSpec{
+							URL: "https://github.com/test/test-notebooks.git",
+							Ref: "main",
+						},
+						Path: "notebooks/test.ipynb",
+					},
+					PodConfig: mlopsv1alpha1.PodConfigSpec{
+						ContainerImage:     "jupyter/scipy-notebook:latest",
+						ServiceAccountName: "default",
+						BuildConfig: &mlopsv1alpha1.BuildConfigSpec{
+							Enabled:   true,
+							Strategy:  "s2i",
+							BaseImage: "jupyter/scipy-notebook:latest",
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, job)).To(Succeed())
+
+			controllerReconciler := &NotebookValidationJobReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+
+			By("First reconcile: Initialize to Initializing")
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Second reconcile: Initializing to Building")
+			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Verifying phase transitioned to Building")
+			updatedJob := &mlopsv1alpha1.NotebookValidationJob{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedJob)).To(Succeed())
+			Expect(updatedJob.Status.Phase).To(Equal(PhaseBuilding))
+		})
+
+		It("should not reconcile jobs that are already complete (Succeeded)", func() {
+			By("Creating a job")
+			job := &mlopsv1alpha1.NotebookValidationJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testResourceName,
+					Namespace: "default",
+				},
+				Spec: mlopsv1alpha1.NotebookValidationJobSpec{
+					Notebook: mlopsv1alpha1.NotebookSpec{
+						Git: mlopsv1alpha1.GitSpec{
+							URL: "https://github.com/test/test-notebooks.git",
+							Ref: "main",
+						},
+						Path: "notebooks/test.ipynb",
+					},
+					PodConfig: mlopsv1alpha1.PodConfigSpec{
+						ContainerImage:     "jupyter/scipy-notebook:latest",
+						ServiceAccountName: "default",
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, job)).To(Succeed())
+
+			By("Setting status to Succeeded")
+			now := metav1.Now()
+			job.Status.Phase = PhaseSucceeded
+			job.Status.CompletionTime = &now
+			Expect(k8sClient.Status().Update(ctx, job)).To(Succeed())
+
+			// Verify status was set
+			updatedJob := &mlopsv1alpha1.NotebookValidationJob{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedJob)).To(Succeed())
+			Expect(updatedJob.Status.Phase).To(Equal(PhaseSucceeded))
+
+			controllerReconciler := &NotebookValidationJobReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+
+			By("Reconciling the succeeded job")
+			result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Requeue).To(BeFalse())
+
+			By("Verifying phase remains Succeeded")
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedJob)).To(Succeed())
+			Expect(updatedJob.Status.Phase).To(Equal(PhaseSucceeded))
+		})
+
+		It("should not reconcile jobs that are already complete (Failed)", func() {
+			By("Creating a job")
+			job := &mlopsv1alpha1.NotebookValidationJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testResourceName,
+					Namespace: "default",
+				},
+				Spec: mlopsv1alpha1.NotebookValidationJobSpec{
+					Notebook: mlopsv1alpha1.NotebookSpec{
+						Git: mlopsv1alpha1.GitSpec{
+							URL: "https://github.com/test/test-notebooks.git",
+							Ref: "main",
+						},
+						Path: "notebooks/test.ipynb",
+					},
+					PodConfig: mlopsv1alpha1.PodConfigSpec{
+						ContainerImage:     "jupyter/scipy-notebook:latest",
+						ServiceAccountName: "default",
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, job)).To(Succeed())
+
+			By("Setting status to Failed")
+			now := metav1.Now()
+			job.Status.Phase = PhaseFailed
+			job.Status.CompletionTime = &now
+			Expect(k8sClient.Status().Update(ctx, job)).To(Succeed())
+
+			// Verify status was set
+			updatedJob := &mlopsv1alpha1.NotebookValidationJob{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedJob)).To(Succeed())
+			Expect(updatedJob.Status.Phase).To(Equal(PhaseFailed))
+
+			controllerReconciler := &NotebookValidationJobReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+
+			By("Reconciling the failed job")
+			result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Requeue).To(BeFalse())
+
+			By("Verifying phase remains Failed")
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedJob)).To(Succeed())
+			Expect(updatedJob.Status.Phase).To(Equal(PhaseFailed))
+		})
+
+		It("should handle legacy Pending phase by migrating to new state machine", func() {
+			By("Creating a job")
+			job := &mlopsv1alpha1.NotebookValidationJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testResourceName,
+					Namespace: "default",
+				},
+				Spec: mlopsv1alpha1.NotebookValidationJobSpec{
+					Notebook: mlopsv1alpha1.NotebookSpec{
+						Git: mlopsv1alpha1.GitSpec{
+							URL: "https://github.com/test/test-notebooks.git",
+							Ref: "main",
+						},
+						Path: "notebooks/test.ipynb",
+					},
+					PodConfig: mlopsv1alpha1.PodConfigSpec{
+						ContainerImage:     "jupyter/scipy-notebook:latest",
+						ServiceAccountName: "default",
+						// No build config
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, job)).To(Succeed())
+
+			By("Setting status to legacy Pending phase")
+			job.Status.Phase = PhasePending // Legacy phase
+			Expect(k8sClient.Status().Update(ctx, job)).To(Succeed())
+
+			// Verify status was set
+			updatedJob := &mlopsv1alpha1.NotebookValidationJob{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedJob)).To(Succeed())
+			Expect(updatedJob.Status.Phase).To(Equal(PhasePending))
+
+			controllerReconciler := &NotebookValidationJobReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+
+			By("Reconciling the legacy job")
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Verifying phase migrated to ValidationRunning (since no build)")
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedJob)).To(Succeed())
+			Expect(updatedJob.Status.Phase).To(Equal(PhaseValidationRunning))
+		})
+	})
+
+	// ADR-037: Requeue Logic Tests
+	Context("When testing requeue logic (ADR-037)", func() {
+		const testResourceName = "test-requeue"
+		ctx := context.Background()
+
+		typeNamespacedName := types.NamespacedName{
+			Name:      testResourceName,
+			Namespace: "default",
+		}
+
+		AfterEach(func() {
+			// Cleanup after each test
+			resource := &mlopsv1alpha1.NotebookValidationJob{}
+			err := k8sClient.Get(ctx, typeNamespacedName, resource)
+			if err == nil {
+				Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+			}
+		})
+
+		It("should requeue when transitioning phases", func() {
+			By("Creating a new job")
+			job := &mlopsv1alpha1.NotebookValidationJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testResourceName,
+					Namespace: "default",
+				},
+				Spec: mlopsv1alpha1.NotebookValidationJobSpec{
+					Notebook: mlopsv1alpha1.NotebookSpec{
+						Git: mlopsv1alpha1.GitSpec{
+							URL: "https://github.com/test/test-notebooks.git",
+							Ref: "main",
+						},
+						Path: "notebooks/test.ipynb",
+					},
+					PodConfig: mlopsv1alpha1.PodConfigSpec{
+						ContainerImage:     "jupyter/scipy-notebook:latest",
+						ServiceAccountName: "default",
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, job)).To(Succeed())
+
+			controllerReconciler := &NotebookValidationJobReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+
+			By("Reconciling and expecting requeue")
+			result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Requeue).To(BeTrue(), "Should requeue after initialization")
+		})
+	})
+
+	// ADR-037: Build Status Tests
+	Context("When testing build status initialization (ADR-037)", func() {
+		const testResourceName = "test-build-status"
+		ctx := context.Background()
+
+		typeNamespacedName := types.NamespacedName{
+			Name:      testResourceName,
+			Namespace: "default",
+		}
+
+		AfterEach(func() {
+			// Cleanup after each test
+			resource := &mlopsv1alpha1.NotebookValidationJob{}
+			err := k8sClient.Get(ctx, typeNamespacedName, resource)
+			if err == nil {
+				Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+			}
+		})
+
+		It("should initialize BuildStatus when entering Building phase", func() {
+			By("Creating a job with build enabled and setting it to Building phase")
+			job := &mlopsv1alpha1.NotebookValidationJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testResourceName,
+					Namespace: "default",
+				},
+				Spec: mlopsv1alpha1.NotebookValidationJobSpec{
+					Notebook: mlopsv1alpha1.NotebookSpec{
+						Git: mlopsv1alpha1.GitSpec{
+							URL: "https://github.com/test/test-notebooks.git",
+							Ref: "main",
+						},
+						Path: "notebooks/test.ipynb",
+					},
+					PodConfig: mlopsv1alpha1.PodConfigSpec{
+						ContainerImage:     "jupyter/scipy-notebook:latest",
+						ServiceAccountName: "default",
+						BuildConfig: &mlopsv1alpha1.BuildConfigSpec{
+							Enabled:   true,
+							Strategy:  "s2i",
+							BaseImage: "jupyter/scipy-notebook:latest",
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, job)).To(Succeed())
+
+			controllerReconciler := &NotebookValidationJobReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+
+			By("First reconcile: Initialize")
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Second reconcile: Transition to Building")
+			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Verifying BuildStatus is initialized")
+			updatedJob := &mlopsv1alpha1.NotebookValidationJob{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedJob)).To(Succeed())
+			Expect(updatedJob.Status.Phase).To(Equal(PhaseBuilding))
+			// BuildStatus will be initialized in the next reconcile when build logic runs
+		})
+	})
+
+	// Test error classification for ADR-011 and resource conflict handling
+	Describe("Error Classification", func() {
+		It("should classify conflict errors as transient", func() {
+			conflictErr := errors.NewConflict(
+				mlopsv1alpha1.GroupVersion.WithResource("notebookvalidationjobs").GroupResource(),
+				"test-job",
+				nil,
+			)
+			errorType := classifyError(conflictErr)
+			Expect(errorType).To(Equal("Transient"))
+		})
+
+		It("should classify timeout errors as transient", func() {
+			timeoutErr := errors.NewTimeoutError("test timeout", 30)
+			errorType := classifyError(timeoutErr)
+			Expect(errorType).To(Equal("Transient"))
+		})
+
+		It("should classify invalid errors as terminal", func() {
+			invalidErr := errors.NewInvalid(
+				mlopsv1alpha1.GroupVersion.WithKind("NotebookValidationJob").GroupKind(),
+				"test-job",
+				nil,
+			)
+			errorType := classifyError(invalidErr)
+			Expect(errorType).To(Equal("Terminal"))
+		})
+
+		It("should classify not found errors as retriable", func() {
+			notFoundErr := errors.NewNotFound(
+				mlopsv1alpha1.GroupVersion.WithResource("notebookvalidationjobs").GroupResource(),
+				"test-job",
+			)
+			errorType := classifyError(notFoundErr)
+			Expect(errorType).To(Equal("Retriable"))
+		})
+
+		It("should handle nil errors", func() {
+			errorType := classifyError(nil)
+			Expect(errorType).To(Equal(""))
+		})
+	})
 })

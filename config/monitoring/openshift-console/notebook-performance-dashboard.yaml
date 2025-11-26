@@ -1,0 +1,116 @@
+# OpenShift Console Dashboard: Notebook Performance
+# Based on ADR-021: OpenShift-Native Dashboard Strategy
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jupyter-notebook-validator-notebook-performance
+  namespace: openshift-config-managed
+  labels:
+    console.openshift.io/dashboard: "true"
+    console.openshift.io/odc-dashboard: "true"
+    app.kubernetes.io/name: jupyter-notebook-validator-operator
+    app.kubernetes.io/component: observability
+data:
+  notebook-performance.json: |
+    {
+      "dashboard": {
+        "title": "Jupyter Notebook Validator - Notebook Performance",
+        "tags": ["jupyter", "mlops", "operator", "notebooks"],
+        "panels": [
+          {
+            "title": "Validation Duration by Namespace (p50, p95, p99)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.50, sum(rate(notebookvalidationjob_reconciliation_duration_seconds_bucket[5m])) by (le, namespace))",
+                "legendFormat": "{{namespace}} (p50)"
+              },
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(notebookvalidationjob_reconciliation_duration_seconds_bucket[5m])) by (le, namespace))",
+                "legendFormat": "{{namespace}} (p95)"
+              },
+              {
+                "expr": "histogram_quantile(0.99, sum(rate(notebookvalidationjob_reconciliation_duration_seconds_bucket[5m])) by (le, namespace))",
+                "legendFormat": "{{namespace}} (p99)"
+              }
+            ]
+          },
+          {
+            "title": "Validation Success Rate by Namespace",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_validations_total{status=\"succeeded\"}[5m])) by (namespace) / sum(rate(notebookvalidationjob_validations_total[5m])) by (namespace) * 100",
+                "legendFormat": "{{namespace}}"
+              }
+            ]
+          },
+          {
+            "title": "Overall Success Rate",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_validations_total{status=\"succeeded\"}[5m])) / sum(rate(notebookvalidationjob_validations_total[5m])) * 100"
+              }
+            ],
+            "format": "percent",
+            "thresholds": "80,95"
+          },
+          {
+            "title": "Validation Jobs by Status",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_validations_total[5m])) by (status)",
+                "legendFormat": "{{status}}"
+              }
+            ]
+          },
+          {
+            "title": "Success vs Failure Trend",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_validations_total{status=\"succeeded\"}[5m]))",
+                "legendFormat": "Succeeded"
+              },
+              {
+                "expr": "sum(rate(notebookvalidationjob_validations_total{status=\"failed\"}[5m]))",
+                "legendFormat": "Failed"
+              }
+            ]
+          },
+          {
+            "title": "Average Validation Duration (5m)",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "rate(notebookvalidationjob_reconciliation_duration_seconds_sum[5m]) / rate(notebookvalidationjob_reconciliation_duration_seconds_count[5m])"
+              }
+            ],
+            "format": "s"
+          },
+          {
+            "title": "Total Validations (24h)",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "sum(increase(notebookvalidationjob_validations_total[24h]))"
+              }
+            ],
+            "format": "short"
+          },
+          {
+            "title": "Validation Duration Distribution",
+            "type": "heatmap",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_reconciliation_duration_seconds_bucket[5m])) by (le)",
+                "format": "heatmap"
+              }
+            ]
+          }
+        ]
+      }
+    }
+

@@ -1,0 +1,469 @@
+apiVersion: v1
+items:
+- apiVersion: mlops.mlops.dev/v1alpha1
+  kind: NotebookValidationJob
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"mlops.mlops.dev/v1alpha1","kind":"NotebookValidationJob","metadata":{"annotations":{},"name":"tier1-test-01-hello-world","namespace":"e2e-tests"},"spec":{"notebook":{"git":{"credentialsSecret":"git-credentials","ref":"main","url":"https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"},"path":"notebooks/tier1-simple/01-hello-world.ipynb"},"podConfig":{"containerImage":"quay.io/jupyter/minimal-notebook:latest"},"timeout":"5m"}}
+    creationTimestamp: "2025-11-24T17:12:23Z"
+    generation: 1
+    name: tier1-test-01-hello-world
+    namespace: e2e-tests
+    resourceVersion: "19448880"
+    uid: 2d7dd809-978c-4395-a230-ff3a6bee7b38
+  spec:
+    notebook:
+      git:
+        credentialsSecret: git-credentials
+        ref: main
+        url: https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git
+      path: notebooks/tier1-simple/01-hello-world.ipynb
+    podConfig:
+      containerImage: quay.io/jupyter/minimal-notebook:latest
+      serviceAccountName: default
+    timeout: 5m
+  status:
+    completionTime: "2025-11-24T17:12:34Z"
+    conditions:
+    - lastTransitionTime: "2025-11-24T17:12:23Z"
+      message: NotebookValidationJob is initializing
+      reason: Initializing
+      status: "False"
+      type: Ready
+    - lastTransitionTime: "2025-11-24T17:12:34Z"
+      message: 'Validation completed: 4/4 cells succeeded (100.0% success rate)'
+      reason: ValidationComplete
+      status: "True"
+      type: ValidationComplete
+    message: 'Validation completed: 4/4 cells succeeded (100.0% success rate)'
+    phase: Succeeded
+    results:
+    - cellIndex: 0
+      status: Skipped
+    - cellIndex: 1
+      status: Success
+    - cellIndex: 2
+      status: Success
+    - cellIndex: 3
+      status: Success
+    - cellIndex: 4
+      status: Success
+    startTime: "2025-11-24T17:12:23Z"
+    validationPodName: tier1-test-01-hello-world-validation
+- apiVersion: mlops.mlops.dev/v1alpha1
+  kind: NotebookValidationJob
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"mlops.mlops.dev/v1alpha1","kind":"NotebookValidationJob","metadata":{"annotations":{},"name":"tier1-test-02-basic-math","namespace":"e2e-tests"},"spec":{"notebook":{"git":{"credentialsSecret":"git-credentials","ref":"main","url":"https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"},"path":"notebooks/tier1-simple/02-basic-math.ipynb"},"podConfig":{"containerImage":"quay.io/jupyter/minimal-notebook:latest"},"timeout":"5m"}}
+    creationTimestamp: "2025-11-24T17:12:23Z"
+    generation: 1
+    name: tier1-test-02-basic-math
+    namespace: e2e-tests
+    resourceVersion: "19448894"
+    uid: 01947545-618c-46d2-99bf-b205c0148ba1
+  spec:
+    notebook:
+      git:
+        credentialsSecret: git-credentials
+        ref: main
+        url: https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git
+      path: notebooks/tier1-simple/02-basic-math.ipynb
+    podConfig:
+      containerImage: quay.io/jupyter/minimal-notebook:latest
+      serviceAccountName: default
+    timeout: 5m
+  status:
+    completionTime: "2025-11-24T17:12:35Z"
+    conditions:
+    - lastTransitionTime: "2025-11-24T17:12:23Z"
+      message: NotebookValidationJob is initializing
+      reason: Initializing
+      status: "False"
+      type: Ready
+    - lastTransitionTime: "2025-11-24T17:12:35Z"
+      message: 'Validation completed: 4/4 cells succeeded (100.0% success rate)'
+      reason: ValidationComplete
+      status: "True"
+      type: ValidationComplete
+    message: 'Validation completed: 4/4 cells succeeded (100.0% success rate)'
+    phase: Succeeded
+    results:
+    - cellIndex: 0
+      status: Skipped
+    - cellIndex: 1
+      status: Success
+    - cellIndex: 2
+      status: Success
+    - cellIndex: 3
+      status: Success
+    - cellIndex: 4
+      status: Success
+    startTime: "2025-11-24T17:12:23Z"
+    validationPodName: tier1-test-02-basic-math-validation
+- apiVersion: mlops.mlops.dev/v1alpha1
+  kind: NotebookValidationJob
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"mlops.mlops.dev/v1alpha1","kind":"NotebookValidationJob","metadata":{"annotations":{},"name":"tier1-test-03-data-validation","namespace":"e2e-tests"},"spec":{"notebook":{"git":{"credentialsSecret":"git-credentials","ref":"main","url":"https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"},"path":"notebooks/tier1-simple/03-data-validation.ipynb"},"podConfig":{"containerImage":"quay.io/jupyter/scipy-notebook:latest"},"timeout":"5m"}}
+    creationTimestamp: "2025-11-24T17:12:23Z"
+    generation: 1
+    name: tier1-test-03-data-validation
+    namespace: e2e-tests
+    resourceVersion: "19448898"
+    uid: a123ae87-bb7e-49b3-80b6-81e852262c1e
+  spec:
+    notebook:
+      git:
+        credentialsSecret: git-credentials
+        ref: main
+        url: https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git
+      path: notebooks/tier1-simple/03-data-validation.ipynb
+    podConfig:
+      containerImage: quay.io/jupyter/scipy-notebook:latest
+      serviceAccountName: default
+    timeout: 5m
+  status:
+    completionTime: "2025-11-24T17:12:35Z"
+    conditions:
+    - lastTransitionTime: "2025-11-24T17:12:23Z"
+      message: NotebookValidationJob is initializing
+      reason: Initializing
+      status: "False"
+      type: Ready
+    - lastTransitionTime: "2025-11-24T17:12:35Z"
+      message: 'Validation completed: 3/3 cells succeeded (100.0% success rate)'
+      reason: ValidationComplete
+      status: "True"
+      type: ValidationComplete
+    message: 'Validation completed: 3/3 cells succeeded (100.0% success rate)'
+    phase: Succeeded
+    results:
+    - cellIndex: 0
+      status: Skipped
+    - cellIndex: 1
+      status: Success
+    - cellIndex: 2
+      status: Success
+    - cellIndex: 3
+      status: Success
+    startTime: "2025-11-24T17:12:23Z"
+    validationPodName: tier1-test-03-data-validation-validation
+- apiVersion: mlops.mlops.dev/v1alpha1
+  kind: NotebookValidationJob
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"mlops.mlops.dev/v1alpha1","kind":"NotebookValidationJob","metadata":{"annotations":{},"name":"tier2-test-01-sentiment-model","namespace":"e2e-tests"},"spec":{"notebook":{"git":{"credentialsSecret":"git-credentials","ref":"main","url":"https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"},"path":"notebooks/tier2-intermediate/01-train-sentiment-model.ipynb"},"podConfig":{"buildConfig":{"enabled":true,"strategy":"tekton"},"containerImage":"quay.io/jupyter/minimal-notebook:latest"},"timeout":"15m"}}
+    creationTimestamp: "2025-11-24T17:12:40Z"
+    generation: 1
+    name: tier2-test-01-sentiment-model
+    namespace: e2e-tests
+    resourceVersion: "19455785"
+    uid: 0f53267f-a1bc-4aca-a3ed-38402989eb5d
+  spec:
+    notebook:
+      git:
+        credentialsSecret: git-credentials
+        ref: main
+        url: https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git
+      path: notebooks/tier2-intermediate/01-train-sentiment-model.ipynb
+    podConfig:
+      buildConfig:
+        autoGenerateRequirements: true
+        baseImage: quay.io/jupyter/minimal-notebook:latest
+        enabled: true
+        fallbackStrategy: warn
+        preferDockerfile: false
+        strategy: tekton
+        timeout: 15m
+      containerImage: quay.io/jupyter/minimal-notebook:latest
+      serviceAccountName: default
+    timeout: 15m
+  status:
+    buildStatus:
+      buildName: tier2-test-01-sentiment-model-build
+      completionTime: "2025-11-24T17:18:11Z"
+      duration: 5m31s
+      imageReference: image-registry.openshift-image-registry.svc:5000/e2e-tests/tier2-test-01-sentiment-model-build:latest
+      message: Build completed successfully
+      phase: Complete
+      startTime: "2025-11-24T17:12:41Z"
+      strategy: tekton
+    completionTime: "2025-11-24T17:18:29Z"
+    conditions:
+    - lastTransitionTime: "2025-11-24T17:12:40Z"
+      message: NotebookValidationJob is initializing
+      reason: Initializing
+      status: "False"
+      type: Ready
+    - lastTransitionTime: "2025-11-24T17:18:29Z"
+      message: 'Validation completed: 12/12 cells succeeded (100.0% success rate)'
+      reason: ValidationComplete
+      status: "True"
+      type: ValidationComplete
+    message: 'Validation completed: 12/12 cells succeeded (100.0% success rate)'
+    phase: Succeeded
+    results:
+    - cellIndex: 0
+      status: Skipped
+    - cellIndex: 1
+      status: Success
+    - cellIndex: 2
+      status: Skipped
+    - cellIndex: 3
+      status: Success
+    - cellIndex: 4
+      status: Skipped
+    - cellIndex: 5
+      status: Success
+    - cellIndex: 6
+      status: Success
+    - cellIndex: 7
+      status: Skipped
+    - cellIndex: 8
+      status: Success
+    - cellIndex: 9
+      status: Skipped
+    - cellIndex: 10
+      status: Success
+    - cellIndex: 11
+      status: Success
+    - cellIndex: 12
+      status: Skipped
+    - cellIndex: 13
+      status: Success
+    - cellIndex: 14
+      status: Skipped
+    - cellIndex: 15
+      status: Success
+    - cellIndex: 16
+      status: Skipped
+    - cellIndex: 17
+      status: Success
+    - cellIndex: 18
+      status: Success
+    - cellIndex: 19
+      status: Skipped
+    - cellIndex: 20
+      status: Success
+    - cellIndex: 21
+      status: Skipped
+    startTime: "2025-11-24T17:12:40Z"
+    validationPodName: tier2-test-01-sentiment-model-validation
+- apiVersion: mlops.mlops.dev/v1alpha1
+  kind: NotebookValidationJob
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"mlops.mlops.dev/v1alpha1","kind":"NotebookValidationJob","metadata":{"annotations":{},"labels":{"tier":"3"},"name":"tier3-test-03-aws-credentials","namespace":"e2e-tests"},"spec":{"notebook":{"git":{"credentialsSecret":"git-credentials","ref":"main","url":"https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"},"path":"notebooks/tier3-complex/03-aws-credentials-test.ipynb"},"podConfig":{"buildConfig":{"enabled":true,"strategy":"tekton"},"containerImage":"quay.io/jupyter/minimal-notebook:latest","credentials":["aws-credentials"]},"timeout":"15m"}}
+    creationTimestamp: "2025-11-24T17:18:36Z"
+    generation: 1
+    labels:
+      tier: "3"
+    name: tier3-test-03-aws-credentials
+    namespace: e2e-tests
+    resourceVersion: "19463425"
+    uid: 5eb49d2c-0b7c-4e97-83f0-2330f6b932a1
+  spec:
+    notebook:
+      git:
+        credentialsSecret: git-credentials
+        ref: main
+        url: https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git
+      path: notebooks/tier3-complex/03-aws-credentials-test.ipynb
+    podConfig:
+      buildConfig:
+        autoGenerateRequirements: true
+        baseImage: quay.io/jupyter/minimal-notebook:latest
+        enabled: true
+        fallbackStrategy: warn
+        preferDockerfile: false
+        strategy: tekton
+        timeout: 15m
+      containerImage: quay.io/jupyter/minimal-notebook:latest
+      envFrom:
+      - secretRef:
+          name: aws-credentials
+      serviceAccountName: default
+    timeout: 15m
+  status:
+    buildStatus:
+      buildName: tier3-test-03-aws-credentials-build
+      completionTime: "2025-11-24T17:24:07Z"
+      duration: 5m30s
+      imageReference: image-registry.openshift-image-registry.svc:5000/e2e-tests/tier3-test-03-aws-credentials-build:latest
+      message: Build completed successfully
+      phase: Complete
+      startTime: "2025-11-24T17:18:37Z"
+      strategy: tekton
+    completionTime: "2025-11-24T17:24:23Z"
+    conditions:
+    - lastTransitionTime: "2025-11-24T17:18:36Z"
+      message: NotebookValidationJob is initializing
+      reason: Initializing
+      status: "False"
+      type: Ready
+    - lastTransitionTime: "2025-11-24T17:24:23Z"
+      message: 'Validation completed: 5/5 cells succeeded (100.0% success rate)'
+      reason: ValidationComplete
+      status: "True"
+      type: ValidationComplete
+    message: 'Validation completed: 5/5 cells succeeded (100.0% success rate)'
+    phase: Succeeded
+    results:
+    - cellIndex: 0
+      status: Skipped
+    - cellIndex: 1
+      status: Success
+    - cellIndex: 2
+      status: Success
+    - cellIndex: 3
+      status: Success
+    - cellIndex: 4
+      status: Success
+    - cellIndex: 5
+      status: Success
+    startTime: "2025-11-24T17:18:36Z"
+    validationPodName: tier3-test-03-aws-credentials-validation
+- apiVersion: mlops.mlops.dev/v1alpha1
+  kind: NotebookValidationJob
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"mlops.mlops.dev/v1alpha1","kind":"NotebookValidationJob","metadata":{"annotations":{},"labels":{"tier":"3"},"name":"tier3-test-04-database-credentials","namespace":"e2e-tests"},"spec":{"notebook":{"git":{"credentialsSecret":"git-credentials","ref":"main","url":"https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"},"path":"notebooks/tier3-complex/04-database-connection-test.ipynb"},"podConfig":{"buildConfig":{"enabled":true,"strategy":"tekton"},"containerImage":"quay.io/jupyter/minimal-notebook:latest","credentials":["database-credentials"]},"timeout":"15m"}}
+    creationTimestamp: "2025-11-24T17:18:47Z"
+    generation: 1
+    labels:
+      tier: "3"
+    name: tier3-test-04-database-credentials
+    namespace: e2e-tests
+    resourceVersion: "19457170"
+    uid: d4fa3e8b-22b7-44cd-a60f-d9f9fe88943b
+  spec:
+    notebook:
+      git:
+        credentialsSecret: git-credentials
+        ref: main
+        url: https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git
+      path: notebooks/tier3-complex/04-database-connection-test.ipynb
+    podConfig:
+      buildConfig:
+        autoGenerateRequirements: true
+        baseImage: quay.io/jupyter/minimal-notebook:latest
+        enabled: true
+        fallbackStrategy: warn
+        preferDockerfile: false
+        strategy: tekton
+        timeout: 15m
+      containerImage: quay.io/jupyter/minimal-notebook:latest
+      envFrom:
+      - secretRef:
+          name: database-credentials
+      serviceAccountName: default
+    timeout: 15m
+  status:
+    buildStatus:
+      buildName: tier3-test-04-database-credentials-build
+      completionTime: "2025-11-24T17:19:17Z"
+      duration: 30s
+      message: 'Build failed: Tasks Completed: 3 (Failed: 1, Cancelled 0), Skipped:
+        0'
+      phase: Failed
+      startTime: "2025-11-24T17:18:47Z"
+      strategy: tekton
+    completionTime: "2025-11-24T17:19:17Z"
+    conditions:
+    - lastTransitionTime: "2025-11-24T17:18:47Z"
+      message: NotebookValidationJob is initializing
+      reason: Initializing
+      status: "False"
+      type: Ready
+    - lastTransitionTime: "2025-11-24T17:19:17Z"
+      message: 'Unknown phase: Failed'
+      reason: PodFailed
+      status: "False"
+      type: ValidationComplete
+    message: 'Unknown phase: Failed'
+    phase: Failed
+    startTime: "2025-11-24T17:18:47Z"
+- apiVersion: mlops.mlops.dev/v1alpha1
+  kind: NotebookValidationJob
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"mlops.mlops.dev/v1alpha1","kind":"NotebookValidationJob","metadata":{"annotations":{},"labels":{"tier":"3"},"name":"tier3-test-05-mlflow-credentials","namespace":"e2e-tests"},"spec":{"notebook":{"git":{"credentialsSecret":"git-credentials","ref":"main","url":"https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"},"path":"notebooks/tier3-complex/05-mlflow-tracking-test.ipynb"},"podConfig":{"buildConfig":{"enabled":true,"strategy":"tekton"},"containerImage":"quay.io/jupyter/minimal-notebook:latest","credentials":["mlflow-credentials"]},"timeout":"15m"}}
+    creationTimestamp: "2025-11-24T17:18:57Z"
+    generation: 1
+    labels:
+      tier: "3"
+    name: tier3-test-05-mlflow-credentials
+    namespace: e2e-tests
+    resourceVersion: "19463839"
+    uid: 1ed87c5f-d7bd-4f47-b218-2168eddbe2c5
+  spec:
+    notebook:
+      git:
+        credentialsSecret: git-credentials
+        ref: main
+        url: https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git
+      path: notebooks/tier3-complex/05-mlflow-tracking-test.ipynb
+    podConfig:
+      buildConfig:
+        autoGenerateRequirements: true
+        baseImage: quay.io/jupyter/minimal-notebook:latest
+        enabled: true
+        fallbackStrategy: warn
+        preferDockerfile: false
+        strategy: tekton
+        timeout: 15m
+      containerImage: quay.io/jupyter/minimal-notebook:latest
+      envFrom:
+      - secretRef:
+          name: mlflow-credentials
+      serviceAccountName: default
+    timeout: 15m
+  status:
+    buildStatus:
+      buildName: tier3-test-05-mlflow-credentials-build
+      completionTime: "2025-11-24T17:24:27Z"
+      duration: 5m31s
+      imageReference: image-registry.openshift-image-registry.svc:5000/e2e-tests/tier3-test-05-mlflow-credentials-build:latest
+      message: Build completed successfully
+      phase: Complete
+      startTime: "2025-11-24T17:18:57Z"
+      strategy: tekton
+    completionTime: "2025-11-24T17:24:43Z"
+    conditions:
+    - lastTransitionTime: "2025-11-24T17:18:57Z"
+      message: NotebookValidationJob is initializing
+      reason: Initializing
+      status: "False"
+      type: Ready
+    - lastTransitionTime: "2025-11-24T17:24:43Z"
+      message: 'Validation completed: 5/5 cells succeeded (100.0% success rate)'
+      reason: ValidationComplete
+      status: "True"
+      type: ValidationComplete
+    message: 'Validation completed: 5/5 cells succeeded (100.0% success rate)'
+    phase: Succeeded
+    results:
+    - cellIndex: 0
+      status: Skipped
+    - cellIndex: 1
+      status: Success
+    - cellIndex: 2
+      status: Success
+    - cellIndex: 3
+      status: Success
+    - cellIndex: 4
+      status: Success
+    - cellIndex: 5
+      status: Success
+    startTime: "2025-11-24T17:18:57Z"
+    validationPodName: tier3-test-05-mlflow-credentials-validation
+kind: List
+metadata:
+  resourceVersion: ""

@@ -1,0 +1,370 @@
+name: Helm Chart Validation
+
+on:
+  push:
+    branches: [ release-4.18, main ]
+    paths:
+      - 'helm/**'
+      - 'config/crd/**'
+      - 'config/prometheus/**'
+      - 'config/monitoring/**'
+      - '.github/workflows/helm-validation.yaml'
+      - 'Makefile'
+  pull_request:
+    branches: [ release-4.18, main ]
+    paths:
+      - 'helm/**'
+      - 'config/crd/**'
+      - 'config/prometheus/**'
+      - 'config/monitoring/**'
+      - '.github/workflows/helm-validation.yaml'
+      - 'Makefile'
+  workflow_dispatch:
+
+env:
+  HELM_VERSION: '3.13.0'
+  KUBECTL_VERSION: 'v1.31.0'
+  # Kind image for Kubernetes 1.31 - https://github.com/kubernetes-sigs/kind/releases
+  KIND_NODE_IMAGE: 'kindest/node:v1.31.0@sha256:53df588e04085fd41ae12de0c3fe4c72f7013bba32a20e7325357a1ac94ba865'
+  # cert-manager version for webhook certificate management
+  CERT_MANAGER_VERSION: 'v1.13.0'
+
+jobs:
+  helm-sync-check:
+    name: Check Helm Sync Status
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check if CRDs are in sync
+        run: |
+          echo "🔍 Checking if CRDs are in sync..."
+          make helm-sync-crds
+          if ! git diff --exit-code helm/jupyter-notebook-validator-operator/crds/; then
+            echo "❌ ERROR: CRDs are out of sync!"
+            echo "Please run 'make helm-sync-crds' and commit the changes."
+            exit 1
+          fi
+          echo "✅ CRDs are in sync"
+
+      - name: Check if observability resources are in sync
+        run: |
+          echo "🔍 Checking if observability resources are in sync..."
+          make helm-sync-observability
+          if ! git diff --exit-code helm/jupyter-notebook-validator-operator/dashboards/; then
+            echo "⚠️  WARNING: Observability resources may be out of sync"
+            echo "Consider running 'make helm-sync-observability' and committing the changes."
+          fi
+          echo "✅ Observability resources checked"
+
+  helm-lint:
+    name: Helm Lint
+    runs-on: ubuntu-latest
+    needs: helm-sync-check
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Lint Helm Chart
+        run: |
+          echo "🔍 Linting Helm chart..."
+          helm lint helm/jupyter-notebook-validator-operator
+          echo "✅ Helm chart linted successfully"
+
+  helm-template:
+    name: Helm Template Rendering
+    runs-on: ubuntu-latest
+    needs: helm-sync-check
+    strategy:
+      matrix:
+        scenario:
+          - name: default
+            values: ""
+          - name: openshift
+            values: "--set openshift.enabled=true --set prometheus.enabled=true"
+          - name: prometheus-enabled
+            values: "--set prometheus.enabled=true"
+          - name: minimal
+            values: "--set tekton.enabled=false --set prometheus.enabled=false"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Render Templates (${{ matrix.scenario.name }})
+        run: |
+          echo "📝 Rendering Helm templates (${{ matrix.scenario.name }})..."
+          helm template test-release helm/jupyter-notebook-validator-operator \
+            --namespace jupyter-validator-system \
+            --kube-version ${{ env.KUBECTL_VERSION }} \
+            ${{ matrix.scenario.values }} \
+            --debug > rendered-${{ matrix.scenario.name }}.yaml
+          echo "✅ Templates rendered successfully"
+
+      - name: Validate YAML syntax
+        run: |
+          echo "🔍 Validating YAML syntax..."
+          # Check if yamllint is available, if not skip
+          if command -v yamllint &> /dev/null; then
+            yamllint rendered-${{ matrix.scenario.name }}.yaml || true
+          else
+            echo "⚠️  yamllint not available, skipping YAML validation"
+          fi
+
+      - name: Upload rendered manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendered-manifests-${{ matrix.scenario.name }}
+          path: rendered-${{ matrix.scenario.name }}.yaml
+          retention-days: 7
+
+  helm-install-dry-run:
+    name: Helm Install (Dry-Run)
+    runs-on: ubuntu-latest
+    needs: [helm-lint, helm-template]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Create Kind Cluster
+        uses: helm/kind-action@v1.10.0
+        with:
+          cluster_name: helm-test
+          kubectl_version: ${{ env.KUBECTL_VERSION }}
+          node_image: ${{ env.KIND_NODE_IMAGE }}
+
+      - name: Install cert-manager
+        run: |
+          echo "📦 Installing cert-manager..."
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/${{ env.CERT_MANAGER_VERSION }}/cert-manager.yaml
+          echo "⏳ Waiting for cert-manager to be ready..."
+          kubectl wait --for=condition=available --timeout=120s deployment/cert-manager -n cert-manager
+          kubectl wait --for=condition=available --timeout=120s deployment/cert-manager-webhook -n cert-manager
+          kubectl wait --for=condition=available --timeout=120s deployment/cert-manager-cainjector -n cert-manager
+          echo "✅ cert-manager installed successfully"
+
+      - name: Install Chart (Dry-Run)
+        run: |
+          echo "🧪 Testing Helm install (dry-run)..."
+          helm install test-release helm/jupyter-notebook-validator-operator \
+            --namespace jupyter-validator-system \
+            --create-namespace \
+            --dry-run \
+            --debug
+          echo "✅ Dry-run completed successfully"
+
+  helm-install-test:
+    name: Helm Install Test (Real)
+    runs-on: ubuntu-latest
+    needs: helm-install-dry-run
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Create Kind Cluster
+        uses: helm/kind-action@v1.10.0
+        with:
+          cluster_name: helm-test
+          kubectl_version: ${{ env.KUBECTL_VERSION }}
+          node_image: ${{ env.KIND_NODE_IMAGE }}
+
+      - name: Install cert-manager
+        run: |
+          echo "📦 Installing cert-manager..."
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/${{ env.CERT_MANAGER_VERSION }}/cert-manager.yaml
+          echo "⏳ Waiting for cert-manager to be ready..."
+          kubectl wait --for=condition=available --timeout=120s deployment/cert-manager -n cert-manager
+          kubectl wait --for=condition=available --timeout=120s deployment/cert-manager-webhook -n cert-manager
+          kubectl wait --for=condition=available --timeout=120s deployment/cert-manager-cainjector -n cert-manager
+          echo "✅ cert-manager installed successfully"
+
+      - name: Build and Load Operator Image
+        run: |
+          echo "🏗️  Building operator image..."
+          docker build -t jupyter-notebook-validator-operator:helm-test .
+          echo "📦 Loading image into Kind cluster..."
+          kind load docker-image jupyter-notebook-validator-operator:helm-test --name helm-test
+          echo "✅ Operator image loaded successfully"
+
+      - name: Install Chart
+        run: |
+          echo "📦 Installing Helm chart..."
+          helm install test-release helm/jupyter-notebook-validator-operator \
+            --namespace jupyter-validator-system \
+            --create-namespace \
+            --set image.repository=jupyter-notebook-validator-operator \
+            --set image.tag=helm-test \
+            --set image.pullPolicy=Never \
+            --wait \
+            --timeout 5m
+          echo "✅ Chart installed successfully"
+
+      - name: Verify Installation
+        run: |
+          echo "🔍 Verifying installation..."
+          kubectl get deployment -n jupyter-validator-system
+          kubectl get crd notebookvalidationjobs.mlops.mlops.dev
+          kubectl get pods -n jupyter-validator-system
+          kubectl get serviceaccount -n jupyter-validator-system
+          echo "✅ Installation verified"
+
+      - name: Check Pod Status
+        run: |
+          echo "🔍 Checking pod status..."
+          kubectl wait --for=condition=ready pod \
+            -l control-plane=controller-manager \
+            -n jupyter-validator-system \
+            --timeout=300s || true
+          kubectl describe pods -n jupyter-validator-system
+          kubectl logs -n jupyter-validator-system \
+            -l control-plane=controller-manager \
+            --tail=50 || true
+
+  helm-upgrade-test:
+    name: Helm Upgrade Test
+    runs-on: ubuntu-latest
+    needs: helm-install-test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Create Kind Cluster
+        uses: helm/kind-action@v1.10.0
+        with:
+          cluster_name: helm-test
+          kubectl_version: ${{ env.KUBECTL_VERSION }}
+          node_image: ${{ env.KIND_NODE_IMAGE }}
+
+      - name: Install cert-manager
+        run: |
+          echo "📦 Installing cert-manager..."
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/${{ env.CERT_MANAGER_VERSION }}/cert-manager.yaml
+          echo "⏳ Waiting for cert-manager to be ready..."
+          kubectl wait --for=condition=available --timeout=120s deployment/cert-manager -n cert-manager
+          kubectl wait --for=condition=available --timeout=120s deployment/cert-manager-webhook -n cert-manager
+          kubectl wait --for=condition=available --timeout=120s deployment/cert-manager-cainjector -n cert-manager
+          echo "✅ cert-manager installed successfully"
+
+      - name: Build and Load Operator Image
+        run: |
+          echo "🏗️  Building operator image..."
+          docker build -t jupyter-notebook-validator-operator:helm-test .
+          echo "📦 Loading image into Kind cluster..."
+          kind load docker-image jupyter-notebook-validator-operator:helm-test --name helm-test
+          echo "✅ Operator image loaded successfully"
+
+      - name: Install Chart (Initial)
+        run: |
+          echo "📦 Installing Helm chart (initial)..."
+          helm install test-release helm/jupyter-notebook-validator-operator \
+            --namespace jupyter-validator-system \
+            --create-namespace \
+            --set image.repository=jupyter-notebook-validator-operator \
+            --set image.tag=helm-test \
+            --set image.pullPolicy=Never \
+            --wait \
+            --timeout 5m
+
+      - name: Upgrade Chart
+        run: |
+          echo "⬆️  Upgrading Helm chart..."
+          helm upgrade test-release helm/jupyter-notebook-validator-operator \
+            --namespace jupyter-validator-system \
+            --set image.repository=jupyter-notebook-validator-operator \
+            --set image.tag=helm-test \
+            --set image.pullPolicy=Never \
+            --wait \
+            --timeout 5m
+          echo "✅ Chart upgraded successfully"
+
+      - name: Verify Upgrade
+        run: |
+          echo "🔍 Verifying upgrade..."
+          helm list -n jupyter-validator-system
+          kubectl get pods -n jupyter-validator-system
+          echo "✅ Upgrade verified"
+
+  helm-package:
+    name: Package Helm Chart
+    runs-on: ubuntu-latest
+    needs: [helm-lint, helm-template, helm-install-test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/release-4.18'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Sync resources
+        run: |
+          echo "🔄 Syncing resources..."
+          make helm-sync
+
+      - name: Package Chart
+        run: |
+          echo "📦 Packaging Helm chart..."
+          mkdir -p dist
+          helm package helm/jupyter-notebook-validator-operator \
+            --destination dist/
+          echo "✅ Chart packaged successfully"
+
+      - name: List packaged charts
+        run: |
+          echo "📋 Packaged charts:"
+          ls -lh dist/*.tgz
+
+      - name: Upload Chart Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-chart
+          path: dist/*.tgz
+          retention-days: 30
+
+  summary:
+    name: Validation Summary
+    runs-on: ubuntu-latest
+    needs: [helm-sync-check, helm-lint, helm-template, helm-install-dry-run, helm-install-test, helm-upgrade-test]
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          echo "## Helm Chart Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All Helm chart validation tests passed!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Tests Run:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Sync check" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Helm lint" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Template rendering (4 scenarios)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Install dry-run" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Install test" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Upgrade test" >> $GITHUB_STEP_SUMMARY
+

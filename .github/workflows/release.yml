@@ -8,7 +8,7 @@ on:
 env:
   REGISTRY: quay.io
   IMAGE_NAME: takinosh/jupyter-notebook-validator-operator
-  GO_VERSION: '1.21'
+  GO_VERSION: '1.22'
 
 jobs:
   create-release:
@@ -88,9 +88,17 @@ jobs:
           ```
           
           ### Supported Platforms
-          - Kubernetes 1.28+
-          - OpenShift 4.14+
+          - Kubernetes 1.31+ (tested on 1.31.12)
+          - OpenShift 4.18+ (tested on 4.18.21)
           - Architectures: amd64, arm64
+
+          ### Features
+          - Jupyter notebook validation with Papermill
+          - Git repository integration (HTTPS and SSH)
+          - Tekton build integration for dependency management
+          - KServe model inference validation
+          - Credential injection with user-friendly syntax
+          - Comprehensive error handling and status tracking
           
           ### Documentation
           - [Installation Guide](https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/README.md)

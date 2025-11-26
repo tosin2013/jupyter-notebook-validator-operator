@@ -1,0 +1,45 @@
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: notebookvalidationjob-s2i-autogen-sample
+  namespace: default
+spec:
+  notebook:
+    git:
+      url: "https://github.com/jupyter/notebook-examples.git"
+      ref: "main"
+    path: "examples/Notebook/What is the Jupyter Notebook.ipynb"
+  
+  podConfig:
+    # Build custom image with S2I and auto-generate requirements.txt
+    # This demonstrates ADR-024: Fallback Strategy for Missing requirements.txt
+    buildConfig:
+      enabled: true
+      strategy: "s2i"
+      baseImage: "quay.io/jupyter/minimal-notebook:latest"
+      
+      # Enable auto-generation of requirements.txt using pipreqs
+      # This will analyze notebook imports and create requirements.txt automatically
+      autoGenerateRequirements: true
+      
+      # Fallback strategy when requirements.txt is missing
+      # - "warn": Proceed with base image and log warning
+      # - "fail": Fail the job if requirements.txt is missing
+      # - "auto": Automatically generate requirements.txt (same as autoGenerateRequirements: true)
+      fallbackStrategy: "auto"
+    
+    # Use pre-built image as fallback if build is disabled
+    containerImage: "quay.io/jupyter/minimal-notebook:latest"
+    
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+    
+    serviceAccountName: "notebook-validator-jupyter-notebook-validator-runner"
+  
+  timeout: "30m"
+

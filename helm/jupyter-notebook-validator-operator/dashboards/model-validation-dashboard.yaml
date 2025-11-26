@@ -1,0 +1,127 @@
+# OpenShift Console Dashboard: Model Validation
+# Based on ADR-021: OpenShift-Native Dashboard Strategy
+# Based on ADR-020: Model-Aware Validation Strategy
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jupyter-notebook-validator-model-validation
+  namespace: openshift-config-managed
+  labels:
+    console.openshift.io/dashboard: "true"
+    console.openshift.io/odc-dashboard: "true"
+    app.kubernetes.io/name: jupyter-notebook-validator-operator
+    app.kubernetes.io/component: observability
+data:
+  model-validation.json: |
+    {
+      "dashboard": {
+        "title": "Jupyter Notebook Validator - Model Validation",
+        "tags": ["jupyter", "mlops", "operator", "model-validation"],
+        "panels": [
+          {
+            "title": "Model Validation Duration by Platform (p95)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(notebookvalidationjob_model_validation_duration_seconds_bucket[5m])) by (le, platform))",
+                "legendFormat": "{{platform}}"
+              }
+            ]
+          },
+          {
+            "title": "Model Health Checks by Platform",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_model_health_checks_total[5m])) by (platform, status)",
+                "legendFormat": "{{platform}} - {{status}}"
+              }
+            ]
+          },
+          {
+            "title": "Model Health Check Success Rate",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_model_health_checks_total{status=\"healthy\"}[5m])) / sum(rate(notebookvalidationjob_model_health_checks_total[5m])) * 100"
+              }
+            ],
+            "format": "percent",
+            "thresholds": "80,95"
+          },
+          {
+            "title": "Prediction Validations by Platform",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_prediction_validations_total[5m])) by (platform, result)",
+                "legendFormat": "{{platform}} - {{result}}"
+              }
+            ]
+          },
+          {
+            "title": "Prediction Validation Success Rate",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_prediction_validations_total{result=\"success\"}[5m])) / sum(rate(notebookvalidationjob_prediction_validations_total[5m])) * 100"
+              }
+            ],
+            "format": "percent",
+            "thresholds": "85,95"
+          },
+          {
+            "title": "Platform Detection Duration (p95)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(notebookvalidationjob_platform_detection_duration_seconds_bucket[5m])) by (le, platform))",
+                "legendFormat": "{{platform}}"
+              }
+            ]
+          },
+          {
+            "title": "Platform Detection Success Rate",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_platform_detection_duration_seconds_count{detected=\"true\"}[5m])) / sum(rate(notebookvalidationjob_platform_detection_duration_seconds_count[5m])) * 100"
+              }
+            ],
+            "format": "percent",
+            "thresholds": "90,98"
+          },
+          {
+            "title": "Model Validation Failures by Platform",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_model_validation_duration_seconds_count{result!=\"success\"}[5m])) by (platform, result)",
+                "legendFormat": "{{platform}} - {{result}}"
+              }
+            ]
+          },
+          {
+            "title": "Total Model Validations (24h)",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "sum(increase(notebookvalidationjob_model_validation_duration_seconds_count[24h]))"
+              }
+            ],
+            "format": "short"
+          },
+          {
+            "title": "Platform Detection by Result",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_platform_detection_duration_seconds_count[5m])) by (platform, detected)",
+                "legendFormat": "{{platform}} - detected={{detected}}"
+              }
+            ]
+          }
+        ]
+      }
+    }
+

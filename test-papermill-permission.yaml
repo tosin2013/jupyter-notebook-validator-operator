@@ -1,0 +1,19 @@
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: test-papermill-permission
+  namespace: jupyter-notebook-validator-operator
+spec:
+  notebook:
+    path: "tier1/01-simple-notebook.ipynb"
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+  podConfig:
+    # Use a base Jupyter image that has notebooks but not Papermill
+    containerImage: "quay.io/jupyter/minimal-notebook:latest"
+    buildConfig:
+      enabled: false
+    # This will skip git-clone and use the image directly
+    skipGitClone: true
+

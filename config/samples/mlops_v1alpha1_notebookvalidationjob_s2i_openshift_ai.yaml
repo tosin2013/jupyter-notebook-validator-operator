@@ -1,0 +1,44 @@
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: notebookvalidationjob-s2i-openshift-ai
+  namespace: default
+spec:
+  notebook:
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+      # For private repositories, create a secret with Git credentials
+      # See config/samples/git-credentials-example.yaml for how to create the secret
+      credentialsSecret: "git-credentials"
+    path: "notebooks/tier1-simple/01-hello-world.ipynb"
+  
+  podConfig:
+    # Build custom image with S2I using OpenShift AI ImageStream
+    # This uses the recommended S2I-enabled Jupyter image from OpenShift AI
+    buildConfig:
+      enabled: true
+      strategy: "s2i"
+      # Use OpenShift AI S2I-enabled image (recommended)
+      # This image has proper S2I scripts and is optimized for notebook workloads
+      baseImage: "image-registry.openshift-image-registry.svc:5000/redhat-ods-applications/s2i-minimal-notebook:2025.1"
+      autoGenerateRequirements: false
+      requirementsFile: "requirements.txt"
+      fallbackStrategy: "warn"
+      timeout: "15m"
+    
+    # Fallback image if build is disabled
+    containerImage: "quay.io/jupyter/minimal-notebook:latest"
+    
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+    
+    serviceAccountName: "notebook-validator-jupyter-notebook-validator-runner"
+  
+  timeout: "30m"
+

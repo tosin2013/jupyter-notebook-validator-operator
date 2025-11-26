@@ -83,6 +83,48 @@ var (
 		},
 		[]string{"namespace", "result"},
 	)
+
+	// Model validation metrics (ADR-020: Model-Aware Validation)
+	// Tracks model validation duration by platform
+	modelValidationDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "notebookvalidationjob_model_validation_duration_seconds",
+			Help:    "Duration of model validation operations in seconds",
+			Buckets: []float64{0.5, 1, 2, 5, 10, 30, 60},
+		},
+		[]string{"namespace", "platform", "result"},
+	)
+
+	// Model health checks counter
+	// Tracks model health check attempts by platform and result
+	modelHealthChecks = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "notebookvalidationjob_model_health_checks_total",
+			Help: "Total number of model health checks",
+		},
+		[]string{"namespace", "platform", "status"},
+	)
+
+	// Prediction validations counter
+	// Tracks prediction validation attempts and results
+	predictionValidations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "notebookvalidationjob_prediction_validations_total",
+			Help: "Total number of prediction validations",
+		},
+		[]string{"namespace", "platform", "result"},
+	)
+
+	// Platform detection duration histogram
+	// Tracks platform detection performance
+	platformDetectionDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "notebookvalidationjob_platform_detection_duration_seconds",
+			Help:    "Duration of platform detection operations in seconds",
+			Buckets: []float64{0.1, 0.5, 1, 2, 5, 10},
+		},
+		[]string{"namespace", "platform", "detected"},
+	)
 )
 
 func init() {
@@ -94,6 +136,10 @@ func init() {
 		activePods,
 		reconciliationErrors,
 		podCreations,
+		modelValidationDuration,
+		modelHealthChecks,
+		predictionValidations,
+		platformDetectionDuration,
 	)
 }
 
@@ -115,4 +161,34 @@ func setActivePods(namespace, phase string, count float64) {
 // recordPodCreation records a pod creation attempt
 func recordPodCreation(namespace, result string) {
 	podCreations.WithLabelValues(namespace, result).Inc()
+}
+
+// recordModelValidationDuration records the duration of a model validation operation
+func recordModelValidationDuration(namespace, platform, result string, duration float64) {
+	modelValidationDuration.WithLabelValues(namespace, platform, result).Observe(duration)
+}
+
+// recordModelHealthCheck records a model health check attempt
+// TODO(ADR-020): Implement model health check functionality
+//
+//nolint:unused // Reserved for ADR-020 Model-Aware Validation Strategy
+func recordModelHealthCheck(namespace, platform, status string) {
+	modelHealthChecks.WithLabelValues(namespace, platform, status).Inc()
+}
+
+// recordPredictionValidation records a prediction validation attempt
+// TODO(ADR-020): Implement prediction validation functionality
+//
+//nolint:unused // Reserved for ADR-020 Model-Aware Validation Strategy
+func recordPredictionValidation(namespace, platform, result string) {
+	predictionValidations.WithLabelValues(namespace, platform, result).Inc()
+}
+
+// recordPlatformDetection records the duration of a platform detection operation
+func recordPlatformDetection(namespace, platform string, detected bool, duration float64) {
+	detectedStr := "false"
+	if detected {
+		detectedStr = "true"
+	}
+	platformDetectionDuration.WithLabelValues(namespace, platform, detectedStr).Observe(duration)
 }

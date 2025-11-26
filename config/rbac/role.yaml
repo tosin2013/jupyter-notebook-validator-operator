@@ -22,6 +22,18 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - persistentvolumeclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - pods
   verbs:
   - create
@@ -51,8 +63,19 @@ rules:
   resources:
   - secrets
   verbs:
+  - create
   - get
   - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - create
+  - get
+  - list
+  - watch
 - apiGroups:
   - apps
   resources:
@@ -60,6 +83,30 @@ rules:
   verbs:
   - get
   - list
+  - watch
+- apiGroups:
+  - build.openshift.io
+  resources:
+  - buildconfigs
+  - builds
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - image.openshift.io
+  resources:
+  - imagestreams
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - machinelearning.seldon.io
@@ -105,6 +152,18 @@ rules:
   - list
   - watch
 - apiGroups:
+  - security.openshift.io
+  resourceNames:
+  - pipelines-scc
+  - privileged
+  resources:
+  - securitycontextconstraints
+  verbs:
+  - get
+  - list
+  - update
+  - use
+- apiGroups:
   - serving.kserve.io
   resources:
   - inferenceservices
@@ -128,4 +187,19 @@ rules:
   verbs:
   - get
   - list
+  - watch
+- apiGroups:
+  - tekton.dev
+  resources:
+  - pipelineruns
+  - pipelines
+  - taskruns
+  - tasks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
   - watch

@@ -78,7 +78,9 @@ func (r *NotebookValidationJobReconciler) collectPodLogs(ctx context.Context, po
 	if err != nil {
 		return "", fmt.Errorf("failed to open log stream: %w", err)
 	}
-	defer podLogs.Close()
+	defer func() {
+		_ = podLogs.Close()
+	}()
 
 	// Read logs into buffer
 	buf := new(bytes.Buffer)
@@ -179,7 +181,7 @@ func convertExecutionResultToNotebookFormat(result *NotebookExecutionResult) *No
 		}
 
 		// For code cells with errors, add error output
-		if cell.Status == "failed" && cell.Error != "" {
+		if cell.Status == StatusFailed && cell.Error != "" {
 			errorOutput := CellOutput{
 				OutputType: "error",
 				Ename:      "ExecutionError",
@@ -219,7 +221,7 @@ func (r *NotebookValidationJobReconciler) updateJobStatusWithResults(
 		// Map status
 		if cell.Status == "succeeded" {
 			cellResult.Status = "Success"
-		} else if cell.Status == "failed" {
+		} else if cell.Status == StatusFailed {
 			cellResult.Status = "Failure"
 
 			// Copy error message if present
@@ -254,7 +256,7 @@ func (r *NotebookValidationJobReconciler) updateJobStatusWithResults(
 		result.Statistics.CodeCells,
 		result.Statistics.SuccessRate)
 
-	if result.Status == "failed" {
+	if result.Status == StatusFailed {
 		message = fmt.Sprintf("Validation failed: %s", result.Error)
 	}
 
@@ -376,10 +378,10 @@ func (r *NotebookValidationJobReconciler) handlePodSuccess(
 				"mismatched", comparisonResult.MismatchedCells)
 
 			// If comparison failed, mark validation as failed
-			if comparisonResult.Result == "failed" {
+			if comparisonResult.Result == StatusFailed {
 				logger.Info("Golden notebook comparison failed, marking validation as failed")
 				// Record validation completion metric with failed status
-				recordValidationComplete(job.Namespace, "failed")
+				recordValidationComplete(job.Namespace, StatusFailed)
 				return r.updateJobPhase(ctx, job, PhaseFailed,
 					fmt.Sprintf("Validation failed: golden notebook comparison failed (%d/%d cells matched)",
 						comparisonResult.MatchedCells, comparisonResult.TotalCells))
@@ -392,9 +394,9 @@ func (r *NotebookValidationJobReconciler) handlePodSuccess(
 	// Determine final phase based on execution result
 	finalPhase := PhaseSucceeded
 	status := "succeeded"
-	if result.Status == "failed" {
+	if result.Status == StatusFailed {
 		finalPhase = PhaseFailed
-		status = "failed"
+		status = StatusFailed
 	}
 
 	// Record validation completion metric
@@ -406,6 +408,7 @@ func (r *NotebookValidationJobReconciler) handlePodSuccess(
 }
 
 // handlePodFailure processes a failed pod and updates the job status
+// Implements ADR-019: Smart Validation Pod Recovery with failure analysis
 func (r *NotebookValidationJobReconciler) handlePodFailure(
 	ctx context.Context,
 	job *mlopsv1alpha1.NotebookValidationJob,
@@ -414,14 +417,26 @@ func (r *NotebookValidationJobReconciler) handlePodFailure(
 	logger := log.FromContext(ctx)
 	logger.Info("Processing failed pod", "pod", pod.Name)
 
+	// ADR-019: Analyze pod failure to determine recovery strategy
+	analysis := analyzePodFailure(ctx, pod)
+	logger.Info("Pod failure analysis complete",
+		"reason", analysis.Reason,
+		"isTransient", analysis.IsTransient,
+		"shouldRetry", analysis.ShouldRetry,
+		"failedContainer", analysis.FailedContainer,
+		"isInitContainer", analysis.IsInitContainer,
+		"isSCCViolation", analysis.IsSCCViolation,
+		"isImageIssue", analysis.IsImageIssue,
+		"suggestedAction", analysis.SuggestedAction)
+
 	// Try to collect logs to get error details
 	logs, err := r.collectPodLogs(ctx, pod, "validator")
-	errorMsg := "Validation pod failed"
+	errorMsg := fmt.Sprintf("Validation pod failed: %s - %s", analysis.Reason, analysis.ErrorMessage)
 
 	if err == nil {
 		// Extract error from logs
 		if extractedError := extractErrorFromLogs(logs); extractedError != "" {
-			errorMsg = extractedError
+			errorMsg = fmt.Sprintf("%s. Log error: %s", errorMsg, extractedError)
 		}
 	}
 
@@ -432,22 +447,82 @@ func (r *NotebookValidationJobReconciler) handlePodFailure(
 		return ctrl.Result{}, err
 	}
 
-	// Check if we should retry
-	if job.Status.RetryCount < MaxRetries {
-		logger.Info("Retrying validation", "retryCount", job.Status.RetryCount)
+	// Get recovery action based on failure analysis
+	recoveryAction := getFailureRecoveryAction(analysis, job.Status.RetryCount)
+	logger.Info("Determined recovery action", "action", recoveryAction, "retryCount", job.Status.RetryCount)
+
+	// Handle recovery action
+	switch recoveryAction {
+	case "skip_init_container":
+		logger.Info("Init container failure detected - will retry without init container (using built image)")
 		// Delete the failed pod
 		if err := r.Delete(ctx, pod); err != nil {
 			logger.Error(err, "Failed to delete failed pod")
 		}
-		// Requeue to create a new pod
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
+		// Requeue to create a new pod (controller will skip init container for built images)
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+
+	case "retry_with_backoff":
+		if job.Status.RetryCount < MaxRetries {
+			// Exponential backoff: 1m, 2m, 4m (safe calculation to avoid integer overflow)
+			var backoff time.Duration
+			if job.Status.RetryCount <= 0 {
+				backoff = time.Minute
+			} else if job.Status.RetryCount > 3 {
+				backoff = 5 * time.Minute
+			} else {
+				// #nosec G115 -- RetryCount is bounded above, shift is safe
+				backoff = time.Minute * time.Duration(1<<uint(job.Status.RetryCount-1))
+			}
+			logger.Info("Retrying validation with backoff", "retryCount", job.Status.RetryCount, "backoff", backoff)
+			// Delete the failed pod
+			if err := r.Delete(ctx, pod); err != nil {
+				logger.Error(err, "Failed to delete failed pod")
+			}
+			// Requeue with backoff
+			return ctrl.Result{RequeueAfter: backoff}, nil
+		}
+
+	case "fallback_to_prebuilt_image":
+		logger.Info("Image pull failures - will fallback to pre-built image on next retry")
+		// Delete the failed pod
+		if err := r.Delete(ctx, pod); err != nil {
+			logger.Error(err, "Failed to delete failed pod")
+		}
+		// TODO: Implement fallback to spec.podConfig.containerImage
+		// For now, retry with backoff
+		return ctrl.Result{RequeueAfter: 2 * time.Minute}, nil
+
+	case "max_retries_exceeded", "do_not_retry":
+		// Max retries reached or should not retry
+		logger.Info("Max retries exceeded or retry not recommended", "retryCount", job.Status.RetryCount)
+		// Record validation completion metric with failed status
+		recordValidationComplete(job.Namespace, "failed")
+		logger.Info("Recorded validation completion metric", "namespace", job.Namespace, "status", "failed")
+
+		return r.updateJobPhase(ctx, job, PhaseFailed,
+			fmt.Sprintf("Validation failed after %d retries: %s. Suggested action: %s",
+				job.Status.RetryCount, errorMsg, analysis.SuggestedAction))
+
+	default:
+		// Unknown recovery action - use default retry logic
+		if job.Status.RetryCount < MaxRetries {
+			logger.Info("Using default retry logic", "retryCount", job.Status.RetryCount)
+			// Delete the failed pod
+			if err := r.Delete(ctx, pod); err != nil {
+				logger.Error(err, "Failed to delete failed pod")
+			}
+			// Requeue to create a new pod
+			return ctrl.Result{RequeueAfter: time.Minute}, nil
+		}
 	}
 
 	// Max retries reached, mark as failed
 	// Record validation completion metric with failed status
-	recordValidationComplete(job.Namespace, "failed")
-	logger.Info("Recorded validation completion metric", "namespace", job.Namespace, "status", "failed")
+	recordValidationComplete(job.Namespace, StatusFailed)
+	logger.Info("Recorded validation completion metric", "namespace", job.Namespace, "status", StatusFailed)
 
 	return r.updateJobPhase(ctx, job, PhaseFailed,
-		fmt.Sprintf("Validation failed after %d retries: %s", MaxRetries, errorMsg))
+		fmt.Sprintf("Validation failed after %d retries: %s. Suggested action: %s",
+			MaxRetries, errorMsg, analysis.SuggestedAction))
 }

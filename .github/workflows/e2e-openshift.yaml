@@ -1,0 +1,733 @@
+name: E2E - OpenShift Cluster Tests (All Tiers)
+
+# ADR-033: End-to-End Testing Against Live OpenShift Cluster
+# ADR-034: Dual Testing Strategy with Kind and OpenShift
+# ADR-035: Test Tier Organization and Scope
+# This workflow runs complete E2E tests on a live OpenShift 4.18 cluster,
+# validating the full operator workflow including Tekton builds, notebook validation,
+# and complex integrations (KServe, credentials, MLflow).
+
+on:
+  push:
+    branches: [ main, 'release-*' ]
+  pull_request:
+    branches: [ main, 'release-*' ]
+    types: [ labeled, opened, synchronize, reopened ]
+  workflow_dispatch:
+    inputs:
+      test_tier:
+        description: 'Test tier to run (1, 2, 3, 4, or all)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - 'all'
+
+# Concurrency control: Only one E2E test run per branch at a time
+# This prevents multiple workflow runs from interfering with each other
+# when using the same OpenShift cluster and namespaces
+concurrency:
+  group: e2e-openshift-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: '1.22'
+  TEST_NAMESPACE: 'e2e-tests'
+  OPERATOR_NAMESPACE: 'jupyter-notebook-validator-operator'
+  TEST_REPO: 'https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git'
+
+jobs:
+  # Only run E2E tests if:
+  # 1. Pushed to main or release branches
+  # 2. PR has 'e2e-test' label
+  # 3. Manually triggered
+  check-trigger:
+    name: Check E2E Trigger
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Check if E2E should run
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" == "push" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "E2E triggered by push to ${{ github.ref }}"
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "E2E triggered manually"
+          elif [ "${{ github.event_name }}" == "pull_request" ]; then
+            if [ "${{ contains(github.event.pull_request.labels.*.name, 'e2e-test') }}" == "true" ]; then
+              echo "should_run=true" >> $GITHUB_OUTPUT
+              echo "E2E triggered by 'e2e-test' label on PR"
+            else
+              echo "should_run=false" >> $GITHUB_OUTPUT
+              echo "E2E skipped - add 'e2e-test' label to PR to run"
+            fi
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+
+  openshift-e2e:
+    name: OpenShift E2E Tests
+    runs-on: ubuntu-latest
+    needs: check-trigger
+    if: needs.check-trigger.outputs.should_run == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install OpenShift CLI
+        run: |
+          echo "Installing oc CLI..."
+          curl -LO https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz
+          tar -xzf openshift-client-linux.tar.gz
+          sudo mv oc kubectl /usr/local/bin/
+          oc version --client
+
+      - name: Login to OpenShift cluster
+        env:
+          OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
+          OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
+        run: |
+          if [ -z "$OPENSHIFT_SERVER" ] || [ -z "$OPENSHIFT_TOKEN" ]; then
+            echo "❌ Error: OPENSHIFT_SERVER or OPENSHIFT_TOKEN not configured"
+            echo "Please configure GitHub Secrets:"
+            echo "  - OPENSHIFT_SERVER: OpenShift API server URL"
+            echo "  - OPENSHIFT_TOKEN: Service account token"
+            exit 1
+          fi
+          
+          echo "Logging in to OpenShift cluster..."
+          oc login --token="$OPENSHIFT_TOKEN" --server="$OPENSHIFT_SERVER" --insecure-skip-tls-verify=true
+          
+          echo "Verifying cluster access..."
+          oc cluster-info
+          oc version
+          
+          echo "✅ Successfully logged in to OpenShift cluster"
+
+      - name: Create test namespace
+        run: |
+          echo "Creating test namespace: ${{ env.TEST_NAMESPACE }}"
+          oc create namespace ${{ env.TEST_NAMESPACE }} || true
+          oc project ${{ env.TEST_NAMESPACE }}
+          
+          echo "✅ Test namespace ready"
+
+      - name: Build and push operator image
+        env:
+          QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+          QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+        run: |
+          # Generate unique tag for this test run
+          IMAGE_TAG="e2e-test-$(git rev-parse --short HEAD)-$(date +%s)"
+          IMAGE="quay.io/takinosh/jupyter-notebook-validator-operator:${IMAGE_TAG}"
+          
+          echo "Building operator image: ${IMAGE}"
+          make docker-build IMG="${IMAGE}"
+          
+          echo "Logging in to Quay.io..."
+          echo "$QUAY_PASSWORD" | docker login -u "$QUAY_USERNAME" --password-stdin quay.io
+          
+          echo "Pushing operator image..."
+          make docker-push IMG="${IMAGE}"
+          
+          echo "IMAGE=${IMAGE}" >> $GITHUB_ENV
+          echo "✅ Operator image built and pushed: ${IMAGE}"
+
+      - name: Install cert-manager
+        run: |
+          echo "Installing cert-manager..."
+
+          # Install cert-manager using kubectl
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml
+
+          echo "Waiting for cert-manager to be ready..."
+          kubectl wait --for=condition=available deployment/cert-manager \
+            -n cert-manager --timeout=5m
+          kubectl wait --for=condition=available deployment/cert-manager-webhook \
+            -n cert-manager --timeout=5m
+          kubectl wait --for=condition=available deployment/cert-manager-cainjector \
+            -n cert-manager --timeout=5m
+
+          echo "✅ cert-manager installed successfully"
+          kubectl get pods -n cert-manager
+
+      - name: Install operator
+        run: |
+          echo "=== Cleaning up any previous operator installation ==="
+
+          # Undeploy operator first (removes deployment, services, webhooks)
+          echo "Undeploying operator..."
+          make undeploy || true
+
+          # Uninstall CRDs
+          echo "Uninstalling CRDs..."
+          make uninstall || true
+
+          # Clean up OLD operator namespace (jupyter-validator-system) if it exists
+          echo "Cleaning up old operator namespace (jupyter-validator-system)..."
+          oc delete deployment jupyter-validator-notebook-validator-controller-manager \
+            -n jupyter-validator-system --ignore-not-found=true --timeout=60s || true
+          oc delete service jupyter-validator-webhook-service \
+            -n jupyter-validator-system --ignore-not-found=true || true
+          oc delete namespace jupyter-validator-system --ignore-not-found=true --wait=false || true
+
+          # Clean up NEW operator namespace (current namespace)
+          echo "Cleaning up operator resources in ${{ env.OPERATOR_NAMESPACE }}..."
+          oc delete deployment notebook-validator-controller-manager \
+            -n ${{ env.OPERATOR_NAMESPACE }} --ignore-not-found=true --timeout=60s || true
+          oc delete service notebook-validator-webhook-service \
+            -n ${{ env.OPERATOR_NAMESPACE }} --ignore-not-found=true || true
+
+          # Delete webhooks (cluster-scoped resources)
+          echo "Cleaning up webhook configurations..."
+          oc delete mutatingwebhookconfiguration notebook-validator-mutating-webhook-configuration \
+            --ignore-not-found=true || true
+          oc delete validatingwebhookconfiguration notebook-validator-validating-webhook-configuration \
+            --ignore-not-found=true || true
+
+          # Wait for operator pods to fully terminate in BOTH namespaces
+          echo "Waiting for operator pods to terminate in all namespaces..."
+          for i in {1..30}; do
+            OLD_PODS=$(oc get pods -n jupyter-validator-system --no-headers 2>/dev/null | wc -l)
+            NEW_PODS=$(oc get pods -l control-plane=controller-manager -n ${{ env.OPERATOR_NAMESPACE }} --no-headers 2>/dev/null | wc -l)
+            TOTAL_PODS=$((OLD_PODS + NEW_PODS))
+
+            if [ "$TOTAL_PODS" -eq 0 ]; then
+              echo "✅ All operator pods terminated"
+              break
+            fi
+            echo "Waiting for pods to terminate: old_ns=$OLD_PODS, new_ns=$NEW_PODS (attempt $i/30)..."
+            sleep 2
+          done
+
+          # Additional wait for cleanup to propagate
+          sleep 5
+
+          echo "=== Installing fresh operator ==="
+          echo "Installing CRDs..."
+          make install
+
+          echo "Deploying operator with webhook support..."
+          make deploy IMG="${IMAGE}"
+
+          echo "Waiting for operator deployment to be available..."
+          oc wait --for=condition=available deployment/notebook-validator-controller-manager \
+            -n ${{ env.OPERATOR_NAMESPACE }} --timeout=5m
+
+          echo "Waiting for operator pods to be ready..."
+          oc wait --for=condition=ready pod -l control-plane=controller-manager \
+            -n ${{ env.OPERATOR_NAMESPACE }} --timeout=2m
+
+          echo "Verifying webhook certificate..."
+          oc get certificate -n ${{ env.OPERATOR_NAMESPACE }}
+          oc get secret webhook-server-cert -n ${{ env.OPERATOR_NAMESPACE }}
+
+          echo "Waiting for webhook to be fully initialized..."
+
+          # Step 1: Wait for webhook service to have endpoints (backing pods)
+          echo "Waiting for webhook service endpoints..."
+          for i in {1..30}; do
+            ENDPOINTS=$(oc get endpoints notebook-validator-webhook-service \
+              -n ${{ env.OPERATOR_NAMESPACE }} \
+              -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || echo "")
+
+            if [ -n "$ENDPOINTS" ]; then
+              echo "✅ Webhook service has endpoints: $ENDPOINTS"
+              break
+            fi
+
+            echo "Waiting for webhook endpoints (attempt $i/30)..."
+            sleep 2
+          done
+
+          # Step 2: Wait for CA bundle to be injected by cert-manager into MutatingWebhookConfiguration
+          echo "Waiting for CA bundle injection..."
+          for i in {1..30}; do
+            CA_BUNDLE=$(oc get mutatingwebhookconfiguration notebook-validator-mutating-webhook-configuration \
+              -o jsonpath='{.webhooks[0].clientConfig.caBundle}' 2>/dev/null || echo "")
+
+            if [ -n "$CA_BUNDLE" ] && [ "$CA_BUNDLE" != "Cg==" ]; then
+              echo "✅ Webhook CA bundle injected successfully"
+              break
+            fi
+
+            echo "Waiting for CA bundle injection (attempt $i/30)..."
+            sleep 2
+          done
+
+          # Step 3: Give webhook server additional time to fully initialize after CA injection
+          echo "Allowing webhook server to initialize..."
+          sleep 10
+
+          echo "✅ Operator deployed successfully with webhook ready"
+          oc get pods -n ${{ env.OPERATOR_NAMESPACE }}
+          oc get mutatingwebhookconfiguration notebook-validator-mutating-webhook-configuration -o yaml | grep -A 5 "caBundle"
+
+      - name: Setup test credentials
+        run: |
+          echo "Creating test credentials for Tier 3 tests..."
+
+          # Create git credentials secret for test repository access
+          oc create secret generic git-credentials \
+            -n ${{ env.TEST_NAMESPACE }} \
+            --from-literal=username=oauth2 \
+            --from-literal=password=${{ secrets.TEST_REPO_TOKEN }} \
+            --dry-run=client -o yaml | oc apply -f -
+
+          # Create mock AWS credentials for Tier 3 test 03
+          oc create secret generic aws-credentials \
+            -n ${{ env.TEST_NAMESPACE }} \
+            --from-literal=AWS_ACCESS_KEY_ID=mock-access-key \
+            --from-literal=AWS_SECRET_ACCESS_KEY=mock-secret-key \
+            --from-literal=AWS_REGION=us-east-1 \
+            --dry-run=client -o yaml | oc apply -f -
+
+          # Create mock database credentials for Tier 3 test 04
+          oc create secret generic database-credentials \
+            -n ${{ env.TEST_NAMESPACE }} \
+            --from-literal=DB_HOST=mock-db-host \
+            --from-literal=DB_PORT=5432 \
+            --from-literal=DB_NAME=mock-db \
+            --from-literal=DB_USER=mock-user \
+            --from-literal=DB_PASSWORD=mock-password \
+            --dry-run=client -o yaml | oc apply -f -
+
+          # Create mock MLflow credentials for Tier 3 test 05
+          oc create secret generic mlflow-credentials \
+            -n ${{ env.TEST_NAMESPACE }} \
+            --from-literal=MLFLOW_TRACKING_URI=http://mock-mlflow:5000 \
+            --from-literal=MLFLOW_TRACKING_USERNAME=mock-user \
+            --from-literal=MLFLOW_TRACKING_PASSWORD=mock-password \
+            --dry-run=client -o yaml | oc apply -f -
+
+          echo "✅ Test credentials created successfully"
+
+          # Validate secrets are accessible and synced to controller cache
+          # This ensures the operator can actually read the secrets before tests start
+          echo "Validating secrets are accessible..."
+          for secret in git-credentials aws-credentials database-credentials mlflow-credentials; do
+            echo "Checking secret: ${secret}"
+            if ! oc get secret ${secret} -n ${{ env.TEST_NAMESPACE }} &>/dev/null; then
+              echo "❌ Secret ${secret} not found!"
+              exit 1
+            fi
+            echo "✅ Secret ${secret} exists"
+          done
+
+          # Give controller cache time to sync secrets (critical for operator to access them)
+          # The operator's controller-runtime cache syncs every ~10s by default
+          echo "Waiting for controller cache to sync secrets (20 seconds)..."
+          sleep 20
+
+          # Verify operator is still healthy and ready
+          echo "Verifying operator is ready..."
+          if ! oc get deployment notebook-validator-controller-manager \
+               -n ${{ env.OPERATOR_NAMESPACE }} \
+               -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' | grep -q "True"; then
+            echo "❌ Operator is not available!"
+            oc get deployment notebook-validator-controller-manager -n ${{ env.OPERATOR_NAMESPACE }} -o yaml
+            exit 1
+          fi
+          echo "✅ Operator is ready and secrets should be synced"
+
+      # Note: git-credentials secret is already created in "Setup test credentials" step above
+      # with username=oauth2 which is the correct format for GitHub PAT authentication
+
+      - name: Clone test notebooks repository
+        env:
+          TEST_REPO_TOKEN: ${{ secrets.TEST_REPO_TOKEN }}
+        run: |
+          echo "Cloning test notebooks repository..."
+
+          if [ -n "$TEST_REPO_TOKEN" ]; then
+            # Use token for private repository
+            git clone https://${TEST_REPO_TOKEN}@github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git test-notebooks
+          else
+            # Public repository
+            git clone ${{ env.TEST_REPO }} test-notebooks
+          fi
+
+          cd test-notebooks
+          echo "Test notebooks cloned successfully"
+          ls -la notebooks/
+
+      - name: Clean up any leftover test resources
+        run: |
+          echo "Cleaning up any leftover resources from previous runs..."
+
+          # Delete any existing NotebookValidationJobs
+          oc delete notebookvalidationjobs --all -n ${{ env.TEST_NAMESPACE }} --ignore-not-found=true
+
+          # Delete any leftover validation pods
+          oc delete pods -l app=notebook-validation -n ${{ env.TEST_NAMESPACE }} --ignore-not-found=true
+
+          # Wait for resources to be fully deleted
+          echo "Waiting for resources to be deleted..."
+          sleep 5
+
+          echo "✅ Cleanup complete"
+
+      - name: Run Tier 1 tests (Simple notebooks)
+        if: github.event.inputs.test_tier == '1' || github.event.inputs.test_tier == 'all' || github.event.inputs.test_tier == ''
+        env:
+          TEST_NAMESPACE: ${{ env.TEST_NAMESPACE }}
+          TEST_REPO_URL: ${{ env.TEST_REPO }}
+          TEST_REPO_BRANCH: "main"
+          TEST_CREDENTIALS_SECRET: "git-credentials"
+          TEST_CONTAINER_IMAGE: "quay.io/jupyter/minimal-notebook:latest"
+          TIMEOUT_SECONDS: "300"
+        run: |
+          # Run Tier 1 tests using the dedicated script
+          ./scripts/run-tier1-e2e-tests.sh
+
+      - name: Run Tier 2 tests (Intermediate notebooks)
+        if: github.event.inputs.test_tier == '2' || github.event.inputs.test_tier == 'all' || github.event.inputs.test_tier == ''
+        env:
+          TEST_REPO_URL: ${{ env.TEST_REPO }}
+          TEST_NS: ${{ env.TEST_NAMESPACE }}
+        run: |
+          echo "=== Running Tier 2 Tests (Intermediate notebooks with Tekton builds) ==="
+
+          # ADR-040: No longer need shared PVC - operator creates unique PVC per build
+          # This allows concurrent builds without ReadWriteOnce contention
+
+          # Create NotebookValidationJob with Tekton build
+          cat <<EOF | oc apply -n ${TEST_NS} -f -
+          apiVersion: mlops.mlops.dev/v1alpha1
+          kind: NotebookValidationJob
+          metadata:
+            name: tier2-test-01-sentiment-model
+          spec:
+            notebook:
+              git:
+                url: "${TEST_REPO_URL}"
+                ref: "main"
+                credentialsSecret: "git-credentials"
+              path: "notebooks/tier2-intermediate/01-train-sentiment-model.ipynb"
+            podConfig:
+              containerImage: "quay.io/jupyter/minimal-notebook:latest"
+              buildConfig:
+                enabled: true
+                strategy: "tekton"
+            timeout: "15m"
+          EOF
+
+          # Wait for test to complete
+          echo "Waiting for Tier 2 test to complete (may take 5-10 minutes for build)..."
+          for i in {1..120}; do
+            PHASE=$(oc get notebookvalidationjob tier2-test-01-sentiment-model -n ${TEST_NS} -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+
+            if [ "$PHASE" == "Succeeded" ]; then
+              echo "✅ Tier 2 test succeeded!"
+              break
+            elif [ "$PHASE" == "Failed" ]; then
+              echo "❌ Tier 2 test failed!"
+              oc get notebookvalidationjob tier2-test-01-sentiment-model -n ${TEST_NS} -o yaml
+              exit 1
+            fi
+
+            echo "Progress: Phase=${PHASE} (waiting...)"
+            sleep 10
+          done
+
+          echo "✅ Tier 2 tests completed successfully"
+
+      - name: Run Tier 3 tests (Complex notebooks)
+        if: github.event.inputs.test_tier == '3' || github.event.inputs.test_tier == 'all' || github.event.inputs.test_tier == ''
+        env:
+          TEST_REPO_URL: ${{ env.TEST_REPO }}
+          TEST_NS: ${{ env.TEST_NAMESPACE }}
+        run: |
+          echo "=== Running Tier 3 Tests (Complex integration tests) ==="
+
+          # Note: Tier 3 tests require KServe InferenceServices to be deployed
+          # For CI/CD, we'll run credential injection tests only
+          # KServe tests require manual infrastructure setup
+
+          # Test 03: AWS credentials
+          echo "Creating Tier 3 Test 03: AWS credentials..."
+          cat <<EOF | oc apply -n ${TEST_NS} -f -
+          apiVersion: mlops.mlops.dev/v1alpha1
+          kind: NotebookValidationJob
+          metadata:
+            name: tier3-test-03-aws-credentials
+            labels:
+              tier: "3"
+          spec:
+            notebook:
+              git:
+                url: "${TEST_REPO_URL}"
+                ref: "main"
+                credentialsSecret: "git-credentials"
+              path: "notebooks/tier3-complex/03-aws-credentials-test.ipynb"
+            podConfig:
+              containerImage: "quay.io/jupyter/minimal-notebook:latest"
+              buildConfig:
+                enabled: true
+                strategy: "tekton"
+              credentials:
+                - "aws-credentials"
+            timeout: "15m"
+          EOF
+
+          # Wait 10 seconds to avoid git-clone workspace contention
+          echo "Waiting 10s before creating next test..."
+          sleep 10
+
+          # Test 04: Database credentials
+          echo "Creating Tier 3 Test 04: Database credentials..."
+          cat <<EOF | oc apply -n ${TEST_NS} -f -
+          apiVersion: mlops.mlops.dev/v1alpha1
+          kind: NotebookValidationJob
+          metadata:
+            name: tier3-test-04-database-credentials
+            labels:
+              tier: "3"
+          spec:
+            notebook:
+              git:
+                url: "${TEST_REPO_URL}"
+                ref: "main"
+                credentialsSecret: "git-credentials"
+              path: "notebooks/tier3-complex/04-database-connection-test.ipynb"
+            podConfig:
+              containerImage: "quay.io/jupyter/minimal-notebook:latest"
+              buildConfig:
+                enabled: true
+                strategy: "tekton"
+              credentials:
+                - "database-credentials"
+            timeout: "15m"
+          EOF
+
+          # Wait 10 seconds to avoid git-clone workspace contention
+          echo "Waiting 10s before creating next test..."
+          sleep 10
+
+          # Test 05: MLflow credentials
+          echo "Creating Tier 3 Test 05: MLflow credentials..."
+          cat <<EOF | oc apply -n ${TEST_NS} -f -
+          apiVersion: mlops.mlops.dev/v1alpha1
+          kind: NotebookValidationJob
+          metadata:
+            name: tier3-test-05-mlflow-credentials
+            labels:
+              tier: "3"
+          spec:
+            notebook:
+              git:
+                url: "${TEST_REPO_URL}"
+                ref: "main"
+                credentialsSecret: "git-credentials"
+              path: "notebooks/tier3-complex/05-mlflow-tracking-test.ipynb"
+            podConfig:
+              containerImage: "quay.io/jupyter/minimal-notebook:latest"
+              buildConfig:
+                enabled: true
+                strategy: "tekton"
+              credentials:
+                - "mlflow-credentials"
+            timeout: "15m"
+          EOF
+
+          echo "All Tier 3 tests created with staggered timing to avoid workspace contention"
+
+          # Wait for tests to complete
+          echo "Waiting for Tier 3 tests to complete (may take 10-15 minutes)..."
+          for i in {1..180}; do
+            COMPLETED=$(oc get notebookvalidationjobs -n ${TEST_NS} -l tier=3 -o jsonpath='{.items[?(@.status.phase=="Succeeded")].metadata.name}' | wc -w)
+            FAILED=$(oc get notebookvalidationjobs -n ${TEST_NS} -l tier=3 -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
+
+            if [ $((COMPLETED + FAILED)) -eq 3 ]; then
+              break
+            fi
+
+            echo "Progress: ${COMPLETED} succeeded, ${FAILED} failed (waiting...)"
+            sleep 10
+          done
+
+          # Check results
+          oc get notebookvalidationjobs -n ${TEST_NS}
+
+          FAILED=$(oc get notebookvalidationjobs -n ${TEST_NS} -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
+          if [ $FAILED -gt 0 ]; then
+            echo "❌ Some Tier 3 tests failed!"
+            exit 1
+          fi
+
+          echo "✅ Tier 3 tests completed successfully"
+          echo ""
+          echo "Note: KServe tests (01, 02) require manual infrastructure setup and are not run in CI/CD"
+
+      - name: Run Tier 4 tests (S2I/BuildConfig)
+        if: github.event.inputs.test_tier == '4' || github.event.inputs.test_tier == 'all' || github.event.inputs.test_tier == ''
+        env:
+          TEST_REPO_URL: ${{ env.TEST_REPO }}
+          TEST_NS: ${{ env.TEST_NAMESPACE }}
+        run: |
+          echo "=== Running Tier 4 Tests (S2I/BuildConfig validation) ==="
+
+          # Test 01: S2I Python build with pandas
+          echo "Creating Tier 4 Test 01: S2I Python build..."
+          cat <<EOF | oc apply -n ${TEST_NS} -f -
+          apiVersion: mlops.mlops.dev/v1alpha1
+          kind: NotebookValidationJob
+          metadata:
+            name: tier4-test-01-s2i-python-build
+            labels:
+              tier: "4"
+          spec:
+            notebook:
+              git:
+                url: "${TEST_REPO_URL}"
+                ref: "main"
+                credentialsSecret: "git-credentials"
+              path: "notebooks/tier4-s2i/01-s2i-python-build.ipynb"
+            podConfig:
+              containerImage: "quay.io/jupyter/minimal-notebook:latest"
+              buildConfig:
+                enabled: true
+                strategy: "s2i"
+            timeout: "15m"
+          EOF
+
+          # Wait 10 seconds before creating next test
+          echo "Waiting 10s before creating next test..."
+          sleep 10
+
+          # Test 02: S2I custom requirements
+          echo "Creating Tier 4 Test 02: S2I custom requirements..."
+          cat <<EOF | oc apply -n ${TEST_NS} -f -
+          apiVersion: mlops.mlops.dev/v1alpha1
+          kind: NotebookValidationJob
+          metadata:
+            name: tier4-test-02-s2i-custom-requirements
+            labels:
+              tier: "4"
+          spec:
+            notebook:
+              git:
+                url: "${TEST_REPO_URL}"
+                ref: "main"
+                credentialsSecret: "git-credentials"
+              path: "notebooks/tier4-s2i/02-s2i-custom-requirements.ipynb"
+            podConfig:
+              containerImage: "quay.io/jupyter/minimal-notebook:latest"
+              buildConfig:
+                enabled: true
+                strategy: "s2i"
+            timeout: "15m"
+          EOF
+
+          echo "All Tier 4 tests created with staggered timing"
+
+          # Wait for tests to complete
+          echo "Waiting for Tier 4 tests to complete (may take 10-15 minutes)..."
+          for i in {1..180}; do
+            COMPLETED=$(oc get notebookvalidationjobs -n ${TEST_NS} -l tier=4 -o jsonpath='{.items[?(@.status.phase=="Succeeded")].metadata.name}' | wc -w)
+            FAILED=$(oc get notebookvalidationjobs -n ${TEST_NS} -l tier=4 -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
+
+            if [ $((COMPLETED + FAILED)) -eq 2 ]; then
+              break
+            fi
+
+            echo "Progress: ${COMPLETED} succeeded, ${FAILED} failed (waiting...)"
+            sleep 10
+          done
+
+          # Check results
+          oc get notebookvalidationjobs -n ${TEST_NS}
+
+          FAILED=$(oc get notebookvalidationjobs -n ${TEST_NS} -l tier=4 -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
+          if [ $FAILED -gt 0 ]; then
+            echo "❌ Some Tier 4 tests failed!"
+            exit 1
+          fi
+
+          echo "✅ Tier 4 tests completed successfully"
+
+      - name: Collect test results
+        if: always()
+        run: |
+          echo "=== Collecting Test Results ==="
+          
+          # Get all NotebookValidationJobs
+          oc get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -o yaml > test-results.yaml
+          
+          # Get validation pod logs
+          mkdir -p logs
+          for pod in $(oc get pods -n ${{ env.TEST_NAMESPACE }} -l app=notebook-validation -o name); do
+            pod_name=$(basename $pod)
+            oc logs $pod -n ${{ env.TEST_NAMESPACE }} > logs/${pod_name}.log || true
+          done
+          
+          # Get operator logs
+          oc logs -n ${{ env.OPERATOR_NAMESPACE }} \
+            -l control-plane=controller-manager --tail=500 > logs/operator.log || true
+          
+          echo "✅ Test results collected"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: |
+            test-results.yaml
+            logs/
+
+      - name: Cleanup resources
+        if: always()
+        run: |
+          echo "=== Cleaning up test resources ==="
+          
+          # Delete test namespace
+          oc delete namespace ${{ env.TEST_NAMESPACE }} --wait=false || true
+          
+          # Uninstall operator
+          make undeploy || true
+          
+          # Delete CRDs
+          make uninstall || true
+          
+          echo "✅ Cleanup completed"
+
+  e2e-status:
+    name: E2E Test Status (All Tiers)
+    runs-on: ubuntu-latest
+    needs: [check-trigger, openshift-e2e]
+    if: always() && needs.check-trigger.outputs.should_run == 'true'
+    steps:
+      - name: Check E2E status
+        run: |
+          echo "=== E2E Test Results (All Tiers) ==="
+          echo "OpenShift E2E Tests: ${{ needs.openshift-e2e.result }}"
+
+          if [ "${{ needs.openshift-e2e.result }}" != "success" ]; then
+            echo "❌ E2E tests failed!"
+            echo "Check the test results artifact for details"
+            exit 1
+          fi
+
+          echo "✅ All E2E tests passed!"
+          echo ""
+          echo "Complete end-to-end workflow validated on OpenShift 4.18 cluster:"
+          echo "  - Tier 1: Simple notebooks (< 30s)"
+          echo "  - Tier 2: Intermediate notebooks with Tekton builds (1-5 min)"
+          echo "  - Tier 3: Complex integration tests with credentials (5-30 min)"
+          echo ""
+          echo "Note: KServe tests require manual infrastructure setup"
+

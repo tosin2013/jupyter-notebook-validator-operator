@@ -1,0 +1,19 @@
+{{- if and .Values.rbac.create .Values.validationRunner.serviceAccount.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "jupyter-notebook-validator-operator.validationRunnerRoleName" . | trunc 63 | trimSuffix "-" }}-binding
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "jupyter-notebook-validator-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: validation-runner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "jupyter-notebook-validator-operator.validationRunnerRoleName" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.validationRunner.serviceAccount.name }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
+

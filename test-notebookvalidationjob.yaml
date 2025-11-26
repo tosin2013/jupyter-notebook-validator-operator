@@ -1,0 +1,33 @@
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  labels:
+    app.kubernetes.io/name: jupyter-notebook-validator-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: notebookvalidationjob-test
+  namespace: jupyter-notebook-validator-operator
+spec:
+  notebook:
+    git:
+      # Using a real public repository with example notebooks
+      url: https://github.com/jakevdp/PythonDataScienceHandbook.git
+      ref: master
+    # Simple notebook that should execute successfully
+    path: notebooks/01.01-Help-And-Documentation.ipynb
+
+  podConfig:
+    containerImage: quay.io/jupyter/scipy-notebook:latest
+    serviceAccountName: notebook-validator-jupyter-notebook-validator-runner
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+    env:
+      - name: JUPYTER_ENABLE_LAB
+        value: "yes"
+
+  timeout: "30m"
+

@@ -34,6 +34,11 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	buildv1 "github.com/openshift/api/build/v1"
+	imagev1 "github.com/openshift/api/image/v1"
+	securityv1 "github.com/openshift/api/security/v1"
+	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
+
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
 	"github.com/tosin2013/jupyter-notebook-validator-operator/internal/controller"
 	//+kubebuilder:scaffold:imports
@@ -48,6 +53,19 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(mlopsv1alpha1.AddToScheme(scheme))
+
+	// Register OpenShift Build API for S2I support
+	utilruntime.Must(buildv1.AddToScheme(scheme))
+
+	// Register OpenShift Image API for ImageStream support
+	utilruntime.Must(imagev1.AddToScheme(scheme))
+
+	// Register OpenShift Security API for SCC support (ADR-039)
+	utilruntime.Must(securityv1.AddToScheme(scheme))
+
+	// Register Tekton Pipeline API for Tekton support
+	utilruntime.Must(tektonv1.AddToScheme(scheme))
+
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -124,10 +142,15 @@ func main() {
 
 	if err = (&controller.NotebookValidationJobReconciler{
 		Client:     mgr.GetClient(),
+		APIReader:  mgr.GetAPIReader(),
 		Scheme:     mgr.GetScheme(),
 		RestConfig: mgr.GetConfig(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NotebookValidationJob")
+		os.Exit(1)
+	}
+	if err = (&mlopsv1alpha1.NotebookValidationJob{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "NotebookValidationJob")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

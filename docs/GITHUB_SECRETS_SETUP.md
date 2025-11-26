@@ -1,16 +1,94 @@
 # GitHub Secrets Setup Guide
 
-This guide explains how to configure GitHub Secrets for the CI/CD pipeline.
+This guide explains how to configure GitHub Secrets for the CI/CD pipeline (ADR-032 and ADR-033).
+
+## Overview
+
+The Jupyter Notebook Validator Operator uses GitHub Actions for two-tier testing:
+- **Tier 1**: Unit & Integration tests on KinD (Kubernetes v1.31.10) - No secrets required
+- **Tier 2**: E2E tests on live OpenShift 4.18 cluster - Requires OpenShift and registry secrets
 
 ---
 
 ## Required Secrets
 
-### 1. QUAY_USERNAME
+| Secret Name | Purpose | Required For | Rotation Period |
+|-------------|---------|--------------|-----------------|
+| `OPENSHIFT_SERVER` | OpenShift API server URL | Tier 2 E2E tests | When cluster changes |
+| `OPENSHIFT_TOKEN` | Service account token | Tier 2 E2E tests | 90 days |
+| `QUAY_USERNAME` | Quay.io registry username | Image push | When credentials change |
+| `QUAY_PASSWORD` | Quay.io registry password | Image push | 90 days |
+| `TEST_REPO_TOKEN` | GitHub PAT for test notebooks | Test notebooks (if private) | 90 days |
+
+### 1. OPENSHIFT_SERVER
+
+**Purpose:** OpenShift API server URL for E2E testing
+
+**Value:** `https://api.cluster-c4r4z.c4r4z.sandbox5156.opentlc.com:6443` (example)
+
+**How to Get:**
+
+```bash
+# Login to your OpenShift cluster
+oc login --server=https://api.cluster.example.com:6443 --token=<your-token>
+
+# Get the API server URL
+oc whoami --show-server
+```
+
+**How to Set:**
+
+1. Go to your GitHub repository
+2. Navigate to **Settings** → **Secrets and variables** → **Actions**
+3. Click **New repository secret**
+4. Name: `OPENSHIFT_SERVER`
+5. Value: Your OpenShift API server URL
+6. Click **Add secret**
+
+**Security Notes:**
+- This is not sensitive (it's a public URL)
+- Stored as secret for easy configuration management
+- Update when cluster changes
+
+### 2. OPENSHIFT_TOKEN
+
+**Purpose:** Service account token for OpenShift authentication
+
+**Value:** Long-lived service account token (90-day expiration)
+
+**How to Create:**
+
+```bash
+# Create service account for CI/CD
+oc create serviceaccount ci-test-runner -n default
+
+# Grant cluster-admin permissions (required for operator installation)
+oc adm policy add-cluster-role-to-user cluster-admin system:serviceaccount:default:ci-test-runner
+
+# Generate token with 90-day expiration (8760 hours)
+oc create token ci-test-runner -n default --duration=8760h
+```
+
+**How to Set:**
+
+1. Go to your GitHub repository
+2. Navigate to **Settings** → **Secrets and variables** → **Actions**
+3. Click **New repository secret**
+4. Name: `OPENSHIFT_TOKEN`
+5. Value: The token from the command above (starts with `eyJ...`)
+6. Click **Add secret**
+
+**Security Notes:**
+- **CRITICAL**: This token has cluster-admin permissions
+- Rotate every 90 days
+- Never commit to repository
+- Monitor usage in OpenShift audit logs
+
+### 3. QUAY_USERNAME
 
 **Purpose:** Quay.io robot account username for authentication
 
-**Value:** `takinosh+jupyter_notebook_validator_operator`
+**Value:** `takinosh+jupyter_notebook_validator_operator` (example)
 
 **How to Set:**
 
@@ -26,11 +104,21 @@ This guide explains how to configure GitHub Secrets for the CI/CD pipeline.
 - Allows easy rotation without updating workflow files
 - Keeps credentials centralized in GitHub Secrets
 
-### 2. QUAY_PASSWORD
+### 4. QUAY_PASSWORD
 
 **Purpose:** Authenticate to Quay.io for pushing container images
 
 **Value:** Robot account password for Quay.io
+
+**How to Create Robot Account:**
+
+1. Login to [Quay.io](https://quay.io)
+2. Navigate to your organization/repository
+3. Go to **Settings** → **Robot Accounts**
+4. Click **Create Robot Account**
+5. Name: `ci_test_runner`
+6. Permissions: **Write** to repository
+7. Save the generated token
 
 **How to Set:**
 
@@ -38,7 +126,7 @@ This guide explains how to configure GitHub Secrets for the CI/CD pipeline.
 2. Navigate to **Settings** → **Secrets and variables** → **Actions**
 3. Click **New repository secret**
 4. Name: `QUAY_PASSWORD`
-5. Value: `NFRTXOQPWE2HWPESJJQRLRU89JKKRO1NMY24M6IYKVZ0ERSRRLI0XLIUFRDEYPW4`
+5. Value: Robot account token (starts with `eyJ...`)
 6. Click **Add secret**
 
 **Security Notes:**
@@ -46,6 +134,42 @@ This guide explains how to configure GitHub Secrets for the CI/CD pipeline.
 - Token has limited permissions (push to specific repository only)
 - Token can be rotated without affecting personal account
 - Never commit this token to the repository
+- Rotate every 90 days
+
+### 5. TEST_REPO_TOKEN (Optional)
+
+**Purpose:** GitHub Personal Access Token for accessing private test notebooks repository
+
+**Value:** GitHub PAT with `repo` scope
+
+**When Required:**
+- Only if test notebooks repository is private
+- Not required for public repositories
+
+**How to Create:**
+
+1. Go to GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**
+2. Click **Generate new token (classic)**
+3. Name: `CI Test Notebooks Access`
+4. Scopes: Select `repo` (Full control of private repositories)
+5. Expiration: 90 days
+6. Click **Generate token**
+7. Save the token (starts with `ghp_...`)
+
+**How to Set:**
+
+1. Go to your GitHub repository
+2. Navigate to **Settings** → **Secrets and variables** → **Actions**
+3. Click **New repository secret**
+4. Name: `TEST_REPO_TOKEN`
+5. Value: GitHub PAT
+6. Click **Add secret**
+
+**Security Notes:**
+- Only required for private test repositories
+- Use minimal scopes (only `repo`)
+- Rotate every 90 days
+- Never commit to repository
 
 ---
 

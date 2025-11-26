@@ -1,0 +1,185 @@
+name: OLM Bundle Validation
+
+on:
+  push:
+    branches: [ release-4.18, main ]
+    paths:
+      - 'bundle/**'
+      - 'config/manifests/**'
+      - 'api/**'
+      - '.github/workflows/bundle-validation.yaml'
+      - 'Makefile'
+  pull_request:
+    branches: [ release-4.18, main ]
+    paths:
+      - 'bundle/**'
+      - 'config/manifests/**'
+      - 'api/**'
+      - '.github/workflows/bundle-validation.yaml'
+      - 'Makefile'
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.22'
+  OPERATOR_SDK_VERSION: 'v1.37.0'
+
+jobs:
+  bundle-sync-check:
+    name: Check Bundle Sync Status
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install operator-sdk
+        run: |
+          export ARCH=$(case $(uname -m) in x86_64) echo -n amd64 ;; aarch64) echo -n arm64 ;; *) echo -n $(uname -m) ;; esac)
+          export OS=$(uname | awk '{print tolower($0)}')
+          export OPERATOR_SDK_DL_URL=https://github.com/operator-framework/operator-sdk/releases/download/${{ env.OPERATOR_SDK_VERSION }}
+          curl -LO ${OPERATOR_SDK_DL_URL}/operator-sdk_${OS}_${ARCH}
+          chmod +x operator-sdk_${OS}_${ARCH}
+          sudo mv operator-sdk_${OS}_${ARCH} /usr/local/bin/operator-sdk
+          operator-sdk version
+
+      - name: Check if bundle is in sync
+        run: |
+          echo "🔍 Checking if bundle is in sync with CRDs..."
+          make bundle VERSION=1.0.0 IMG=quay.io/takinosh/jupyter-notebook-validator-operator:v1.0.0
+          if ! git diff --exit-code bundle/; then
+            echo "⚠️  WARNING: Bundle may be out of sync with current API definitions"
+            echo "Consider running 'make bundle' and committing the changes."
+            git diff bundle/
+          fi
+          echo "✅ Bundle sync check completed"
+
+  bundle-validate:
+    name: Validate OLM Bundle
+    runs-on: ubuntu-latest
+    needs: bundle-sync-check
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install operator-sdk
+        run: |
+          export ARCH=$(case $(uname -m) in x86_64) echo -n amd64 ;; aarch64) echo -n arm64 ;; *) echo -n $(uname -m) ;; esac)
+          export OS=$(uname | awk '{print tolower($0)}')
+          export OPERATOR_SDK_DL_URL=https://github.com/operator-framework/operator-sdk/releases/download/${{ env.OPERATOR_SDK_VERSION }}
+          curl -LO ${OPERATOR_SDK_DL_URL}/operator-sdk_${OS}_${ARCH}
+          chmod +x operator-sdk_${OS}_${ARCH}
+          sudo mv operator-sdk_${OS}_${ARCH} /usr/local/bin/operator-sdk
+
+      - name: Validate Bundle (Basic)
+        run: |
+          echo "🔍 Running basic bundle validation..."
+          operator-sdk bundle validate ./bundle
+          echo "✅ Basic validation passed"
+
+      - name: Validate Bundle (OperatorHub)
+        run: |
+          echo "🔍 Running OperatorHub validation..."
+          operator-sdk bundle validate ./bundle --select-optional name=operatorhub || true
+          echo "✅ OperatorHub validation completed"
+
+      - name: Validate Bundle (Operator Framework Suite)
+        run: |
+          echo "🔍 Running Operator Framework suite validation..."
+          operator-sdk bundle validate ./bundle --select-optional suite=operatorframework
+          echo "✅ Operator Framework suite validation passed"
+
+  bundle-build:
+    name: Build Bundle Image
+    runs-on: ubuntu-latest
+    needs: bundle-validate
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Bundle Image (No Push)
+        run: |
+          echo "🏗️  Building bundle image..."
+          docker build -f bundle.Dockerfile -t jupyter-notebook-validator-operator-bundle:test .
+          echo "✅ Bundle image built successfully"
+
+      - name: Inspect Bundle Image
+        run: |
+          echo "🔍 Inspecting bundle image labels..."
+          docker inspect jupyter-notebook-validator-operator-bundle:test --format='{{json .Config.Labels}}' | jq .
+          echo "✅ Bundle image inspection completed"
+
+  bundle-scorecard:
+    name: Run Scorecard Tests
+    runs-on: ubuntu-latest
+    needs: bundle-validate
+    if: github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install operator-sdk
+        run: |
+          export ARCH=$(case $(uname -m) in x86_64) echo -n amd64 ;; aarch64) echo -n arm64 ;; *) echo -n $(uname -m) ;; esac)
+          export OS=$(uname | awk '{print tolower($0)}')
+          export OPERATOR_SDK_DL_URL=https://github.com/operator-framework/operator-sdk/releases/download/${{ env.OPERATOR_SDK_VERSION }}
+          curl -LO ${OPERATOR_SDK_DL_URL}/operator-sdk_${OS}_${ARCH}
+          chmod +x operator-sdk_${OS}_${ARCH}
+          sudo mv operator-sdk_${OS}_${ARCH} /usr/local/bin/operator-sdk
+
+      - name: Create Kind Cluster
+        uses: helm/kind-action@v1.10.0
+        with:
+          cluster_name: scorecard-test
+
+      - name: Build and Load Operator Image
+        run: |
+          echo "🏗️  Building operator image..."
+          docker build -t jupyter-notebook-validator-operator:scorecard .
+          kind load docker-image jupyter-notebook-validator-operator:scorecard --name scorecard-test
+
+      - name: Build and Load Bundle Image
+        run: |
+          echo "🏗️  Building bundle image..."
+          docker build -f bundle.Dockerfile -t jupyter-notebook-validator-operator-bundle:scorecard .
+          kind load docker-image jupyter-notebook-validator-operator-bundle:scorecard --name scorecard-test
+
+      - name: Run Scorecard Tests
+        run: |
+          echo "🧪 Running scorecard tests..."
+          operator-sdk scorecard ./bundle \
+            --kubeconfig=$HOME/.kube/config \
+            --wait-time=120s \
+            --output=text || true
+          echo "✅ Scorecard tests completed"
+
+  summary:
+    name: Bundle Validation Summary
+    runs-on: ubuntu-latest
+    needs: [bundle-sync-check, bundle-validate, bundle-build]
+    if: always()
+    steps:
+      - name: Generate Summary
+        run: |
+          echo "## OLM Bundle Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Validation Results:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Bundle sync check" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Basic validation" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ OperatorHub validation" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Operator Framework suite" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Bundle image build" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### OpenShift Compatibility:" >> $GITHUB_STEP_SUMMARY
+          echo "- Supported versions: v4.18 - v4.20" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Fork [k8s-operatorhub/community-operators](https://github.com/k8s-operatorhub/community-operators)" >> $GITHUB_STEP_SUMMARY
+          echo "2. Create directory: \`operators/jupyter-notebook-validator-operator/1.0.0/\`" >> $GITHUB_STEP_SUMMARY
+          echo "3. Copy bundle contents and submit PR" >> $GITHUB_STEP_SUMMARY

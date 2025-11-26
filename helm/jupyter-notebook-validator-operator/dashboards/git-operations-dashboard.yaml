@@ -1,0 +1,109 @@
+# OpenShift Console Dashboard: Git Operations
+# Based on ADR-021: OpenShift-Native Dashboard Strategy
+# Based on ADR-009: Secret Management and Git Credentials
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jupyter-notebook-validator-git-operations
+  namespace: openshift-config-managed
+  labels:
+    console.openshift.io/dashboard: "true"
+    console.openshift.io/odc-dashboard: "true"
+    app.kubernetes.io/name: jupyter-notebook-validator-operator
+    app.kubernetes.io/component: observability
+data:
+  git-operations.json: |
+    {
+      "dashboard": {
+        "title": "Jupyter Notebook Validator - Git Operations",
+        "tags": ["jupyter", "mlops", "operator", "git"],
+        "panels": [
+          {
+            "title": "Git Clone Duration by Auth Type (p95)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(notebookvalidationjob_git_clone_duration_seconds_bucket[5m])) by (le, auth_type))",
+                "legendFormat": "{{auth_type}}"
+              }
+            ]
+          },
+          {
+            "title": "Git Clone Success Rate",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_git_clone_duration_seconds_count{result=\"success\"}[5m])) / sum(rate(notebookvalidationjob_git_clone_duration_seconds_count[5m])) * 100"
+              }
+            ],
+            "format": "percent",
+            "thresholds": "90,98"
+          },
+          {
+            "title": "Git Clone Operations by Auth Type",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_git_clone_duration_seconds_count[5m])) by (auth_type)",
+                "legendFormat": "{{auth_type}}"
+              }
+            ]
+          },
+          {
+            "title": "Git Clone Failures by Auth Type",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_git_clone_duration_seconds_count{result=\"error\"}[5m])) by (auth_type)",
+                "legendFormat": "{{auth_type}}"
+              }
+            ]
+          },
+          {
+            "title": "Total Git Clones (24h)",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "sum(increase(notebookvalidationjob_git_clone_duration_seconds_count[24h]))"
+              }
+            ],
+            "format": "short"
+          },
+          {
+            "title": "Git Clone Duration Distribution",
+            "type": "heatmap",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_git_clone_duration_seconds_bucket[5m])) by (le)",
+                "format": "heatmap"
+              }
+            ]
+          },
+          {
+            "title": "Git Clone Duration by Namespace (p95)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(notebookvalidationjob_git_clone_duration_seconds_bucket[5m])) by (le, namespace))",
+                "legendFormat": "{{namespace}}"
+              }
+            ]
+          },
+          {
+            "title": "Anonymous vs Authenticated Clones",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_git_clone_duration_seconds_count{auth_type=\"none\"}[5m]))",
+                "legendFormat": "Anonymous"
+              },
+              {
+                "expr": "sum(rate(notebookvalidationjob_git_clone_duration_seconds_count{auth_type!=\"none\"}[5m]))",
+                "legendFormat": "Authenticated"
+              }
+            ]
+          }
+        ]
+      }
+    }
+

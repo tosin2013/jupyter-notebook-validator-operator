@@ -1,0 +1,18 @@
+{{- if and .Values.openshift.enabled .Values.prometheus.enabled -}}
+---
+# Operator Health Dashboard
+{{ .Files.Get "dashboards/operator-health-dashboard.yaml" }}
+---
+# Notebook Performance Dashboard
+{{ .Files.Get "dashboards/notebook-performance-dashboard.yaml" }}
+---
+# Model Validation Dashboard
+{{ .Files.Get "dashboards/model-validation-dashboard.yaml" }}
+---
+# Resource Utilization Dashboard
+{{ .Files.Get "dashboards/resource-utilization-dashboard.yaml" }}
+---
+# Git Operations Dashboard
+{{ .Files.Get "dashboards/git-operations-dashboard.yaml" }}
+{{- end }}
+

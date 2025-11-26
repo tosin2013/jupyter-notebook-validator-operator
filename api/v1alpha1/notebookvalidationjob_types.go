@@ -91,7 +91,9 @@ type PodConfigSpec struct {
 	Resources *ResourceRequirements `json:"resources,omitempty"`
 
 	// ServiceAccountName is the name of the ServiceAccount to use for the validation pod
-	// +kubebuilder:default="notebook-validator-jupyter-notebook-validator-runner"
+	// Defaults to "default" which exists in all namespaces
+	// The mutating webhook will inject this default if not specified
+	// +kubebuilder:default="default"
 	// +optional
 	ServiceAccountName string `json:"serviceAccountName,omitempty"`
 
@@ -102,6 +104,21 @@ type PodConfigSpec struct {
 	// EnvFrom specifies sources to populate environment variables in the validation pod
 	// +optional
 	EnvFrom []EnvFromSource `json:"envFrom,omitempty"`
+
+	// Credentials is a simplified way to specify secrets for credential injection
+	// This is syntactic sugar that automatically converts to envFrom with secretRef
+	// Example: credentials: ["aws-credentials", "database-credentials"]
+	// This is equivalent to:
+	//   envFrom:
+	//     - secretRef: {name: "aws-credentials"}
+	//     - secretRef: {name: "database-credentials"}
+	// +optional
+	Credentials []string `json:"credentials,omitempty"`
+
+	// BuildConfig specifies optional container image build configuration
+	// When specified, the operator will build a custom image before validation
+	// +optional
+	BuildConfig *BuildConfigSpec `json:"buildConfig,omitempty"`
 }
 
 // ResourceRequirements defines compute resource requirements
@@ -186,6 +203,77 @@ type ConfigMapEnvSource struct {
 	// Name is the name of the ConfigMap
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
+}
+
+// BuildConfigSpec defines container image build configuration
+type BuildConfigSpec struct {
+	// Enabled specifies whether to build a custom image
+	// +kubebuilder:default=false
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Strategy specifies the build strategy to use
+	// +kubebuilder:validation:Enum=s2i;tekton;kaniko;shipwright;custom
+	// +kubebuilder:default="s2i"
+	// +optional
+	Strategy string `json:"strategy,omitempty"`
+
+	// BaseImage specifies the base image for the build
+	// +kubebuilder:default="quay.io/jupyter/minimal-notebook:latest"
+	// +optional
+	BaseImage string `json:"baseImage,omitempty"`
+
+	// Dockerfile specifies the path to a custom Dockerfile in the Git repository
+	// ADR-031: Support custom Dockerfile for advanced build scenarios
+	// If specified, this takes precedence over BaseImage (Dockerfile will be used as-is)
+	// If not specified, a Dockerfile will be auto-generated from BaseImage
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9._/-]+$`
+	// +optional
+	Dockerfile string `json:"dockerfile,omitempty"`
+
+	// AutoGenerateRequirements specifies whether to auto-detect and use requirements.txt
+	// ADR-038: Enable automatic detection with fallback chain
+	// When true, operator searches for requirements.txt in notebook dir → tier dir → repo root
+	// When false, only uses explicitly specified RequirementsFile or Dockerfile
+	// +kubebuilder:default=true
+	// +optional
+	AutoGenerateRequirements bool `json:"autoGenerateRequirements,omitempty"`
+
+	// RequirementsFile specifies explicit path to requirements.txt in the Git repository
+	// If specified, this path is used directly without fallback chain
+	// Example: "notebooks/tier2/requirements.txt"
+	// +optional
+	RequirementsFile string `json:"requirementsFile,omitempty"`
+
+	// RequirementsSources specifies custom fallback chain for requirements.txt detection
+	// ADR-038: Advanced use case for complex repository structures
+	// If not specified, uses default chain: notebook-dir → tier-dir → repo-root
+	// Example: ["notebooks/tier2/requirements.txt", "notebooks/requirements.txt", "requirements.txt"]
+	// +optional
+	RequirementsSources []string `json:"requirementsSources,omitempty"`
+
+	// PreferDockerfile specifies whether to prefer Dockerfile over requirements.txt
+	// ADR-038: When both requirements.txt and Dockerfile exist, this determines priority
+	// If false (default), uses requirements.txt to generate Dockerfile
+	// If true, uses existing Dockerfile and ignores requirements.txt
+	// +kubebuilder:default=false
+	// +optional
+	PreferDockerfile bool `json:"preferDockerfile,omitempty"`
+
+	// FallbackStrategy specifies what to do when requirements.txt is missing
+	// +kubebuilder:validation:Enum=warn;fail;auto
+	// +kubebuilder:default="warn"
+	// +optional
+	FallbackStrategy string `json:"fallbackStrategy,omitempty"`
+
+	// StrategyConfig contains strategy-specific configuration
+	// +optional
+	StrategyConfig map[string]string `json:"strategyConfig,omitempty"`
+
+	// Timeout specifies the maximum time to wait for build completion
+	// +kubebuilder:default="15m"
+	// +optional
+	Timeout string `json:"timeout,omitempty"`
 }
 
 // ComparisonConfigSpec defines advanced comparison configuration
@@ -304,7 +392,8 @@ type CustomPlatformSpec struct {
 // NotebookValidationJobStatus defines the observed state of NotebookValidationJob
 type NotebookValidationJobStatus struct {
 	// Phase represents the current phase of the validation job
-	// +kubebuilder:validation:Enum=Pending;Running;Succeeded;Failed
+	// State machine: Initializing → Building → BuildComplete → ValidationRunning → Succeeded/Failed
+	// +kubebuilder:validation:Enum=Initializing;Building;BuildComplete;ValidationRunning;Succeeded;Failed;Pending;Running
 	// +optional
 	Phase string `json:"phase,omitempty"`
 
@@ -347,6 +436,75 @@ type NotebookValidationJobStatus struct {
 	// ModelValidationResult contains the model validation result
 	// +optional
 	ModelValidationResult *ModelValidationResult `json:"modelValidationResult,omitempty"`
+
+	// BuildStatus contains the build status (Phase 4.5: S2I Build Integration)
+	// +optional
+	BuildStatus *BuildStatus `json:"buildStatus,omitempty"`
+}
+
+// BuildStatus represents the status of a container image build
+type BuildStatus struct {
+	// Phase represents the current phase of the build
+	// +kubebuilder:validation:Enum=Pending;Running;Complete;Failed
+	// +optional
+	Phase string `json:"phase,omitempty"`
+
+	// Message provides a human-readable summary of the build status
+	// +optional
+	Message string `json:"message,omitempty"`
+
+	// ImageReference is the reference to the built image
+	// +optional
+	ImageReference string `json:"imageReference,omitempty"`
+
+	// StartTime is when the build started
+	// +optional
+	StartTime *metav1.Time `json:"startTime,omitempty"`
+
+	// CompletionTime is when the build completed
+	// +optional
+	CompletionTime *metav1.Time `json:"completionTime,omitempty"`
+
+	// Duration is the build duration in human-readable format (e.g., "5m30s")
+	// +optional
+	Duration string `json:"duration,omitempty"`
+
+	// BuildName is the name of the build resource
+	// +optional
+	BuildName string `json:"buildName,omitempty"`
+
+	// Strategy is the build strategy used (s2i, tekton, etc.)
+	// +optional
+	Strategy string `json:"strategy,omitempty"`
+
+	// AvailableImages lists available OpenShift AI ImageStreams (if installed)
+	// +optional
+	AvailableImages []AvailableImageInfo `json:"availableImages,omitempty"`
+
+	// RecommendedImage is the recommended image for S2I builds
+	// +optional
+	RecommendedImage string `json:"recommendedImage,omitempty"`
+}
+
+// AvailableImageInfo represents an available OpenShift AI ImageStream
+type AvailableImageInfo struct {
+	// Name is the ImageStream name
+	Name string `json:"name"`
+
+	// DisplayName is the human-readable name
+	DisplayName string `json:"displayName"`
+
+	// Description describes the image
+	Description string `json:"description"`
+
+	// ImageRef is the full image reference
+	ImageRef string `json:"imageRef"`
+
+	// S2IEnabled indicates if this is an S2I builder image
+	S2IEnabled bool `json:"s2iEnabled"`
+
+	// Tags lists available tags
+	Tags []string `json:"tags,omitempty"`
 }
 
 // ModelValidationResult represents the result of model-aware validation

@@ -2,7 +2,7 @@ name: Build and Push Image
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, 'release-*' ]
     tags:
       - 'v*'
   workflow_dispatch:
@@ -10,7 +10,7 @@ on:
 env:
   REGISTRY: quay.io
   IMAGE_NAME: takinosh/jupyter-notebook-validator-operator
-  GO_VERSION: '1.21'
+  GO_VERSION: '1.22'
 
 jobs:
   build-and-push:
@@ -45,12 +45,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
+            type=ref,event=branch,suffix=-{{sha}}
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push image

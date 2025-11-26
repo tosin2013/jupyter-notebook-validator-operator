@@ -1,0 +1,18 @@
+{{- if and .Values.rbac.create .Values.operator.leaderElection.enabled -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "jupyter-notebook-validator-operator.leaderElectionRoleName" . | trunc 63 | trimSuffix "-" }}-binding
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "jupyter-notebook-validator-operator.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "jupyter-notebook-validator-operator.leaderElectionRoleName" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "jupyter-notebook-validator-operator.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
+

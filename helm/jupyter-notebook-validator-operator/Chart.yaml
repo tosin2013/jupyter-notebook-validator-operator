@@ -1,0 +1,114 @@
+apiVersion: v2
+name: jupyter-notebook-validator-operator
+description: A Kubernetes operator for validating Jupyter notebooks with ML model training and validation capabilities
+type: application
+
+# This is the chart version. This version number should be incremented each time you make changes
+# to the chart and its templates, including the app version.
+# Versions are expected to follow Semantic Versioning (https://semver.org/)
+version: 1.0.0
+
+# This is the version number of the application being deployed. This version number should be
+# incremented each time you make changes to the application. Versions are not expected to
+# follow Semantic Versioning. They should reflect the version the application is using.
+# It is recommended to use it with quotes.
+appVersion: "1.0.0-ocp4.18"
+
+# Keywords for searching
+keywords:
+  - jupyter
+  - notebook
+  - validation
+  - mlops
+  - machine-learning
+  - operator
+  - kubernetes
+  - openshift
+  - tekton
+  - papermill
+
+# Home page URL
+home: https://github.com/tosin2013/jupyter-notebook-validator-operator
+
+# Source code URLs
+sources:
+  - https://github.com/tosin2013/jupyter-notebook-validator-operator
+
+# Maintainers
+maintainers:
+  - name: Tosin Akinosho
+    email: tosin.akinosho@gmail.com
+    url: https://github.com/tosin2013
+
+# Icon URL (optional - add when you have one)
+# icon: https://example.com/icon.png
+
+# Chart dependencies (if any)
+dependencies: []
+# Example: If you want to bundle Tekton or other charts
+# - name: tekton-pipelines
+#   version: "0.65.0"
+#   repository: "https://charts.tekton.dev"
+#   condition: tekton.enabled
+
+# Kubernetes version constraint
+kubeVersion: ">=1.31.0-0"
+
+# Annotations for Artifact Hub / Helm Hub
+annotations:
+  # Category for Artifact Hub
+  artifacthub.io/category: integration-delivery
+  
+  # Changes in this version
+  artifacthub.io/changes: |
+    - kind: added
+      description: Initial Helm chart release for OpenShift 4.18
+    - kind: added
+      description: Support for Tekton Pipelines v0.65.0
+    - kind: added
+      description: ADR-031 Tekton build with Dockerfile and base image support
+    - kind: added
+      description: Comprehensive validation with golden notebook comparison
+    - kind: added
+      description: Model training and validation workflows
+  
+  # Links
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://github.com/tosin2013/jupyter-notebook-validator-operator/tree/main/docs
+    - name: ADRs
+      url: https://github.com/tosin2013/jupyter-notebook-validator-operator/tree/main/docs/adrs
+    - name: Integration Testing
+      url: https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/docs/INTEGRATION_TESTING.md
+  
+  # Operator capabilities (for OperatorHub compatibility)
+  artifacthub.io/operator: "true"
+  artifacthub.io/operatorCapabilities: "Seamless Upgrades"
+  
+  # License
+  artifacthub.io/license: Apache-2.0
+  
+  # Container images used
+  artifacthub.io/containsSecurityUpdates: "false"
+  artifacthub.io/images: |
+    - name: jupyter-notebook-validator-operator
+      image: quay.io/tosin2013/jupyter-notebook-validator-operator:1.0.0-ocp4.18
+    - name: kube-rbac-proxy
+      image: gcr.io/kubebuilder/kube-rbac-proxy:v0.15.0
+  
+  # Recommendations
+  artifacthub.io/recommendations: |
+    - url: https://artifacthub.io/packages/helm/tekton/tekton-pipelines
+    - url: https://artifacthub.io/packages/helm/external-secrets-operator/external-secrets
+  
+  # OpenShift compatibility
+  artifacthub.io/openshift: "true"
+  
+  # Prerelease flag
+  artifacthub.io/prerelease: "false"
+  
+  # Sign key (add when you have GPG signing)
+  # artifacthub.io/signKey: |
+  #   fingerprint: XXXX
+  #   url: https://keybase.io/username/pgp_keys.asc
+

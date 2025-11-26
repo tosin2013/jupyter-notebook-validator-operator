@@ -33,15 +33,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
+	"github.com/tosin2013/jupyter-notebook-validator-operator/pkg/build"
 	"github.com/tosin2013/jupyter-notebook-validator-operator/pkg/logging"
 )
 
 const (
-	// Phases
-	PhasePending   = "Pending"
-	PhaseRunning   = "Running"
-	PhaseSucceeded = "Succeeded"
-	PhaseFailed    = "Failed"
+	// Phases - State Machine (ADR-037)
+	PhaseInitializing      = "Initializing"      // Initial state when job is created
+	PhaseBuilding          = "Building"          // Build in progress (waiting for build to complete)
+	PhaseBuildComplete     = "BuildComplete"     // Build completed successfully (ready for validation)
+	PhaseValidationRunning = "ValidationRunning" // Validation pod executing notebook
+	PhaseSucceeded         = "Succeeded"         // Terminal success state
+	PhaseFailed            = "Failed"            // Terminal failure state
+	PhasePending           = "Pending"           // Legacy state (backward compatibility)
+	PhaseRunning           = "Running"           // Legacy state (backward compatibility)
 
 	// Condition types
 	ConditionTypeReady              = "Ready"
@@ -73,6 +78,7 @@ const (
 // NotebookValidationJobReconciler reconciles a NotebookValidationJob object
 type NotebookValidationJobReconciler struct {
 	client.Client
+	APIReader  client.Reader // Non-cached client for direct API access (used for SCCs)
 	Scheme     *runtime.Scheme
 	RestConfig *rest.Config
 }
@@ -83,15 +89,21 @@ type NotebookValidationJobReconciler struct {
 //+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=pods/log,verbs=get;list
 //+kubebuilder:rbac:groups="",resources=pods/status,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch;update
+//+kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create
+//+kubebuilder:rbac:groups=security.openshift.io,resources=securitycontextconstraints,verbs=get;list;update;use,resourceNames=pipelines-scc;privileged
 //+kubebuilder:rbac:groups=serving.kserve.io,resources=inferenceservices,verbs=get;list;watch
 //+kubebuilder:rbac:groups=serving.kserve.io,resources=servingruntimes,verbs=get;list;watch
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
 //+kubebuilder:rbac:groups=ray.io,resources=rayservices;rayclusters,verbs=get;list;watch
 //+kubebuilder:rbac:groups=machinelearning.seldon.io,resources=seldondeployments,verbs=get;list;watch
 //+kubebuilder:rbac:groups=serving.yatai.ai,resources=bentos;bentodeployments,verbs=get;list;watch
+//+kubebuilder:rbac:groups=build.openshift.io,resources=buildconfigs;builds,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=image.openshift.io,resources=imagestreams,verbs=get;list;watch;create;update;patch
+//+kubebuilder:rbac:groups=tekton.dev,resources=pipelines;pipelineruns;taskruns;tasks,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -140,12 +152,12 @@ func (r *NotebookValidationJobReconciler) Reconcile(ctx context.Context, req ctr
 		"generation", job.Generation,
 		"resourceVersion", job.ResourceVersion)
 
-	// Initialize status if needed
+	// Initialize status if needed (ADR-037: State Machine)
 	if job.Status.Phase == "" {
 		logger.Info("Initializing NotebookValidationJob status",
 			"namespace", req.Namespace,
 			"name", req.Name)
-		job.Status.Phase = PhasePending
+		job.Status.Phase = PhaseInitializing
 		job.Status.StartTime = &metav1.Time{Time: time.Now()}
 		job.Status.RetryCount = 0
 
@@ -170,8 +182,39 @@ func (r *NotebookValidationJobReconciler) Reconcile(ctx context.Context, req ctr
 
 	// Check if validation is already complete
 	if job.Status.Phase == PhaseSucceeded || job.Status.Phase == PhaseFailed {
-		logger.Info("NotebookValidationJob already complete", "phase", job.Status.Phase)
-		return ctrl.Result{}, nil
+		// Sanity check: If phase is terminal but completion time is not set,
+		// this might be stale cache data from a conflict error. Re-fetch from etcd.
+		if job.Status.CompletionTime == nil {
+			logger.Info("Terminal phase detected without completion time - re-fetching from etcd to verify",
+				"phase", job.Status.Phase,
+				"resourceVersion", job.ResourceVersion)
+
+			// Force fetch from etcd (bypass cache)
+			freshJob := &mlopsv1alpha1.NotebookValidationJob{}
+			if err := r.Client.Get(ctx, req.NamespacedName, freshJob); err != nil {
+				logger.Error(err, "Failed to re-fetch job from etcd")
+				return ctrl.Result{}, err
+			}
+
+			// Update our local reference to the fresh object
+			*job = *freshJob
+			logger.Info("Re-fetched job from etcd",
+				"phase", job.Status.Phase,
+				"completionTime", job.Status.CompletionTime,
+				"resourceVersion", job.ResourceVersion)
+
+			// If still in terminal phase with completion time, it's legitimate
+			if (job.Status.Phase == PhaseSucceeded || job.Status.Phase == PhaseFailed) && job.Status.CompletionTime != nil {
+				logger.Info("NotebookValidationJob already complete (verified from etcd)", "phase", job.Status.Phase)
+				return ctrl.Result{}, nil
+			}
+
+			// Otherwise, continue processing with fresh data
+			logger.Info("Job was not actually complete - continuing with fresh data", "phase", job.Status.Phase)
+		} else {
+			logger.Info("NotebookValidationJob already complete", "phase", job.Status.Phase)
+			return ctrl.Result{}, nil
+		}
 	}
 
 	// Check retry limit
@@ -180,10 +223,48 @@ func (r *NotebookValidationJobReconciler) Reconcile(ctx context.Context, req ctr
 		return r.updateJobPhase(ctx, job, PhaseFailed, "Maximum retry attempts exceeded")
 	}
 
-	// Main reconciliation logic
-	result, err := r.reconcileValidation(ctx, job)
+	// ADR-037: State Machine Dispatch
+	// Dispatch to appropriate reconciliation function based on current phase
+	logger.V(1).Info("Dispatching based on phase", "phase", job.Status.Phase)
+
+	var result ctrl.Result
+	var err error
+
+	switch job.Status.Phase {
+	case PhaseInitializing:
+		logger.Info("Phase: Initializing - Setting up initial state")
+		result, err = r.reconcileInitializing(ctx, job)
+
+	case PhaseBuilding:
+		logger.Info("Phase: Building - Checking build status")
+		result, err = r.reconcileBuilding(ctx, job)
+
+	case PhaseBuildComplete:
+		logger.Info("Phase: BuildComplete - Transitioning to validation")
+		result, err = r.reconcileBuildComplete(ctx, job)
+
+	case PhaseValidationRunning:
+		logger.Info("Phase: ValidationRunning - Monitoring validation pod")
+		result, err = r.reconcileValidationRunning(ctx, job)
+
+	case PhasePending, PhaseRunning:
+		// Legacy states - migrate to new state machine
+		logger.Info("Legacy phase detected, migrating to new state machine", "oldPhase", job.Status.Phase)
+		if isBuildEnabled(job) {
+			// If build is enabled, start from Building phase
+			result, err = r.transitionPhase(ctx, job, PhaseBuilding, "Migrating from legacy phase to Building")
+		} else {
+			// If no build, start from ValidationRunning phase
+			result, err = r.transitionPhase(ctx, job, PhaseValidationRunning, "Migrating from legacy phase to ValidationRunning")
+		}
+
+	default:
+		logger.Error(nil, "Unknown phase", "phase", job.Status.Phase)
+		return r.updateJobPhase(ctx, job, PhaseFailed, fmt.Sprintf("Unknown phase: %s", job.Status.Phase))
+	}
+
 	if err != nil {
-		logger.Error(err, "Error during validation reconciliation")
+		logger.Error(err, "Error during phase reconciliation", "phase", job.Status.Phase)
 		// Record reconciliation duration with error result
 		recordReconciliationDuration(req.Namespace, "error", time.Since(startTime).Seconds())
 		// Classify error and handle accordingly (ADR-011)
@@ -193,6 +274,303 @@ func (r *NotebookValidationJobReconciler) Reconcile(ctx context.Context, req ctr
 	// Record reconciliation duration with success result
 	recordReconciliationDuration(req.Namespace, "success", time.Since(startTime).Seconds())
 	return result, nil
+}
+
+// ADR-037: State Machine Reconciliation Functions
+
+// transitionPhase transitions the job to a new phase with logging and status update
+func (r *NotebookValidationJobReconciler) transitionPhase(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob, newPhase, message string) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Transitioning phase", "oldPhase", job.Status.Phase, "newPhase", newPhase, "message", message)
+
+	// Save original phase in case update fails
+	originalPhase := job.Status.Phase
+
+	job.Status.Phase = newPhase
+	if err := r.Status().Update(ctx, job); err != nil {
+		// Restore original phase on failure to prevent stale in-memory state
+		job.Status.Phase = originalPhase
+
+		logger.Error(err, "Failed to update job phase", "newPhase", newPhase)
+		return ctrl.Result{}, err
+	}
+
+	// Requeue immediately to process new phase
+	return ctrl.Result{Requeue: true}, nil
+}
+
+// reconcileInitializing handles the Initializing phase
+// Sets up initial state and determines whether to build or validate directly
+func (r *NotebookValidationJobReconciler) reconcileInitializing(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling Initializing phase")
+
+	// Determine next phase based on build configuration
+	if isBuildEnabled(job) {
+		// Build is enabled - transition to Building phase
+		logger.Info("Build enabled, transitioning to Building phase")
+		return r.transitionPhase(ctx, job, PhaseBuilding, "Build enabled, starting build workflow")
+	}
+
+	// No build needed - transition directly to ValidationRunning
+	logger.Info("Build not enabled, transitioning to ValidationRunning phase")
+	return r.transitionPhase(ctx, job, PhaseValidationRunning, "No build required, starting validation")
+}
+
+// reconcileBuilding handles the Building phase
+// Checks build status and waits for completion with 30-second requeue
+func (r *NotebookValidationJobReconciler) reconcileBuilding(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling Building phase")
+
+	// Initialize build status if needed
+	if job.Status.BuildStatus == nil {
+		job.Status.BuildStatus = &mlopsv1alpha1.BuildStatus{
+			Phase:     "Pending",
+			Message:   "Build initialization",
+			StartTime: &metav1.Time{Time: time.Now()},
+		}
+		if err := r.Status().Update(ctx, job); err != nil {
+			logger.Error(err, "Failed to initialize build status")
+			return ctrl.Result{}, err
+		}
+	}
+
+	// Get the configured strategy
+	strategyName := job.Spec.PodConfig.BuildConfig.Strategy
+	if strategyName == "" {
+		strategyName = "s2i" // Default to S2I
+	}
+
+	// ADR-043: Dispatch to strategy-specific reconciliation
+	// S2I and Tekton have different naming conventions and lookup patterns
+	switch strategyName {
+	case "s2i":
+		return r.reconcileBuildingS2I(ctx, job)
+	case "tekton":
+		return r.reconcileBuildingTekton(ctx, job)
+	default:
+		logger.Error(nil, "Unknown build strategy", "strategy", strategyName)
+		return r.transitionPhase(ctx, job, PhaseFailed, fmt.Sprintf("Unknown build strategy: %s", strategyName))
+	}
+}
+
+// reconcileBuildingS2I handles S2I/BuildConfig build reconciliation
+func (r *NotebookValidationJobReconciler) reconcileBuildingS2I(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling S2I build")
+
+	registry := build.NewStrategyRegistry(r.Client, r.APIReader, r.Scheme)
+	strategy := registry.GetStrategy("s2i")
+	if strategy == nil {
+		return r.transitionPhase(ctx, job, PhaseFailed, "S2I build strategy not available")
+	}
+
+	// S2I: BuildConfig creates Builds with -1, -2 suffixes
+	// Use GetLatestBuild to find by buildconfig label
+	buildName := fmt.Sprintf("%s-build", job.Name)
+	// ADR-042: Use GetLatestBuild for S2I build discovery
+	// This finds Builds with -1, -2 suffixes by buildconfig label
+	buildInfo, err := strategy.GetLatestBuild(ctx, buildName)
+
+	return r.handleBuildStatus(ctx, job, strategy, "s2i", buildName, buildInfo, err)
+}
+
+// reconcileBuildingTekton handles Tekton/Pipeline build reconciliation
+func (r *NotebookValidationJobReconciler) reconcileBuildingTekton(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling Tekton build")
+
+	registry := build.NewStrategyRegistry(r.Client, r.APIReader, r.Scheme)
+	strategy := registry.GetStrategy("tekton")
+	if strategy == nil {
+		return r.transitionPhase(ctx, job, PhaseFailed, "Tekton build strategy not available")
+	}
+
+	// Tekton: PipelineRuns are named {job-name}-build, but Pipeline is {job-name}-pipeline
+	// GetLatestBuild searches by tekton.dev/pipeline label, so we need to pass pipeline name
+	pipelineName := fmt.Sprintf("%s-pipeline", job.Name)
+	// ADR-043: Use pipeline name for Tekton build discovery
+	// This finds PipelineRuns by tekton.dev/pipeline label
+	buildInfo, err := strategy.GetLatestBuild(ctx, pipelineName)
+
+	// For CreateBuild, we still use buildName format
+	buildName := fmt.Sprintf("%s-build", job.Name)
+	return r.handleBuildStatus(ctx, job, strategy, "tekton", buildName, buildInfo, err)
+}
+
+// handleBuildStatus is a common handler for build status checking (used by both S2I and Tekton)
+func (r *NotebookValidationJobReconciler) handleBuildStatus(
+	ctx context.Context,
+	job *mlopsv1alpha1.NotebookValidationJob,
+	strategy build.Strategy,
+	strategyName string,
+	buildName string,
+	buildInfo *build.BuildInfo,
+	err error) (ctrl.Result, error) {
+
+	logger := log.FromContext(ctx)
+
+	if err != nil {
+		// Build doesn't exist yet, create it
+		logger.Info("Build not found, creating new build", "buildName", buildName, "strategy", strategyName)
+
+		// Validate strategy availability
+		available, detectErr := strategy.Detect(ctx, r.Client)
+		if detectErr != nil || !available {
+			logger.Error(detectErr, "Build strategy not available", "strategy", strategyName)
+			return r.transitionPhase(ctx, job, PhaseFailed, fmt.Sprintf("Build strategy not available: %s", strategyName))
+		}
+
+		// Validate configuration
+		if validateErr := strategy.ValidateConfig(job.Spec.PodConfig.BuildConfig); validateErr != nil {
+			logger.Error(validateErr, "Invalid build configuration")
+			return r.transitionPhase(ctx, job, PhaseFailed, fmt.Sprintf("Invalid build configuration: %v", validateErr))
+		}
+
+		// Create build
+		buildInfo, err = strategy.CreateBuild(ctx, job)
+		if err != nil {
+			logger.Error(err, "Failed to create build")
+			return r.transitionPhase(ctx, job, PhaseFailed, fmt.Sprintf("Failed to create build: %v", err))
+		}
+
+		// Update build status
+		originalBuildStatus := job.Status.BuildStatus
+		job.Status.BuildStatus = &mlopsv1alpha1.BuildStatus{
+			Phase:     "Running",
+			Message:   "Build created and started",
+			BuildName: buildInfo.Name,
+			Strategy:  strategyName,
+			StartTime: &metav1.Time{Time: time.Now()},
+		}
+		if err := r.Status().Update(ctx, job); err != nil {
+			// Restore original build status on failure
+			job.Status.BuildStatus = originalBuildStatus
+			logger.Error(err, "Failed to update build status")
+			return ctrl.Result{}, err
+		}
+
+		// Requeue to check build status
+		logger.Info("Build created, requeuing to check status", "buildName", buildInfo.Name)
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
+	// Build exists, check its status
+	logger.Info("Checking build status", "buildName", buildName, "status", buildInfo.Status, "strategy", strategyName)
+
+	// Calculate duration if build has started
+	var duration string
+	if job.Status.BuildStatus != nil && job.Status.BuildStatus.StartTime != nil {
+		elapsed := time.Since(job.Status.BuildStatus.StartTime.Time)
+		duration = elapsed.Round(time.Second).String()
+	}
+
+	switch buildInfo.Status {
+	case build.BuildStatusComplete:
+		// Build completed successfully
+		logger.Info("Build completed successfully", "image", buildInfo.ImageReference, "duration", duration, "strategy", strategyName)
+
+		// Update build status with completion details
+		originalBuildStatus := job.Status.BuildStatus
+		job.Status.BuildStatus = &mlopsv1alpha1.BuildStatus{
+			Phase:          "Complete",
+			Message:        "Build completed successfully",
+			BuildName:      buildInfo.Name,
+			Strategy:       strategyName,
+			ImageReference: buildInfo.ImageReference,
+			StartTime:      job.Status.BuildStatus.StartTime,
+			CompletionTime: &metav1.Time{Time: time.Now()},
+			Duration:       duration,
+		}
+		if err := r.Status().Update(ctx, job); err != nil {
+			// Restore original build status on failure
+			job.Status.BuildStatus = originalBuildStatus
+			logger.Error(err, "Failed to update build status")
+			return ctrl.Result{}, err
+		}
+
+		// Transition to BuildComplete phase
+		return r.transitionPhase(ctx, job, PhaseBuildComplete, "Build completed, ready for validation")
+
+	case build.BuildStatusFailed:
+		// Build failed
+		logger.Error(nil, "Build failed", "message", buildInfo.Message, "duration", duration, "strategy", strategyName)
+
+		// Update build status with failure details
+		originalBuildStatus := job.Status.BuildStatus
+		job.Status.BuildStatus = &mlopsv1alpha1.BuildStatus{
+			Phase:          "Failed",
+			Message:        fmt.Sprintf("Build failed: %s", buildInfo.Message),
+			BuildName:      buildInfo.Name,
+			Strategy:       strategyName,
+			StartTime:      job.Status.BuildStatus.StartTime,
+			CompletionTime: &metav1.Time{Time: time.Now()},
+			Duration:       duration,
+		}
+		if err := r.Status().Update(ctx, job); err != nil {
+			// Restore original build status on failure
+			job.Status.BuildStatus = originalBuildStatus
+			logger.Error(err, "Failed to update build status")
+			return ctrl.Result{}, err
+		}
+
+		// Transition to Failed phase
+		return r.transitionPhase(ctx, job, PhaseFailed, fmt.Sprintf("Build failed: %s", buildInfo.Message))
+
+	case build.BuildStatusPending, build.BuildStatusRunning:
+		// Build still in progress
+		logger.Info("Build in progress, requeuing", "status", buildInfo.Status, "duration", duration, "strategy", strategyName)
+
+		// Update build status with current progress
+		if job.Status.BuildStatus != nil {
+			originalBuildStatus := job.Status.BuildStatus.DeepCopy()
+			job.Status.BuildStatus.Phase = string(buildInfo.Status)
+			job.Status.BuildStatus.Message = fmt.Sprintf("Build %s", buildInfo.Status)
+			job.Status.BuildStatus.Duration = duration
+			if err := r.Status().Update(ctx, job); err != nil {
+				// Restore original build status on failure
+				job.Status.BuildStatus = originalBuildStatus
+				logger.Error(err, "Failed to update build status")
+			}
+		}
+
+		// Requeue after 30 seconds to check again
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+
+	default:
+		logger.Info("Unknown build status, requeuing", "status", buildInfo.Status, "strategy", strategyName)
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+}
+
+// reconcileBuildComplete handles the BuildComplete phase
+// Immediately transitions to ValidationRunning phase
+func (r *NotebookValidationJobReconciler) reconcileBuildComplete(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling BuildComplete phase")
+
+	// Verify build status contains image reference
+	if job.Status.BuildStatus == nil || job.Status.BuildStatus.ImageReference == "" {
+		logger.Error(nil, "BuildComplete phase but no image reference found")
+		return r.transitionPhase(ctx, job, PhaseFailed, "Build completed but no image reference available")
+	}
+
+	logger.Info("Build completed with image, transitioning to validation", "image", job.Status.BuildStatus.ImageReference)
+
+	// Transition to ValidationRunning phase
+	return r.transitionPhase(ctx, job, PhaseValidationRunning, "Build complete, starting validation")
+}
+
+// reconcileValidationRunning handles the ValidationRunning phase
+// Delegates to the existing reconcileValidation logic
+func (r *NotebookValidationJobReconciler) reconcileValidationRunning(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling ValidationRunning phase")
+
+	// Use existing reconcileValidation logic
+	// This function already handles pod creation, monitoring, and result collection
+	return r.reconcileValidation(ctx, job)
 }
 
 // reconcileValidation handles the main validation workflow
@@ -218,7 +596,19 @@ func (r *NotebookValidationJobReconciler) reconcileValidation(ctx context.Contex
 		}
 	}
 
-	// Step 2: Check if validation pod already exists
+	// Step 2: Determine container image to use (ADR-037: Use built image from BuildStatus if available)
+	containerImage := job.Spec.PodConfig.ContainerImage
+	if job.Status.BuildStatus != nil && job.Status.BuildStatus.ImageReference != "" {
+		// Use built image from BuildStatus (set by reconcileBuilding)
+		logger.Info("Using built image from BuildStatus", "image", job.Status.BuildStatus.ImageReference)
+		containerImage = job.Status.BuildStatus.ImageReference
+	} else if isBuildEnabled(job) {
+		// Build is enabled but no built image yet (should not happen in state machine flow)
+		// This is a safety check for legacy jobs
+		logger.Info("Build enabled but no built image in BuildStatus, using spec image", "image", containerImage)
+	}
+
+	// Step 3: Check if validation pod already exists
 	podName := fmt.Sprintf("%s-validation", job.Name)
 	pod := &corev1.Pod{}
 	err := r.Get(ctx, types.NamespacedName{Name: podName, Namespace: job.Namespace}, pod)
@@ -234,12 +624,12 @@ func (r *NotebookValidationJobReconciler) reconcileValidation(ctx context.Contex
 			}
 		}
 
-		// Create the validation pod
-		pod, err := r.createValidationPod(ctx, job)
+		// Create the validation pod with the container image (built or spec)
+		pod, err := r.createValidationPod(ctx, job, containerImage)
 		if err != nil {
 			logger.Error(err, "Failed to create validation pod")
 			// Record pod creation failure
-			recordPodCreation(job.Namespace, "failed")
+			recordPodCreation(job.Namespace, StatusFailed)
 			return r.updateJobPhase(ctx, job, PhaseFailed, fmt.Sprintf("Failed to create validation pod: %v", err))
 		}
 
@@ -269,6 +659,21 @@ func (r *NotebookValidationJobReconciler) reconcileValidation(ctx context.Contex
 	switch pod.Status.Phase {
 	case corev1.PodPending:
 		logger.Info("Validation pod is pending")
+
+		// ADR-019: Check if pod is stuck due to init container failures
+		// Analyze pod to detect ImagePullBackOff, SCC violations, etc.
+		analysis := analyzePodFailure(ctx, pod)
+		if analysis.Reason != FailureReasonUnknown {
+			logger.Info("Detected failure in pending pod",
+				"reason", analysis.Reason,
+				"failedContainer", analysis.FailedContainer,
+				"isInitContainer", analysis.IsInitContainer,
+				"suggestedAction", analysis.SuggestedAction)
+
+			// Treat as pod failure and handle recovery
+			return r.handlePodFailure(ctx, job, pod)
+		}
+
 		// Update active pod gauge
 		setActivePods(job.Namespace, "pending", 1)
 		setActivePods(job.Namespace, "running", 0)
@@ -306,7 +711,8 @@ func (r *NotebookValidationJobReconciler) reconcileValidation(ctx context.Contex
 }
 
 // createValidationPod creates a pod for notebook validation
-func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) (*corev1.Pod, error) {
+// containerImage parameter allows using a custom built image (Phase 4.5: S2I Build Integration)
+func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob, containerImage string) (*corev1.Pod, error) {
 	logger := log.FromContext(ctx)
 
 	podName := fmt.Sprintf("%s-validation", job.Name)
@@ -316,51 +722,67 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 		"name", job.Name,
 		"podName", podName)
 
-	// Resolve Git credentials (ADR-009)
-	logger.V(1).Info("Resolving Git credentials",
-		"namespace", job.Namespace,
-		"name", job.Name)
-	creds, err := r.resolveGitCredentials(ctx, job)
-	if err != nil {
-		logger.Error(logging.SanitizeError(err), "Failed to resolve Git credentials",
+	// ADR-019: Smart Validation Pod Recovery
+	// Check if we should skip git-clone init container
+	// When using a built image (S2I/Tekton), the notebook is already in the image
+	var initContainers []corev1.Container
+
+	if shouldSkipGitClone(containerImage, job.Spec.PodConfig.ContainerImage) {
+		logger.Info("Using built image - notebook already in image, skipping git-clone init container",
+			"builtImage", containerImage,
+			"specImage", job.Spec.PodConfig.ContainerImage)
+		// No init containers needed - notebook is in the built image
+		initContainers = []corev1.Container{}
+	} else {
+		logger.Info("Using pre-built image - adding git-clone init container",
+			"image", containerImage)
+
+		// Resolve Git credentials (ADR-009)
+		logger.V(1).Info("Resolving Git credentials",
 			"namespace", job.Namespace,
 			"name", job.Name)
-		return nil, fmt.Errorf("failed to resolve Git credentials: %w", err)
-	}
-
-	logger.V(2).Info("Git credentials resolved",
-		"namespace", job.Namespace,
-		"name", job.Name,
-		"credentialType", creds.Type)
-
-	// Build Git clone init container (ADR-009)
-	logger.Info("Building Git clone init container")
-	gitCloneContainer, err := r.buildGitCloneInitContainer(ctx, job, creds)
-	if err != nil {
-		logger.Error(err, "Failed to build Git clone init container")
-		return nil, fmt.Errorf("failed to build Git clone init container: %w", err)
-	}
-
-	// Build init containers list
-	initContainers := []corev1.Container{gitCloneContainer}
-
-	// Add golden notebook init container if specified (Phase 3: Golden Notebook Comparison)
-	if job.Spec.GoldenNotebook != nil {
-		logger.Info("Building golden notebook Git clone init container")
-		goldenCreds, err := r.resolveGoldenGitCredentials(ctx, job)
+		creds, err := r.resolveGitCredentials(ctx, job)
 		if err != nil {
-			logger.Error(err, "Failed to resolve golden notebook credentials")
-			return nil, fmt.Errorf("failed to resolve golden notebook credentials: %w", err)
+			logger.Error(logging.SanitizeError(err), "Failed to resolve Git credentials",
+				"namespace", job.Namespace,
+				"name", job.Name)
+			return nil, fmt.Errorf("failed to resolve Git credentials: %w", err)
 		}
 
-		goldenCloneContainer, err := r.buildGoldenGitCloneInitContainer(ctx, job, goldenCreds)
+		logger.V(2).Info("Git credentials resolved",
+			"namespace", job.Namespace,
+			"name", job.Name,
+			"credentialType", creds.Type)
+
+		// Build Git clone init container (ADR-009)
+		logger.Info("Building Git clone init container")
+		gitCloneContainer, err := r.buildGitCloneInitContainer(ctx, job, creds)
 		if err != nil {
-			logger.Error(err, "Failed to build golden Git clone init container")
-			return nil, fmt.Errorf("failed to build golden Git clone init container: %w", err)
+			logger.Error(err, "Failed to build Git clone init container")
+			return nil, fmt.Errorf("failed to build Git clone init container: %w", err)
 		}
 
-		initContainers = append(initContainers, goldenCloneContainer)
-		logger.Info("Added golden notebook init container")
+		// Build init containers list
+		initContainers = []corev1.Container{gitCloneContainer}
+
+		// Add golden notebook init container if specified (Phase 3: Golden Notebook Comparison)
+		if job.Spec.GoldenNotebook != nil {
+			logger.Info("Building golden notebook Git clone init container")
+			goldenCreds, err := r.resolveGoldenGitCredentials(ctx, job)
+			if err != nil {
+				logger.Error(err, "Failed to resolve golden notebook credentials")
+				return nil, fmt.Errorf("failed to resolve golden notebook credentials: %w", err)
+			}
+
+			goldenCloneContainer, err := r.buildGoldenGitCloneInitContainer(ctx, job, goldenCreds)
+			if err != nil {
+				logger.Error(err, "Failed to build golden Git clone init container")
+				return nil, fmt.Errorf("failed to build golden Git clone init container: %w", err)
+			}
+
+			initContainers = append(initContainers, goldenCloneContainer)
+			logger.Info("Added golden notebook init container")
+		}
 	}
 
 	// Build pod spec
@@ -379,13 +801,34 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 		Spec: corev1.PodSpec{
 			ServiceAccountName: job.Spec.PodConfig.ServiceAccountName,
 			RestartPolicy:      corev1.RestartPolicyNever,
-			InitContainers:     initContainers,
+			// ADR-005: OpenShift Compatibility
+			// SecurityContext is intentionally omitted at pod level
+			// OpenShift automatically assigns appropriate UID/GID/fsGroup from namespace ranges
+			// Container-level SecurityContext (in buildPapermillValidationContainer) ensures:
+			//   - RunAsNonRoot: true
+			//   - AllowPrivilegeEscalation: false
+			//   - Capabilities dropped
+			// Combined with HOME=/workspace and PYTHONUSERBASE=/workspace/.local env vars,
+			// this ensures notebooks work with OpenShift's default restricted SCC
+			InitContainers: initContainers,
 			Containers: []corev1.Container{
-				r.buildPapermillValidationContainer(ctx, job),
+				r.buildPapermillValidationContainer(ctx, job, containerImage),
 			},
 			Volumes: []corev1.Volume{
 				{
 					Name: "workspace",
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					// ADR-005: OpenShift Compatibility
+					// Jupyter containers expect /home/jovyan to exist and be writable during startup
+					// Mount an emptyDir at /home/jovyan to satisfy this requirement
+					// OpenShift automatically makes emptyDir writable by the assigned UID
+					// Combined with HOME=/workspace env var, this prevents startup failures
+					// while redirecting actual work to the workspace volume
+					Name: "jovyan-home",
 					VolumeSource: corev1.VolumeSource{
 						EmptyDir: &corev1.EmptyDirVolumeSource{},
 					},
@@ -443,8 +886,10 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 	}
 
 	// Add envFrom if specified (Phase 4: Credential Management)
+	envFromSources := make([]corev1.EnvFromSource, 0)
+
+	// First, add explicit envFrom entries
 	if len(job.Spec.PodConfig.EnvFrom) > 0 {
-		envFromSources := make([]corev1.EnvFromSource, 0, len(job.Spec.PodConfig.EnvFrom))
 		for _, envFrom := range job.Spec.PodConfig.EnvFrom {
 			envFromSource := corev1.EnvFromSource{}
 
@@ -468,6 +913,27 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 
 			envFromSources = append(envFromSources, envFromSource)
 		}
+	}
+
+	// Then, add credentials as secretRef entries (syntactic sugar)
+	// This allows users to simply specify: credentials: ["aws-credentials", "database-credentials"]
+	// instead of the more verbose envFrom syntax
+	if len(job.Spec.PodConfig.Credentials) > 0 {
+		logger.Info("Converting credentials to envFrom", "credentials", job.Spec.PodConfig.Credentials)
+		for _, credentialName := range job.Spec.PodConfig.Credentials {
+			envFromSource := corev1.EnvFromSource{
+				SecretRef: &corev1.SecretEnvSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: credentialName,
+					},
+				},
+			}
+			envFromSources = append(envFromSources, envFromSource)
+		}
+	}
+
+	// Apply all envFrom sources to the pod
+	if len(envFromSources) > 0 {
 		pod.Spec.Containers[0].EnvFrom = envFromSources
 	}
 
@@ -512,6 +978,13 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 func (r *NotebookValidationJobReconciler) updateJobPhase(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob, phase string, message string) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
+	// Save original values in case update fails
+	originalPhase := job.Status.Phase
+	originalMessage := job.Status.Message
+	originalCompletionTime := job.Status.CompletionTime
+	originalConditions := make([]metav1.Condition, len(job.Status.Conditions))
+	copy(originalConditions, job.Status.Conditions)
+
 	job.Status.Phase = phase
 	job.Status.Message = message
 
@@ -544,6 +1017,13 @@ func (r *NotebookValidationJobReconciler) updateJobPhase(ctx context.Context, jo
 	job.Status.Conditions = updateCondition(job.Status.Conditions, condition)
 
 	if err := r.Status().Update(ctx, job); err != nil {
+		// Restore original values on failure to prevent stale in-memory state
+		// from being inadvertently persisted by subsequent reconcile loops
+		job.Status.Phase = originalPhase
+		job.Status.Message = originalMessage
+		job.Status.CompletionTime = originalCompletionTime
+		job.Status.Conditions = originalConditions
+
 		logger.Error(err, "Failed to update job status")
 		return ctrl.Result{}, err
 	}
@@ -578,10 +1058,15 @@ func (r *NotebookValidationJobReconciler) handleReconcileError(ctx context.Conte
 			return r.updateJobPhase(ctx, job, PhaseFailed, fmt.Sprintf("Maximum retries exceeded: %v", err))
 		}
 
-		// Exponential backoff: 1m, 2m, 5m
-		backoff := time.Minute * time.Duration(1<<uint(job.Status.RetryCount-1))
-		if backoff > 5*time.Minute {
+		// Exponential backoff: 1m, 2m, 5m (safe calculation to avoid integer overflow)
+		var backoff time.Duration
+		if job.Status.RetryCount <= 0 {
+			backoff = time.Minute
+		} else if job.Status.RetryCount > 3 {
 			backoff = 5 * time.Minute
+		} else {
+			// #nosec G115 -- RetryCount is bounded above, shift is safe
+			backoff = time.Minute * time.Duration(1<<uint(job.Status.RetryCount-1))
 		}
 
 		logger.Info("Retriable error detected, will retry", "error", err, "retryCount", job.Status.RetryCount, "backoff", backoff)
@@ -605,8 +1090,10 @@ func classifyError(err error) string {
 		return ""
 	}
 
-	// Transient errors
-	if errors.IsServerTimeout(err) || errors.IsTimeout(err) || errors.IsServiceUnavailable(err) {
+	// Transient errors - these should requeue without incrementing retry count
+	// Conflicts are transient because they occur when multiple reconciliation loops
+	// try to update the same resource - the next reconciliation will succeed
+	if errors.IsConflict(err) || errors.IsServerTimeout(err) || errors.IsTimeout(err) || errors.IsServiceUnavailable(err) {
 		return "Transient"
 	}
 

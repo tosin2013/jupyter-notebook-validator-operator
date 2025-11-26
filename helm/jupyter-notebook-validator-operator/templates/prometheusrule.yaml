@@ -1,0 +1,153 @@
+{{- if .Values.prometheus.enabled -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "jupyter-notebook-validator-operator.fullname" . }}-alerts
+  namespace: {{ .Values.prometheus.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "jupyter-notebook-validator-operator.labels" . | nindent 4 }}
+    {{- with .Values.prometheus.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: jupyter-notebook-validator.rules
+      interval: 30s
+      rules:
+        # High Failure Rate Alert
+        - alert: HighValidationFailureRate
+          expr: |
+            (
+              sum(rate(notebookvalidationjob_validations_total{status="failed"}[5m]))
+              /
+              sum(rate(notebookvalidationjob_validations_total[5m]))
+            ) > 0.20
+          for: 10m
+          labels:
+            severity: warning
+            component: jupyter-notebook-validator
+          annotations:
+            summary: "High validation failure rate detected"
+            description: "Validation failure rate is {{`{{ $value | humanizePercentage }}`}} (threshold: 20%)"
+            runbook_url: "https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/docs/TROUBLESHOOTING.md#high-failure-rate"
+
+        # Critical Failure Rate Alert
+        - alert: CriticalValidationFailureRate
+          expr: |
+            (
+              sum(rate(notebookvalidationjob_validations_total{status="failed"}[5m]))
+              /
+              sum(rate(notebookvalidationjob_validations_total[5m]))
+            ) > 0.50
+          for: 5m
+          labels:
+            severity: critical
+            component: jupyter-notebook-validator
+          annotations:
+            summary: "Critical validation failure rate detected"
+            description: "Validation failure rate is {{`{{ $value | humanizePercentage }}`}} (threshold: 50%)"
+            runbook_url: "https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/docs/TROUBLESHOOTING.md#critical-failure-rate"
+
+        # High Reconciliation Error Rate
+        - alert: HighReconciliationErrorRate
+          expr: |
+            sum(rate(notebookvalidationjob_reconciliation_errors_total[5m])) > 1
+          for: 10m
+          labels:
+            severity: warning
+            component: jupyter-notebook-validator
+          annotations:
+            summary: "High reconciliation error rate detected"
+            description: "Reconciliation error rate is {{`{{ $value }}`}} errors/sec (threshold: 1/sec)"
+            runbook_url: "https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/docs/TROUBLESHOOTING.md#reconciliation-errors"
+
+        # Slow Reconciliation Performance
+        - alert: SlowReconciliationPerformance
+          expr: |
+            histogram_quantile(0.95, sum(rate(notebookvalidationjob_reconciliation_duration_seconds_bucket[5m])) by (le)) > 60
+          for: 15m
+          labels:
+            severity: warning
+            component: jupyter-notebook-validator
+          annotations:
+            summary: "Slow reconciliation performance detected"
+            description: "95th percentile reconciliation duration is {{`{{ $value }}`}}s (threshold: 60s)"
+            runbook_url: "https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/docs/TROUBLESHOOTING.md#slow-performance"
+
+        # High Active Pod Count
+        - alert: HighActivePodCount
+          expr: |
+            sum(notebookvalidationjob_active_pods) > 20
+          for: 10m
+          labels:
+            severity: warning
+            component: jupyter-notebook-validator
+          annotations:
+            summary: "High number of active validation pods"
+            description: "Active pod count is {{`{{ $value }}`}} (threshold: 20)"
+            runbook_url: "https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/docs/TROUBLESHOOTING.md#high-pod-count"
+
+        # High Git Clone Failure Rate
+        - alert: HighGitCloneFailureRate
+          expr: |
+            (
+              sum(rate(notebookvalidationjob_git_clone_duration_seconds_count{status="failed"}[5m]))
+              /
+              sum(rate(notebookvalidationjob_git_clone_duration_seconds_count[5m]))
+            ) > 0.10
+          for: 10m
+          labels:
+            severity: warning
+            component: jupyter-notebook-validator
+          annotations:
+            summary: "High Git clone failure rate detected"
+            description: "Git clone failure rate is {{`{{ $value | humanizePercentage }}`}} (threshold: 10%)"
+            runbook_url: "https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/docs/TROUBLESHOOTING.md#git-clone-failures"
+
+        # High Model Validation Failure Rate
+        - alert: HighModelValidationFailureRate
+          expr: |
+            (
+              sum(rate(notebookvalidationjob_model_validation_duration_seconds_count{result="failed"}[5m]))
+              /
+              sum(rate(notebookvalidationjob_model_validation_duration_seconds_count[5m]))
+            ) > 0.20
+          for: 10m
+          labels:
+            severity: warning
+            component: jupyter-notebook-validator
+          annotations:
+            summary: "High model validation failure rate detected"
+            description: "Model validation failure rate is {{`{{ $value | humanizePercentage }}`}} (threshold: 20%)"
+            runbook_url: "https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/docs/TROUBLESHOOTING.md#model-validation-failures"
+
+        # Platform Detection Failures
+        - alert: PlatformDetectionFailures
+          expr: |
+            sum(rate(notebookvalidationjob_platform_detection_duration_seconds_count{detected="false"}[5m])) > 0.5
+          for: 10m
+          labels:
+            severity: warning
+            component: jupyter-notebook-validator
+          annotations:
+            summary: "Platform detection failures detected"
+            description: "Platform detection failure rate is {{`{{ $value }}`}} failures/sec (threshold: 0.5/sec)"
+            runbook_url: "https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/docs/TROUBLESHOOTING.md#platform-detection"
+
+        # High Pod Creation Failure Rate
+        - alert: HighPodCreationFailureRate
+          expr: |
+            (
+              sum(rate(notebookvalidationjob_pod_creations_total{status="failed"}[5m]))
+              /
+              sum(rate(notebookvalidationjob_pod_creations_total[5m]))
+            ) > 0.10
+          for: 10m
+          labels:
+            severity: warning
+            component: jupyter-notebook-validator
+          annotations:
+            summary: "High pod creation failure rate detected"
+            description: "Pod creation failure rate is {{`{{ $value | humanizePercentage }}`}} (threshold: 10%)"
+{{- end }}
+

@@ -1,0 +1,33 @@
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: test-enhanced-errors
+  namespace: default
+  annotations:
+    mlops.dev/description: "Test enhanced error messages - intentionally using image without Papermill"
+spec:
+  notebook:
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+    path: "notebooks/tier1-simple/01-simple-notebook.ipynb"
+  
+  podConfig:
+    # Use Python image without Papermill to trigger permission/command-not-found error
+    containerImage: "python:3.11-slim"
+    serviceAccountName: "notebook-validator-jupyter-notebook-validator-runner"
+    
+    # Disable build to force error
+    buildConfig:
+      enabled: false
+    
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+  
+  timeout: "5m"
+

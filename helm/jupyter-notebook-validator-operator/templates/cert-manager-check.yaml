@@ -1,0 +1,120 @@
+{{- if .Values.certManager.enabled -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "jupyter-notebook-validator-operator.fullname" . }}-cert-manager-check
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "jupyter-notebook-validator-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pre-install-check
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "jupyter-notebook-validator-operator.fullname" . }}-cert-manager-check
+  labels:
+    {{- include "jupyter-notebook-validator-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pre-install-check
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "jupyter-notebook-validator-operator.fullname" . }}-cert-manager-check
+  labels:
+    {{- include "jupyter-notebook-validator-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pre-install-check
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "jupyter-notebook-validator-operator.fullname" . }}-cert-manager-check
+subjects:
+- kind: ServiceAccount
+  name: {{ include "jupyter-notebook-validator-operator.fullname" . }}-cert-manager-check
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "jupyter-notebook-validator-operator.fullname" . }}-cert-manager-check
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "jupyter-notebook-validator-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pre-install-check
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      name: {{ include "jupyter-notebook-validator-operator.fullname" . }}-cert-manager-check
+      labels:
+        {{- include "jupyter-notebook-validator-operator.labels" . | nindent 8 }}
+        app.kubernetes.io/component: pre-install-check
+    spec:
+      serviceAccountName: {{ include "jupyter-notebook-validator-operator.fullname" . }}-cert-manager-check
+      restartPolicy: Never
+      containers:
+      - name: cert-manager-check
+        image: {{ .Values.certManager.checkImage }}
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "🔍 Checking if cert-manager is installed..."
+          
+          # Check if cert-manager namespace exists
+          if ! kubectl get namespace cert-manager > /dev/null 2>&1; then
+            echo "❌ ERROR: cert-manager namespace not found!"
+            echo "Please install cert-manager first:"
+            echo "  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml"
+            exit 1
+          fi
+          
+          echo "✅ cert-manager namespace found"
+          
+          # Check if cert-manager pods are running
+          if ! kubectl get deployment -n cert-manager cert-manager > /dev/null 2>&1; then
+            echo "❌ ERROR: cert-manager deployment not found!"
+            exit 1
+          fi
+          
+          echo "✅ cert-manager deployment found"
+          
+          # Wait for cert-manager to be ready
+          echo "⏳ Waiting for cert-manager to be ready..."
+          kubectl wait --for=condition=available --timeout=60s deployment/cert-manager -n cert-manager
+          
+          echo "✅ cert-manager is ready!"
+          echo "✅ Pre-install check passed"
+{{- end }}
+

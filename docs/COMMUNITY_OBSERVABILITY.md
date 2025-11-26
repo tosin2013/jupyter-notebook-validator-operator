@@ -34,13 +34,14 @@ The Jupyter Notebook Validator Operator provides **5 built-in dashboards** for c
 
 ### **Built-In Dashboards** (Maintained by Core Team)
 
-| Dashboard | Status | Platform | Description |
-|-----------|--------|----------|-------------|
-| **Operator Health Overview** | ✅ Complete | OpenShift Console | Core operator metrics |
-| **Notebook Validation Performance** | ✅ Complete | OpenShift Console | Validation metrics |
-| **Resource Utilization** | ✅ Complete | OpenShift Console | Pod and resource metrics |
-| **Git Operations & Credentials** | ✅ Complete | OpenShift Console | Git clone performance |
-| **Model-Aware Validation** | 🚧 Phase 4.3 | OpenShift Console | Model validation metrics |
+| Dashboard | Status | Platform | Description | Location |
+|-----------|--------|----------|-------------|----------|
+| **Operator Health Overview** | ✅ Complete | OpenShift Console | Core operator metrics | `config/monitoring/openshift-console/operator-health-dashboard.yaml` |
+| **Notebook Performance** | ✅ Complete | OpenShift Console | Validation performance metrics | `config/monitoring/openshift-console/notebook-performance-dashboard.yaml` |
+| **Model Validation** | ✅ Complete | OpenShift Console | Model validation metrics (ADR-020) | `config/monitoring/openshift-console/model-validation-dashboard.yaml` |
+| **Resource Utilization** | ✅ Complete | OpenShift Console | Pod and resource metrics | `config/monitoring/openshift-console/resource-utilization-dashboard.yaml` |
+| **Git Operations** | ✅ Complete | OpenShift Console | Git clone performance (ADR-009) | `config/monitoring/openshift-console/git-operations-dashboard.yaml` |
+| **Grafana Dashboard** | ✅ Complete | Grafana | Comprehensive operator dashboard | `config/monitoring/grafana/jupyter-notebook-validator-dashboard.json` |
 
 ---
 
@@ -342,32 +343,25 @@ oc exec -n openshift-monitoring prometheus-k8s-0 -- \
 
 ## 📊 Available Metrics
 
-### **Core Metrics** (Available Now)
+### **Core Metrics** (Available Now - Phase 7 Complete ✅)
 ```promql
-# Reconciliation
-notebookvalidationjob_reconciliation_duration_seconds
-notebookvalidationjob_reconciliation_errors_total
+# Reconciliation Metrics
+notebookvalidationjob_reconciliation_duration_seconds{namespace, result}
+notebookvalidationjob_reconciliation_errors_total{namespace, error_type}
 
-# Validation
-notebookvalidationjob_validations_total
-notebookvalidationjob_active_pods
+# Validation Metrics
+notebookvalidationjob_validations_total{namespace, status}
+notebookvalidationjob_active_pods{namespace, phase}
 
-# Git Operations
-notebookvalidationjob_git_clone_duration_seconds
-notebookvalidationjob_pod_creations_total
-```
+# Git Operations Metrics
+notebookvalidationjob_git_clone_duration_seconds{namespace, auth_type}
+notebookvalidationjob_pod_creations_total{namespace, result}
 
-### **Model Validation Metrics** (Coming in v1.1.0 - Phase 4.3)
-```promql
-# Model Health
-notebookvalidationjob_model_health_checks_total
-notebookvalidationjob_model_validation_duration_seconds
-
-# Predictions
-notebookvalidationjob_prediction_validations_total
-
-# Platform Detection
-notebookvalidationjob_platform_detection_duration_seconds
+# Model Validation Metrics (✅ NEW in Phase 7)
+notebookvalidationjob_model_validation_duration_seconds{namespace, platform, result}
+notebookvalidationjob_model_health_checks_total{namespace, platform, status}
+notebookvalidationjob_prediction_validations_total{namespace, platform, result}
+notebookvalidationjob_platform_detection_duration_seconds{namespace, platform, detected}
 ```
 
 See `internal/controller/metrics.go` for complete metric definitions.

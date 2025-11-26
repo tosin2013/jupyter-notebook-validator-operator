@@ -1,0 +1,105 @@
+# OpenShift Console Dashboard: Resource Utilization
+# Based on ADR-021: OpenShift-Native Dashboard Strategy
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jupyter-notebook-validator-resource-utilization
+  namespace: openshift-config-managed
+  labels:
+    console.openshift.io/dashboard: "true"
+    console.openshift.io/odc-dashboard: "true"
+    app.kubernetes.io/name: jupyter-notebook-validator-operator
+    app.kubernetes.io/component: observability
+data:
+  resource-utilization.json: |
+    {
+      "dashboard": {
+        "title": "Jupyter Notebook Validator - Resource Utilization",
+        "tags": ["jupyter", "mlops", "operator", "resources"],
+        "panels": [
+          {
+            "title": "Active Pods by Phase",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(notebookvalidationjob_active_pods) by (phase)",
+                "legendFormat": "{{phase}}"
+              }
+            ]
+          },
+          {
+            "title": "Total Active Pods",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "sum(notebookvalidationjob_active_pods)"
+              }
+            ],
+            "format": "short",
+            "thresholds": "10,20"
+          },
+          {
+            "title": "Pod Creation Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_pod_creations_total[5m])) by (result)",
+                "legendFormat": "{{result}}"
+              }
+            ]
+          },
+          {
+            "title": "Pod Creation Success Rate",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_pod_creations_total{result=\"success\"}[5m])) / sum(rate(notebookvalidationjob_pod_creations_total[5m])) * 100"
+              }
+            ],
+            "format": "percent",
+            "thresholds": "90,98"
+          },
+          {
+            "title": "Active Pods by Namespace",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(notebookvalidationjob_active_pods) by (namespace)",
+                "legendFormat": "{{namespace}}"
+              }
+            ]
+          },
+          {
+            "title": "Validation Jobs by Namespace (5m rate)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_validations_total[5m])) by (namespace)",
+                "legendFormat": "{{namespace}}"
+              }
+            ]
+          },
+          {
+            "title": "Pod Creations (24h)",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "sum(increase(notebookvalidationjob_pod_creations_total[24h]))"
+              }
+            ],
+            "format": "short"
+          },
+          {
+            "title": "Workload Distribution by Namespace",
+            "type": "piechart",
+            "targets": [
+              {
+                "expr": "sum(increase(notebookvalidationjob_validations_total[24h])) by (namespace)",
+                "legendFormat": "{{namespace}}"
+              }
+            ]
+          }
+        ]
+      }
+    }
+

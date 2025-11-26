@@ -29,11 +29,26 @@ import (
 
 // buildPapermillValidationContainer creates the main validation container with Papermill
 // Based on ADR-008: Notebook Testing Strategy
-func (r *NotebookValidationJobReconciler) buildPapermillValidationContainer(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) corev1.Container {
+// containerImage parameter allows using a custom built image (Phase 4.5: S2I Build Integration)
+func (r *NotebookValidationJobReconciler) buildPapermillValidationContainer(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob, containerImage string) corev1.Container {
 	logger := log.FromContext(ctx)
 
 	notebookPath := job.Spec.Notebook.Path
-	inputNotebook := fmt.Sprintf("/workspace/repo/%s", notebookPath)
+
+	// ADR-019: Smart Validation Pod Recovery - Phase 3
+	// When using built images (S2I/Tekton), notebooks are in /opt/app-root/src/
+	// When using pre-built images with git-clone, notebooks are in /workspace/repo/
+	var inputNotebook string
+	if shouldSkipGitClone(containerImage, job.Spec.PodConfig.ContainerImage) {
+		// Built image - notebooks are in S2I source directory
+		inputNotebook = fmt.Sprintf("/opt/app-root/src/%s", notebookPath)
+		logger.Info("Using built image notebook path", "path", inputNotebook)
+	} else {
+		// Pre-built image - notebooks are cloned to /workspace/repo/
+		inputNotebook = fmt.Sprintf("/workspace/repo/%s", notebookPath)
+		logger.Info("Using git-cloned notebook path", "path", inputNotebook)
+	}
+
 	outputNotebook := "/workspace/output.ipynb"
 	resultsJSON := "/workspace/results.json"
 
@@ -47,6 +62,7 @@ func (r *NotebookValidationJobReconciler) buildPapermillValidationContainer(ctx 
 	executionScript := fmt.Sprintf(`
 #!/bin/bash
 set -e
+set -o pipefail  # Ensure pipeline failures are caught
 
 echo "=========================================="
 echo "Jupyter Notebook Validator - Papermill"
@@ -105,13 +121,18 @@ if ! python -c "import papermill" 2>/dev/null; then
     if grep -q "ERROR:\|Permission denied\|Could not install" /tmp/pip_install.log; then
         log "ERROR: Pip installation failed. Log contents:"
         cat /tmp/pip_install.log
-        handle_error 2 "Failed to install Papermill due to permission errors. The container cannot write to the Python user site-packages directory. SOLUTION: Use a custom container image with Papermill pre-installed. See docs/ERROR_HANDLING_GUIDE.md for instructions." "dependency_install_failed"
+        handle_error 2 "Failed to install Papermill due to permission errors. " \
+            "The container cannot write to the Python user site-packages directory. " \
+            "SOLUTION: Use a custom container image with Papermill pre-installed. " \
+            "See docs/ERROR_HANDLING_GUIDE.md for instructions." "dependency_install_failed"
     fi
 
     # Verify papermill was actually installed
     if ! python -c "import papermill" 2>/dev/null; then
         log "ERROR: Papermill import failed after pip install"
-        handle_error 2 "Papermill installation appeared to succeed but the module cannot be imported. This usually indicates a permission or path issue. SOLUTION: Use a custom container image with Papermill pre-installed." "dependency_install_failed"
+        handle_error 2 "Papermill installation appeared to succeed but the module cannot be imported. " \
+            "This usually indicates a permission or path issue. " \
+            "SOLUTION: Use a custom container image with Papermill pre-installed." "dependency_install_failed"
     fi
 
     log "✓ Papermill installed successfully"
@@ -135,7 +156,9 @@ START_TIME=$(date +%%s)
 # --log-output: Log notebook output to console
 # --progress-bar: Show progress
 # --report-mode: Generate execution report
-if papermill \
+# Use 'python -m papermill' instead of 'papermill' to avoid PATH issues
+# when papermill is installed with --user flag
+if python -m papermill \
     "%s" \
     "%s" \
     --log-output \
@@ -386,9 +409,14 @@ exit $EXIT_CODE
 		resultsJSON, resultsJSON, resultsJSON,
 		notebookPath)
 
+	// Use the provided containerImage (may be built image or spec image)
+	if containerImage == "" {
+		containerImage = job.Spec.PodConfig.ContainerImage
+	}
+
 	container := corev1.Container{
 		Name:  "validator",
-		Image: job.Spec.PodConfig.ContainerImage,
+		Image: containerImage,
 		Command: []string{
 			"/bin/bash",
 			"-c",
@@ -398,6 +426,13 @@ exit $EXIT_CODE
 			{
 				Name:      "workspace",
 				MountPath: "/workspace",
+			},
+			{
+				// ADR-005: OpenShift Compatibility
+				// Mount emptyDir at /home/jovyan to prevent permission errors
+				// Jupyter containers expect this directory to exist and be writable
+				Name:      "jovyan-home",
+				MountPath: "/home/jovyan",
 			},
 		},
 		Resources: convertResourceRequirements(job.Spec.PodConfig.Resources),
