@@ -115,6 +115,185 @@ To enable webhooks after installing from OperatorHub:
 2. Edit the operator deployment to set `ENABLE_WEBHOOKS=true`
 3. Create the webhook certificate
 
+## Manual Configuration When Webhooks Are Disabled
+
+When webhooks are disabled (`ENABLE_WEBHOOKS=false`), the mutating webhook that applies default values does not run. Users must manually specify certain fields that would otherwise be auto-populated.
+
+### What Changes Without Webhooks
+
+| Feature | With Webhooks (Automatic) | Without Webhooks (Manual Required) |
+|---------|---------------------------|-----------------------------------|
+| **Credentials shorthand** | `credentials: ["my-secret"]` auto-converts to `envFrom` | Must use verbose `envFrom` syntax |
+| **ServiceAccount** | Auto-defaults to `"default"` | Must explicitly specify `serviceAccountName` |
+| **Timeout** | Auto-defaults to `"30m"` | Must explicitly specify `timeout` |
+| **Validation timing** | Immediate rejection on CREATE/UPDATE | Deferred to controller reconciliation |
+| **Error visibility** | Admission error on `kubectl apply` | Errors appear in `.status.conditions` |
+
+### Required Manual Configuration
+
+#### 1. ServiceAccount Name (Required)
+
+Without webhooks, you **must** specify `serviceAccountName` in your NotebookValidationJob:
+
+```yaml
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: my-validation
+spec:
+  notebook:
+    git:
+      url: "https://github.com/myorg/notebooks.git"
+      ref: "main"
+    path: "notebooks/analysis.ipynb"
+  podConfig:
+    containerImage: "quay.io/jupyter/minimal-notebook:latest"
+    serviceAccountName: "default"  # REQUIRED when webhooks disabled
+  timeout: "30m"                    # REQUIRED when webhooks disabled
+```
+
+#### 2. Credentials Configuration (Verbose Syntax Required)
+
+The `credentials` shorthand field is **not available** without webhooks. You must use the standard Kubernetes `envFrom` syntax:
+
+**With webhooks (shorthand available):**
+```yaml
+spec:
+  podConfig:
+    credentials:
+      - "aws-credentials"
+      - "database-credentials"
+```
+
+**Without webhooks (verbose syntax required):**
+```yaml
+spec:
+  podConfig:
+    envFrom:
+      - secretRef:
+          name: "aws-credentials"
+      - secretRef:
+          name: "database-credentials"
+```
+
+#### 3. Timeout (Required)
+
+Without webhooks, always specify the `timeout` field:
+
+```yaml
+spec:
+  timeout: "30m"  # Required - no default applied without webhooks
+```
+
+### Complete Example for OperatorHub.io Installations
+
+Here's a complete NotebookValidationJob spec that works without webhooks:
+
+```yaml
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: my-notebook-validation
+  namespace: my-namespace
+spec:
+  notebook:
+    git:
+      url: "https://github.com/myorg/notebooks.git"
+      ref: "main"
+      # For private repos, reference a secret:
+      # credentialsSecret: "git-credentials"
+    path: "notebooks/analysis.ipynb"
+  podConfig:
+    containerImage: "quay.io/jupyter/scipy-notebook:latest"
+    serviceAccountName: "default"  # REQUIRED
+    # Use envFrom instead of credentials shorthand:
+    envFrom:
+      - secretRef:
+          name: "my-credentials"
+    env:
+      - name: "MY_VAR"
+        value: "my-value"
+    resources:
+      limits:
+        cpu: "2"
+        memory: "4Gi"
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+  timeout: "30m"  # REQUIRED
+```
+
+### CRD Schema Validation (Always Active)
+
+Even without webhooks, the CRD's OpenAPI schema validation is **always enforced**:
+
+- Git URL must match pattern: `^((https?|git|ssh)://|git@).*$`
+- Notebook path must end with `.ipynb`
+- Timeout must be a valid duration string (e.g., `30m`, `1h`, `90s`)
+
+These validations happen at the Kubernetes API level and do not require webhooks.
+
+### Checking for Validation Errors
+
+Without webhooks, validation errors appear in the resource status after the controller processes it:
+
+```bash
+# Check job status
+kubectl get notebookvalidationjob my-validation -o yaml
+
+# Look at the status.conditions for any errors
+kubectl get notebookvalidationjob my-validation -o jsonpath='{.status.conditions}'
+```
+
+### Enabling Webhooks After OperatorHub Installation
+
+If you want the convenience of automatic defaults and early validation, you can enable webhooks after installation:
+
+1. **Install cert-manager**:
+   ```bash
+   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.0/cert-manager.yaml
+   ```
+
+2. **Create a self-signed ClusterIssuer**:
+   ```yaml
+   apiVersion: cert-manager.io/v1
+   kind: ClusterIssuer
+   metadata:
+     name: selfsigned-issuer
+   spec:
+     selfSigned: {}
+   ```
+
+3. **Create the webhook certificate**:
+   ```yaml
+   apiVersion: cert-manager.io/v1
+   kind: Certificate
+   metadata:
+     name: webhook-server-cert
+     namespace: <operator-namespace>
+   spec:
+     secretName: webhook-server-cert
+     dnsNames:
+       - notebook-validator-webhook-service.<operator-namespace>.svc
+       - notebook-validator-webhook-service.<operator-namespace>.svc.cluster.local
+     issuerRef:
+       name: selfsigned-issuer
+       kind: ClusterIssuer
+   ```
+
+4. **Update the operator deployment**:
+   ```bash
+   kubectl set env deployment/notebook-validator-controller-manager \
+     -n <operator-namespace> \
+     ENABLE_WEBHOOKS=true
+   ```
+
+5. **Restart the operator** to pick up the new configuration:
+   ```bash
+   kubectl rollout restart deployment/notebook-validator-controller-manager \
+     -n <operator-namespace>
+   ```
+
 ## Helm Chart Configuration
 
 The Helm chart supports webhook configuration:
