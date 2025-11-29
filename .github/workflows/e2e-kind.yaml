@@ -1,0 +1,180 @@
+name: E2E - Kind Cluster Tests (Tier 1)
+
+# ADR-032: GitHub Actions CI Testing Against Kubernetes
+# ADR-034: Dual Testing Strategy with Kind and OpenShift
+# This workflow runs Tier 1 E2E tests on Kind for fast feedback in CI/CD.
+# Full OpenShift testing is handled by e2e-openshift.yaml
+
+on:
+  push:
+    branches: [ main, 'release-*' ]
+  pull_request:
+    branches: [ main, 'release-*' ]
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-kind-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: '1.22'
+  KIND_VERSION: 'v0.30.0'
+  KUBERNETES_VERSION: 'v1.33.1'
+  KIND_NODE_IMAGE: 'kindest/node:v1.33.1@sha256:050072256b9a903bd914c0b2866828150cb229cea0efe5892e2b644d5dd3b34f'
+  TEST_NAMESPACE: 'e2e-tests'
+  OPERATOR_NAMESPACE: 'jupyter-notebook-validator-operator'
+
+jobs:
+  kind-e2e:
+    name: Kind E2E Tests (Tier 1)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Setup Kind cluster
+        uses: helm/kind-action@v1
+        with:
+          version: ${{ env.KIND_VERSION }}
+          node_image: ${{ env.KIND_NODE_IMAGE }}
+          cluster_name: jupyter-validator-test
+
+      - name: Verify cluster
+        run: |
+          kubectl cluster-info
+          kubectl version
+          echo "Kubernetes version: $(kubectl version -o json | jq -r '.serverVersion.gitVersion')"
+
+      - name: Install cert-manager
+        run: |
+          echo "Installing cert-manager..."
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml
+
+          echo "Waiting for cert-manager to be ready..."
+          kubectl wait --for=condition=Available --timeout=300s \
+            -n cert-manager deployment/cert-manager \
+            deployment/cert-manager-cainjector \
+            deployment/cert-manager-webhook
+
+          echo "cert-manager installed successfully"
+
+      - name: Install Tekton Pipelines
+        run: |
+          echo "Installing Tekton Pipelines v0.68.0..."
+          kubectl apply -f https://storage.googleapis.com/tekton-releases/pipeline/previous/v0.68.0/release.yaml
+
+          echo "Waiting for Tekton to be ready..."
+          kubectl wait --for=condition=Available --timeout=300s \
+            -n tekton-pipelines deployment/tekton-pipelines-controller \
+            deployment/tekton-pipelines-webhook
+
+          echo "Tekton Pipelines installed successfully"
+
+      - name: Build operator image
+        run: |
+          make docker-build IMG=jupyter-notebook-validator-operator:test
+
+      - name: Load image into Kind
+        run: |
+          kind load docker-image jupyter-notebook-validator-operator:test --name jupyter-validator-test
+
+      - name: Deploy operator
+        run: |
+          # Update kustomization to use test image
+          cd config/manager && kustomize edit set image controller=jupyter-notebook-validator-operator:test
+          cd ../..
+
+          # Deploy operator
+          make deploy IMG=jupyter-notebook-validator-operator:test
+
+          # Patch imagePullPolicy for local Kind images (default is Always which tries to pull from registry)
+          echo "Patching imagePullPolicy to IfNotPresent for local Kind image..."
+          kubectl patch deployment notebook-validator-controller-manager \
+            -n ${{ env.OPERATOR_NAMESPACE }} \
+            --type='json' \
+            -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "IfNotPresent"}]'
+
+          # Wait for rollout to complete
+          kubectl rollout status deployment/notebook-validator-controller-manager \
+            -n ${{ env.OPERATOR_NAMESPACE }} --timeout=300s
+
+          # Wait for operator to be ready
+          kubectl wait --for=condition=Available --timeout=300s \
+            -n ${{ env.OPERATOR_NAMESPACE }} deployment/notebook-validator-controller-manager
+
+          echo "Operator deployed successfully"
+
+      - name: Create test namespace
+        run: |
+          kubectl create namespace ${{ env.TEST_NAMESPACE }}
+
+      - name: Run Tier 1 tests
+        env:
+          TEST_REPO_URL: 'https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git'
+          TEST_REPO_REF: 'main'
+        run: |
+          echo "=== Running Tier 1 Tests (Simple notebooks) ==="
+
+          # Test 1: Hello World notebook
+          cat <<EOF | kubectl apply -n ${{ env.TEST_NAMESPACE }} -f -
+          apiVersion: mlops.mlops.dev/v1alpha1
+          kind: NotebookValidationJob
+          metadata:
+            name: tier1-hello-world
+          spec:
+            notebook:
+              git:
+                url: "${TEST_REPO_URL}"
+                ref: "${TEST_REPO_REF}"
+              path: "notebooks/tier1-simple/01-hello-world.ipynb"
+            podConfig:
+              containerImage: "quay.io/jupyter/minimal-notebook:latest"
+            timeout: "5m"
+          EOF
+
+          # Wait for test to complete
+          # Note: jupyter/minimal-notebook image is ~3GB and takes time to pull
+          echo "Waiting for Tier 1 test to complete (up to 10 minutes for image pull)..."
+          for i in {1..120}; do
+            PHASE=$(kubectl get notebookvalidationjob tier1-hello-world -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+
+            if [ "$PHASE" == "Succeeded" ]; then
+              echo "✅ Tier 1 test passed!"
+              exit 0
+            elif [ "$PHASE" == "Failed" ]; then
+              echo "❌ Tier 1 test failed!"
+              kubectl get notebookvalidationjob tier1-hello-world -n ${{ env.TEST_NAMESPACE }} -o yaml
+              kubectl logs -n ${{ env.OPERATOR_NAMESPACE }} -l control-plane=controller-manager --tail=100
+              exit 1
+            fi
+
+            echo "Status: $PHASE (waiting...)"
+            sleep 5
+          done
+
+          echo "❌ Test timeout!"
+          exit 1
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "=== Operator Logs ==="
+          kubectl logs -n ${{ env.OPERATOR_NAMESPACE }} -l control-plane=controller-manager --tail=200 || true
+
+          echo "=== NotebookValidationJobs ==="
+          kubectl get notebookvalidationjobs -n ${{ env.TEST_NAMESPACE }} -o yaml || true
+
+          echo "=== Validation Pods ==="
+          kubectl get pods -n ${{ env.TEST_NAMESPACE }} -o yaml || true
+
+      - name: Cleanup
+        if: always()
+        run: |
+          kind delete cluster --name jupyter-validator-test || true
