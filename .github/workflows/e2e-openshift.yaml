@@ -120,9 +120,29 @@ jobs:
       - name: Create test namespace
         run: |
           echo "Creating test namespace: ${{ env.TEST_NAMESPACE }}"
-          oc create namespace ${{ env.TEST_NAMESPACE }} || true
+
+          # Use idempotent creation that fails properly on real errors
+          oc create namespace ${{ env.TEST_NAMESPACE }} --dry-run=client -o yaml | oc apply -f -
+
+          # Verify namespace exists and is active
+          echo "Verifying namespace exists..."
+          for i in {1..10}; do
+            STATUS=$(oc get namespace ${{ env.TEST_NAMESPACE }} -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
+            if [ "$STATUS" == "Active" ]; then
+              echo "✅ Namespace ${{ env.TEST_NAMESPACE }} is Active"
+              break
+            fi
+            echo "Waiting for namespace to be Active (status: $STATUS, attempt $i/10)..."
+            sleep 2
+          done
+
+          # Final verification
+          if ! oc get namespace ${{ env.TEST_NAMESPACE }} &>/dev/null; then
+            echo "❌ Failed to create namespace ${{ env.TEST_NAMESPACE }}"
+            exit 1
+          fi
+
           oc project ${{ env.TEST_NAMESPACE }}
-          
           echo "✅ Test namespace ready"
 
       - name: Build and push operator image
@@ -279,6 +299,24 @@ jobs:
       - name: Setup test credentials
         run: |
           echo "Creating test credentials for Tier 3 tests..."
+
+          # Verify test namespace still exists (may have been affected by operator cleanup)
+          echo "Verifying test namespace exists..."
+          if ! oc get namespace ${{ env.TEST_NAMESPACE }} &>/dev/null; then
+            echo "Namespace ${{ env.TEST_NAMESPACE }} not found, recreating..."
+            oc create namespace ${{ env.TEST_NAMESPACE }} --dry-run=client -o yaml | oc apply -f -
+            # Wait for namespace to be active
+            for i in {1..10}; do
+              STATUS=$(oc get namespace ${{ env.TEST_NAMESPACE }} -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
+              if [ "$STATUS" == "Active" ]; then
+                echo "✅ Namespace recreated and Active"
+                break
+              fi
+              sleep 2
+            done
+          else
+            echo "✅ Namespace ${{ env.TEST_NAMESPACE }} exists"
+          fi
 
           # Create git credentials secret for test repository access
           oc create secret generic git-credentials \

@@ -28,7 +28,7 @@ jobs:
   kind-e2e:
     name: Kind E2E Tests (Tier 1)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -140,8 +140,9 @@ jobs:
           EOF
 
           # Wait for test to complete
-          echo "Waiting for Tier 1 test to complete..."
-          for i in {1..60}; do
+          # Note: jupyter/minimal-notebook image is ~3GB and takes time to pull
+          echo "Waiting for Tier 1 test to complete (up to 10 minutes for image pull)..."
+          for i in {1..120}; do
             PHASE=$(kubectl get notebookvalidationjob tier1-hello-world -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
 
             if [ "$PHASE" == "Succeeded" ]; then
