@@ -94,6 +94,17 @@ jobs:
           # Deploy operator
           make deploy IMG=jupyter-notebook-validator-operator:test
 
+          # Patch imagePullPolicy for local Kind images (default is Always which tries to pull from registry)
+          echo "Patching imagePullPolicy to IfNotPresent for local Kind image..."
+          kubectl patch deployment notebook-validator-controller-manager \
+            -n ${{ env.OPERATOR_NAMESPACE }} \
+            --type='json' \
+            -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "IfNotPresent"}]'
+
+          # Wait for rollout to complete
+          kubectl rollout status deployment/notebook-validator-controller-manager \
+            -n ${{ env.OPERATOR_NAMESPACE }} --timeout=300s
+
           # Wait for operator to be ready
           kubectl wait --for=condition=Available --timeout=300s \
             -n ${{ env.OPERATOR_NAMESPACE }} deployment/notebook-validator-controller-manager
