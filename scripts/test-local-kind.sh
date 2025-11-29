@@ -22,8 +22,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CLUSTER_NAME="${KIND_CLUSTER_NAME:-jupyter-validator-test}"
-KUBERNETES_VERSION="${KUBERNETES_VERSION:-v1.31.12}"
-KIND_NODE_IMAGE="kindest/node:${KUBERNETES_VERSION}@sha256:0f5cc49c5e73c0c2bb6e2df56e7df189240d83cf94edfa30946482eb08ec57d2"
+KUBERNETES_VERSION="${KUBERNETES_VERSION:-v1.33.1}"
+KIND_NODE_IMAGE="kindest/node:${KUBERNETES_VERSION}@sha256:050072256b9a903bd914c0b2866828150cb229cea0efe5892e2b644d5dd3b34f"
 TEST_NAMESPACE="${TEST_NAMESPACE:-e2e-tests}"
 OPERATOR_NAMESPACE="${OPERATOR_NAMESPACE:-jupyter-notebook-validator-operator}"
 TEST_REPO_URL="${TEST_REPO_URL:-https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git}"
@@ -32,7 +32,7 @@ SKIP_CLEANUP=false
 CLEANUP_ONLY=false
 INSTALL_KIND_ONLY=false
 PODMAN_ROOTFUL=false
-KIND_VERSION="${KIND_VERSION:-v0.20.0}"
+KIND_VERSION="${KIND_VERSION:-v0.30.0}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -72,8 +72,8 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Environment Variables:"
             echo "  KIND_CLUSTER_NAME      Cluster name (default: jupyter-validator-test)"
-            echo "  KIND_VERSION           Kind version (default: v0.20.0)"
-            echo "  KUBERNETES_VERSION     Kubernetes version (default: v1.31.10)"
+            echo "  KIND_VERSION           Kind version (default: v0.30.0)"
+            echo "  KUBERNETES_VERSION     Kubernetes version (default: v1.33.1)"
             echo "  TEST_NAMESPACE         Test namespace (default: e2e-tests)"
             echo "  OPERATOR_NAMESPACE     Operator namespace (default: jupyter-notebook-validator-operator)"
             echo "  TEST_REPO_URL          Test repository URL"
@@ -324,8 +324,8 @@ install_tekton() {
         KUBECTL_CMD="sudo kubectl"
     fi
 
-    # Install Tekton Pipelines v0.53.0 (compatible with Kubernetes 1.31)
-    $KUBECTL_CMD apply -f https://storage.googleapis.com/tekton-releases/pipeline/previous/v0.53.0/release.yaml
+    # Install Tekton Pipelines v0.68.0 (compatible with Kubernetes 1.33 / OpenShift Pipelines 1.20)
+    $KUBECTL_CMD apply -f https://storage.googleapis.com/tekton-releases/pipeline/previous/v0.68.0/release.yaml
 
     # Wait for Tekton to be ready
     log_info "Waiting for Tekton to be ready..."
@@ -333,7 +333,7 @@ install_tekton() {
         -n tekton-pipelines deployment/tekton-pipelines-controller \
         deployment/tekton-pipelines-webhook
 
-    log_success "Tekton Pipelines v0.53.0 installed successfully"
+    log_success "Tekton Pipelines v0.68.0 installed successfully"
 }
 
 # Deploy operator
