@@ -28,7 +28,7 @@ jobs:
   kind-e2e:
     name: Kind E2E Tests (Tier 1)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -94,6 +94,17 @@ jobs:
           # Deploy operator
           make deploy IMG=jupyter-notebook-validator-operator:test
 
+          # Patch imagePullPolicy for local Kind images (default is Always which tries to pull from registry)
+          echo "Patching imagePullPolicy to IfNotPresent for local Kind image..."
+          kubectl patch deployment notebook-validator-controller-manager \
+            -n ${{ env.OPERATOR_NAMESPACE }} \
+            --type='json' \
+            -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "IfNotPresent"}]'
+
+          # Wait for rollout to complete
+          kubectl rollout status deployment/notebook-validator-controller-manager \
+            -n ${{ env.OPERATOR_NAMESPACE }} --timeout=300s
+
           # Wait for operator to be ready
           kubectl wait --for=condition=Available --timeout=300s \
             -n ${{ env.OPERATOR_NAMESPACE }} deployment/notebook-validator-controller-manager
@@ -141,8 +152,9 @@ jobs:
           EOF
 
           # Wait for test to complete
-          echo "Waiting for Tier 1 test to complete..."
-          for i in {1..60}; do
+          # Note: jupyter/minimal-notebook image is ~3GB and takes time to pull
+          echo "Waiting for Tier 1 test to complete (up to 10 minutes for image pull)..."
+          for i in {1..120}; do
             PHASE=$(kubectl get notebookvalidationjob tier1-hello-world -n ${{ env.TEST_NAMESPACE }} -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
 
             if [ "$PHASE" == "Succeeded" ]; then
