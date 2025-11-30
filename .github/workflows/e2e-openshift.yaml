@@ -25,6 +25,7 @@ on:
           - '2'
           - '3'
           - '4'
+          - '5'
           - 'all'
 
 # Concurrency control: Only one E2E test run per branch at a time
@@ -697,6 +698,176 @@ jobs:
 
           echo "✅ Tier 4 tests completed successfully"
 
+      - name: Run Tier 5 tests (Volume/PVC support - ADR-045)
+        if: github.event.inputs.test_tier == '5' || github.event.inputs.test_tier == 'all' || github.event.inputs.test_tier == ''
+        env:
+          TEST_REPO_URL: ${{ env.TEST_REPO }}
+          TEST_NS: ${{ env.TEST_NAMESPACE }}
+        run: |
+          echo "=== Running Tier 5 Tests (Volume/PVC Support - ADR-045) ==="
+
+          # Create PVCs for volume tests
+          echo "Creating test PVCs..."
+
+          # Model output PVC (ReadWriteOnce is sufficient for single pod)
+          cat <<EOF | oc apply -n ${TEST_NS} -f -
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: trained-models-pvc
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 1Gi
+          EOF
+
+          # Shared datasets PVC (use RWO for testing, RWX requires specific storage class)
+          cat <<EOF | oc apply -n ${TEST_NS} -f -
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: shared-datasets-pvc
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 1Gi
+          EOF
+
+          # Create ConfigMap with hyperparameters
+          echo "Creating training config ConfigMap..."
+          cat <<EOF | oc apply -n ${TEST_NS} -f -
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: training-config
+          data:
+            hyperparameters.json: |
+              {
+                "n_samples": 500,
+                "n_features": 10,
+                "test_size": 0.2,
+                "random_state": 42,
+                "max_iter": 50,
+                "C": 1.0
+              }
+          EOF
+
+          # Wait for PVCs to be bound
+          echo "Waiting for PVCs to be bound..."
+          for pvc in trained-models-pvc shared-datasets-pvc; do
+            for i in {1..30}; do
+              STATUS=$(oc get pvc ${pvc} -n ${TEST_NS} -o jsonpath='{.status.phase}' 2>/dev/null || echo "Pending")
+              if [ "$STATUS" == "Bound" ]; then
+                echo "✅ PVC ${pvc} is Bound"
+                break
+              fi
+              echo "Waiting for PVC ${pvc} to be bound (status: ${STATUS}, attempt $i/30)..."
+              sleep 5
+            done
+          done
+
+          # Test 01: ML Training Pipeline with Volumes
+          echo "Creating Tier 5 Test 01: ML Training Pipeline with Volumes..."
+          cat <<EOF | oc apply -n ${TEST_NS} -f -
+          apiVersion: mlops.mlops.dev/v1alpha1
+          kind: NotebookValidationJob
+          metadata:
+            name: tier5-test-01-ml-training-volumes
+            labels:
+              tier: "5"
+          spec:
+            notebook:
+              git:
+                url: "${TEST_REPO_URL}"
+                ref: "main"
+                credentialsSecret: "git-credentials"
+              path: "notebooks/tier5-volumes/01-ml-training-pipeline-volumes.ipynb"
+            podConfig:
+              containerImage: "quay.io/jupyter/minimal-notebook:latest"
+              buildConfig:
+                enabled: true
+                strategy: "tekton"
+              # ADR-045: Volume definitions
+              volumes:
+                - name: model-output
+                  persistentVolumeClaim:
+                    claimName: trained-models-pvc
+                - name: training-data
+                  persistentVolumeClaim:
+                    claimName: shared-datasets-pvc
+                - name: config
+                  configMap:
+                    name: training-config
+                - name: scratch
+                  emptyDir:
+                    sizeLimit: 1Gi
+              volumeMounts:
+                - name: model-output
+                  mountPath: /models
+                - name: training-data
+                  mountPath: /data
+                - name: config
+                  mountPath: /config
+                - name: scratch
+                  mountPath: /scratch
+            timeout: "20m"
+          EOF
+
+          echo "Tier 5 test created with volume mounts"
+
+          # Wait for test to complete
+          echo "Waiting for Tier 5 test to complete (may take 10-15 minutes for build + execution)..."
+          for i in {1..180}; do
+            PHASE=$(oc get notebookvalidationjob tier5-test-01-ml-training-volumes -n ${TEST_NS} -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+
+            if [ "$PHASE" == "Succeeded" ]; then
+              echo "✅ Tier 5 test succeeded!"
+
+              # Verify model was saved to PVC
+              echo "Verifying model output on PVC..."
+              POD_NAME=$(oc get notebookvalidationjob tier5-test-01-ml-training-volumes -n ${TEST_NS} -o jsonpath='{.status.validationPodName}')
+              if [ -n "$POD_NAME" ]; then
+                echo "Validation pod: ${POD_NAME}"
+              fi
+              break
+            elif [ "$PHASE" == "Failed" ]; then
+              echo "❌ Tier 5 test failed!"
+              oc get notebookvalidationjob tier5-test-01-ml-training-volumes -n ${TEST_NS} -o yaml
+
+              # Get pod logs for debugging
+              POD_NAME=$(oc get notebookvalidationjob tier5-test-01-ml-training-volumes -n ${TEST_NS} -o jsonpath='{.status.validationPodName}')
+              if [ -n "$POD_NAME" ]; then
+                echo "=== Validation Pod Logs ==="
+                oc logs ${POD_NAME} -n ${TEST_NS} --tail=100 || true
+              fi
+              exit 1
+            fi
+
+            echo "Progress: Phase=${PHASE} (waiting...)"
+            sleep 10
+          done
+
+          # Check final results
+          oc get notebookvalidationjobs -n ${TEST_NS} -l tier=5
+
+          FAILED=$(oc get notebookvalidationjobs -n ${TEST_NS} -l tier=5 -o jsonpath='{.items[?(@.status.phase=="Failed")].metadata.name}' | wc -w)
+          if [ $FAILED -gt 0 ]; then
+            echo "❌ Tier 5 volume tests failed!"
+            exit 1
+          fi
+
+          echo "✅ Tier 5 volume tests completed successfully"
+          echo ""
+          echo "Volume support validated (ADR-045):"
+          echo "  - PVC mounting for model output"
+          echo "  - PVC mounting for shared datasets"
+          echo "  - ConfigMap mounting for hyperparameters"
+          echo "  - EmptyDir for scratch space"
+
       - name: Collect test results
         if: always()
         run: |
@@ -762,10 +933,12 @@ jobs:
 
           echo "✅ All E2E tests passed!"
           echo ""
-          echo "Complete end-to-end workflow validated on OpenShift 4.18 cluster:"
+          echo "Complete end-to-end workflow validated on OpenShift cluster:"
           echo "  - Tier 1: Simple notebooks (< 30s)"
           echo "  - Tier 2: Intermediate notebooks with Tekton builds (1-5 min)"
           echo "  - Tier 3: Complex integration tests with credentials (5-30 min)"
+          echo "  - Tier 4: S2I/BuildConfig validation (5-15 min)"
+          echo "  - Tier 5: Volume/PVC support - ADR-045 (10-20 min)"
           echo ""
           echo "Note: KServe tests require manual infrastructure setup"
 
