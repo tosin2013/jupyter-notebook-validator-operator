@@ -115,6 +115,17 @@ jobs:
         run: |
           kubectl create namespace ${{ env.TEST_NAMESPACE }}
 
+      - name: Setup git credentials
+        run: |
+          echo "Creating git-credentials secret for private test repository..."
+          kubectl create secret generic git-credentials \
+            -n ${{ env.TEST_NAMESPACE }} \
+            --from-literal=username=oauth2 \
+            --from-literal=password=${{ secrets.TEST_REPO_TOKEN }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          echo "✅ git-credentials secret created"
+
       - name: Run Tier 1 tests
         env:
           TEST_REPO_URL: 'https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git'
@@ -133,6 +144,7 @@ jobs:
               git:
                 url: "${TEST_REPO_URL}"
                 ref: "${TEST_REPO_REF}"
+                credentialsSecret: "git-credentials"
               path: "notebooks/tier1-simple/01-hello-world.ipynb"
             podConfig:
               containerImage: "quay.io/jupyter/minimal-notebook:latest"
