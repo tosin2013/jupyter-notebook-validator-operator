@@ -1,0 +1,72 @@
+# Sample: NotebookValidationJob with ConfigMap and Secret Volumes (ADR-045)
+#
+# This example demonstrates mounting configuration files and certificates
+# as volumes for notebooks that need external configuration.
+#
+# Prerequisites:
+# 1. Create a ConfigMap with configuration:
+#    kubectl create configmap notebook-config \
+#      --from-file=config.json=./config.json \
+#      --from-file=parameters.yaml=./parameters.yaml
+#
+# 2. Create a Secret with certificates:
+#    kubectl create secret generic model-endpoint-certs \
+#      --from-file=ca.crt=./ca.crt \
+#      --from-file=client.crt=./client.crt \
+#      --from-file=client.key=./client.key
+---
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: configurable-notebook-validation
+  namespace: default
+spec:
+  notebook:
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+    path: "notebooks/tier1-simple/01-hello-world.ipynb"
+
+  podConfig:
+    containerImage: "quay.io/jupyter/minimal-notebook:latest"
+
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2"
+
+    # ADR-045: Volume definitions for config and secrets
+    volumes:
+      # ConfigMap volume - mount configuration files
+      - name: config
+        configMap:
+          name: notebook-config
+          # Optional: specify which keys to mount and with what file names
+          # items:
+          #   - key: config.json
+          #     path: app-config.json
+          #   - key: parameters.yaml
+          #     path: params.yaml
+
+      # Secret volume - mount certificates for TLS connections
+      - name: certs
+        secret:
+          secretName: model-endpoint-certs
+          # Default file mode is 0644; for private keys, use restricted mode
+          defaultMode: 0400
+
+    # ADR-045: Volume mount definitions
+    volumeMounts:
+      # Configuration files accessible at /config
+      - name: config
+        mountPath: /config
+
+      # Certificates accessible at /certs (read-only recommended)
+      - name: certs
+        mountPath: /certs
+        readOnly: true
+
+  timeout: "10m"

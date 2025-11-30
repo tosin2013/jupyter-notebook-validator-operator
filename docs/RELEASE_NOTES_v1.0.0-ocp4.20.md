@@ -23,6 +23,42 @@ Initial release of the Jupyter Notebook Validator Operator for OpenShift 4.20. T
 - Improved build strategy performance and reliability
 - Support for latest Tekton Pipeline API features
 
+### Volume and PVC Support (ADR-045) - NEW
+This release introduces full Kubernetes volume support for validation pods, enabling MLOps training-to-serving workflows:
+
+- **PersistentVolumeClaim (PVC) Support**: Mount PVCs to save trained models for model serving platforms
+- **ConfigMap Volumes**: Mount configuration files as volumes
+- **Secret Volumes**: Mount certificates and sensitive files securely
+- **EmptyDir Volumes**: Temporary scratch space for intermediate files
+
+**Use Cases**:
+- Train models in notebooks and save to PVC for KServe (`pvc://` storageUri)
+- Share datasets across multiple validation jobs using ReadWriteMany PVCs
+- Mount configuration files for parameterized notebook execution
+- Air-gapped deployments without cloud storage dependencies
+
+**Example**:
+```yaml
+spec:
+  podConfig:
+    volumes:
+      - name: model-output
+        persistentVolumeClaim:
+          claimName: trained-models-pvc
+      - name: training-data
+        persistentVolumeClaim:
+          claimName: datasets-pvc
+          readOnly: true
+    volumeMounts:
+      - name: model-output
+        mountPath: /models
+      - name: training-data
+        mountPath: /data
+        readOnly: true
+```
+
+See [ADR-045](https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/release-4.20/docs/adrs/045-volume-and-pvc-support-for-validation-pods.md) for complete documentation.
+
 ### Inherited Features from 4.19
 - Jupyter notebook validation with Papermill
 - Git repository integration (HTTPS and SSH)
@@ -71,7 +107,15 @@ docker pull quay.io/takinosh/jupyter-notebook-validator-operator:v1.0.0-ocp4.20
 
 ## Breaking Changes
 
-None. This is a compatible release from v1.0.x-ocp4.19.
+None. This release adds new optional fields but is fully backward compatible with v1.0.x-ocp4.19.
+
+## New API Fields
+
+The following new optional fields were added to `PodConfigSpec` (ADR-045):
+- `volumes`: Define volumes to mount in the validation pod
+- `volumeMounts`: Define where to mount volumes in the container
+
+These fields are optional and existing NotebookValidationJob resources will continue to work without modification.
 
 ## Known Issues
 
@@ -82,12 +126,14 @@ None at this time.
 If upgrading from v1.0.x-ocp4.19:
 1. Ensure your cluster is running OpenShift 4.20
 2. Update the operator image to v1.0.0-ocp4.20
-3. No CRD changes required
+3. Apply updated CRDs: `kubectl apply -f config/crd/bases/` (new volume fields added)
+4. Existing NotebookValidationJobs will continue to work
 
 If upgrading from v1.0.x-ocp4.18:
 1. Ensure your cluster is running OpenShift 4.20
 2. Update the operator image to v1.0.0-ocp4.20
-3. No CRD changes required
+3. Apply updated CRDs: `kubectl apply -f config/crd/bases/` (new volume fields added)
+4. Existing NotebookValidationJobs will continue to work
 
 ## Platform Requirements
 

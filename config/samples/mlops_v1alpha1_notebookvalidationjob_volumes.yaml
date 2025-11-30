@@ -1,0 +1,117 @@
+# Sample: NotebookValidationJob with Volume Support (ADR-045)
+#
+# This example demonstrates the MLOps training-to-serving workflow:
+# 1. Notebook trains a model and saves it to a PVC
+# 2. KServe or other model servers can load the model from the PVC
+#
+# Prerequisites:
+# 1. Create a PVC for model storage:
+#    kubectl apply -f - <<EOF
+#    apiVersion: v1
+#    kind: PersistentVolumeClaim
+#    metadata:
+#      name: trained-models-pvc
+#    spec:
+#      accessModes:
+#        - ReadWriteOnce  # Use ReadWriteMany for concurrent access
+#      resources:
+#        requests:
+#          storage: 10Gi
+#    EOF
+#
+# 2. (Optional) Create a PVC for shared datasets:
+#    kubectl apply -f - <<EOF
+#    apiVersion: v1
+#    kind: PersistentVolumeClaim
+#    metadata:
+#      name: shared-datasets-pvc
+#    spec:
+#      accessModes:
+#        - ReadWriteMany  # Allows concurrent read access
+#      resources:
+#        requests:
+#          storage: 50Gi
+#    EOF
+---
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: train-model-to-pvc
+  namespace: default
+spec:
+  notebook:
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+    path: "notebooks/tier2-data-analysis/02-data-analysis.ipynb"
+
+  podConfig:
+    containerImage: "quay.io/jupyter/pytorch-notebook:latest"
+
+    resources:
+      requests:
+        memory: "4Gi"
+        cpu: "2"
+      limits:
+        memory: "8Gi"
+        cpu: "4"
+        # Uncomment for GPU training:
+        # nvidia.com/gpu: "1"
+
+    # ADR-045: Volume definitions
+    # Defines what storage to make available to the validation pod
+    volumes:
+      # PVC for trained model output
+      # The notebook saves models to this volume, which can then be served by KServe
+      - name: model-output
+        persistentVolumeClaim:
+          claimName: trained-models-pvc
+
+      # Shared dataset PVC (read-only access)
+      # Multiple notebooks can read from this shared storage simultaneously
+      - name: training-data
+        persistentVolumeClaim:
+          claimName: shared-datasets-pvc
+          readOnly: true
+
+      # Scratch space for intermediate files during training
+      # This is backed by the node's filesystem and is deleted when the pod terminates
+      - name: scratch
+        emptyDir:
+          sizeLimit: 20Gi
+
+    # ADR-045: Volume mount definitions
+    # Defines where volumes are mounted inside the container
+    volumeMounts:
+      # Mount point for model output
+      # Notebook code should save models to /models (e.g., /models/sentiment/v1/)
+      - name: model-output
+        mountPath: /models
+
+      # Mount point for training datasets (read-only)
+      # Notebook code reads datasets from /data
+      - name: training-data
+        mountPath: /data
+        readOnly: true
+
+      # Mount point for scratch space
+      # Use for temporary files, checkpoints, etc.
+      - name: scratch
+        mountPath: /tmp/scratch
+
+  timeout: "2h"  # Allow 2 hours for training
+
+---
+# After the NotebookValidationJob completes, you can serve the model with KServe:
+#
+# apiVersion: serving.kserve.io/v1beta1
+# kind: InferenceService
+# metadata:
+#   name: trained-model
+# spec:
+#   predictor:
+#     pytorch:
+#       storageUri: "pvc://trained-models-pvc/sentiment/v1"
+#       # OR for sklearn:
+#       # sklearn:
+#       #   storageUri: "pvc://trained-models-pvc/classifier/v1"

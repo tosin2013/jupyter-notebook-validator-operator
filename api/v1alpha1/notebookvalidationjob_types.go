@@ -119,6 +119,18 @@ type PodConfigSpec struct {
 	// When specified, the operator will build a custom image before validation
 	// +optional
 	BuildConfig *BuildConfigSpec `json:"buildConfig,omitempty"`
+
+	// Volumes defines volumes to mount in the validation pod
+	// ADR-045: Supports PersistentVolumeClaim, ConfigMap, Secret, and EmptyDir volume types
+	// Use this to mount storage for model outputs, shared datasets, or configuration files
+	// Example use case: Save trained model to PVC for KServe to serve via pvc:// storageUri
+	// +optional
+	Volumes []Volume `json:"volumes,omitempty"`
+
+	// VolumeMounts defines where to mount volumes in the validation container
+	// Each mount must reference a volume defined in the volumes field
+	// +optional
+	VolumeMounts []VolumeMount `json:"volumeMounts,omitempty"`
 }
 
 // ResourceRequirements defines compute resource requirements
@@ -203,6 +215,167 @@ type ConfigMapEnvSource struct {
 	// Name is the name of the ConfigMap
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
+}
+
+// Volume represents a named volume in a pod
+// ADR-045: Full Kubernetes Volume Support for validation pods
+// Supports PersistentVolumeClaim, ConfigMap, Secret, and EmptyDir volume types
+type Volume struct {
+	// Name is the volume name, must match a VolumeMount name
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	// +kubebuilder:validation:MaxLength=63
+	Name string `json:"name"`
+
+	// PersistentVolumeClaim represents a reference to a PVC in the same namespace
+	// Use this for persistent storage such as trained model outputs or shared datasets
+	// +optional
+	PersistentVolumeClaim *PersistentVolumeClaimVolumeSource `json:"persistentVolumeClaim,omitempty"`
+
+	// ConfigMap represents a ConfigMap to mount as a volume
+	// Use this to mount configuration files into the validation pod
+	// +optional
+	ConfigMap *ConfigMapVolumeSource `json:"configMap,omitempty"`
+
+	// Secret represents a Secret to mount as a volume
+	// Use this to mount certificates or other sensitive files
+	// +optional
+	Secret *SecretVolumeSource `json:"secret,omitempty"`
+
+	// EmptyDir represents a temporary directory that shares a pod's lifetime
+	// Use this for scratch space during notebook execution
+	// +optional
+	EmptyDir *EmptyDirVolumeSource `json:"emptyDir,omitempty"`
+}
+
+// PersistentVolumeClaimVolumeSource references a PVC in the same namespace
+// This is used to mount persistent storage for model outputs, datasets, etc.
+type PersistentVolumeClaimVolumeSource struct {
+	// ClaimName is the name of a PersistentVolumeClaim in the same namespace
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	ClaimName string `json:"claimName"`
+
+	// ReadOnly will force the volume to be mounted read-only
+	// Default is false (read/write)
+	// +optional
+	ReadOnly bool `json:"readOnly,omitempty"`
+}
+
+// ConfigMapVolumeSource adapts a ConfigMap into a volume
+type ConfigMapVolumeSource struct {
+	// Name is the name of the ConfigMap in the same namespace
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
+	// Items if unspecified, each key-value pair in the ConfigMap becomes a file
+	// with the key as the filename and the value as the file contents
+	// +optional
+	Items []KeyToPath `json:"items,omitempty"`
+
+	// DefaultMode is the mode bits used to set permissions on created files (default 0644)
+	// Must be a value between 0 and 0777 (octal)
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=511
+	// +optional
+	DefaultMode *int32 `json:"defaultMode,omitempty"`
+
+	// Optional specifies whether the ConfigMap must exist
+	// If true, the volume will not be mounted if the ConfigMap doesn't exist
+	// +optional
+	Optional *bool `json:"optional,omitempty"`
+}
+
+// SecretVolumeSource adapts a Secret into a volume
+type SecretVolumeSource struct {
+	// SecretName is the name of the Secret in the same namespace
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	SecretName string `json:"secretName"`
+
+	// Items if unspecified, each key-value pair in the Secret becomes a file
+	// with the key as the filename and the value as the file contents
+	// +optional
+	Items []KeyToPath `json:"items,omitempty"`
+
+	// DefaultMode is the mode bits used to set permissions on created files (default 0644)
+	// Must be a value between 0 and 0777 (octal)
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=511
+	// +optional
+	DefaultMode *int32 `json:"defaultMode,omitempty"`
+
+	// Optional specifies whether the Secret must exist
+	// If true, the volume will not be mounted if the Secret doesn't exist
+	// +optional
+	Optional *bool `json:"optional,omitempty"`
+}
+
+// EmptyDirVolumeSource is a temporary directory that shares a pod's lifetime
+// Use this for scratch space during notebook execution
+type EmptyDirVolumeSource struct {
+	// Medium is the storage medium type
+	// "" (empty string) uses the node's default medium
+	// "Memory" uses tmpfs (RAM-backed filesystem)
+	// +kubebuilder:validation:Enum="";Memory
+	// +optional
+	Medium string `json:"medium,omitempty"`
+
+	// SizeLimit is the maximum size of the emptyDir volume
+	// If Medium is "Memory", this limits the tmpfs size
+	// Accepts Kubernetes quantity format (e.g., "10Gi", "500Mi")
+	// +kubebuilder:validation:Pattern=`^([0-9]+(\.[0-9]+)?)(Ki|Mi|Gi|Ti|Pi|Ei|k|M|G|T|P|E)?$`
+	// +optional
+	SizeLimit string `json:"sizeLimit,omitempty"`
+}
+
+// KeyToPath maps a key from a ConfigMap or Secret to a file path
+type KeyToPath struct {
+	// Key is the key to project from the ConfigMap or Secret
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Key string `json:"key"`
+
+	// Path is the relative path of the file to map the key to
+	// May not be an absolute path, may not contain '..', and may not start with '..'
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:Pattern=`^[^/].*$`
+	Path string `json:"path"`
+
+	// Mode is the file mode bits used to set permissions on this file
+	// Must be a value between 0 and 0777 (octal)
+	// If not specified, the volume defaultMode is used
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=511
+	// +optional
+	Mode *int32 `json:"mode,omitempty"`
+}
+
+// VolumeMount describes a mount point for a Volume in the validation container
+// ADR-045: Mount volumes at specific paths for notebook access to storage
+type VolumeMount struct {
+	// Name must match the Name of a Volume defined in spec.podConfig.volumes
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	Name string `json:"name"`
+
+	// MountPath is the path within the container where the volume should be mounted
+	// Must be an absolute path starting with '/'
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^/.*$`
+	MountPath string `json:"mountPath"`
+
+	// SubPath is an optional sub-path inside the volume to mount instead of the root
+	// Use this to mount only a specific directory from a volume
+	// +optional
+	SubPath string `json:"subPath,omitempty"`
+
+	// ReadOnly mounts the volume as read-only when true (default false)
+	// Use this for input data that should not be modified
+	// +optional
+	ReadOnly bool `json:"readOnly,omitempty"`
 }
 
 // BuildConfigSpec defines container image build configuration
