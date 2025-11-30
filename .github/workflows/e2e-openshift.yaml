@@ -756,19 +756,11 @@ jobs:
               }
           EOF
 
-          # Wait for PVCs to be bound
-          echo "Waiting for PVCs to be bound..."
-          for pvc in trained-models-pvc shared-datasets-pvc; do
-            for i in {1..30}; do
-              STATUS=$(oc get pvc ${pvc} -n ${TEST_NS} -o jsonpath='{.status.phase}' 2>/dev/null || echo "Pending")
-              if [ "$STATUS" == "Bound" ]; then
-                echo "✅ PVC ${pvc} is Bound"
-                break
-              fi
-              echo "Waiting for PVC ${pvc} to be bound (status: ${STATUS}, attempt $i/30)..."
-              sleep 5
-            done
-          done
+          # Note: With WaitForFirstConsumer storage class (e.g., gp3-csi on AWS),
+          # PVCs stay Pending until a pod mounts them. No need to wait here -
+          # they'll bind when the validation pod starts.
+          echo "PVCs created (will bind when pod starts with WaitForFirstConsumer storage class)"
+          oc get pvc -n ${TEST_NS}
 
           # Test 01: ML Training Pipeline with Volumes
           echo "Creating Tier 5 Test 01: ML Training Pipeline with Volumes..."
