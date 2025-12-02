@@ -814,26 +814,7 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 			Containers: []corev1.Container{
 				r.buildPapermillValidationContainer(ctx, job, containerImage),
 			},
-			Volumes: []corev1.Volume{
-				{
-					Name: "workspace",
-					VolumeSource: corev1.VolumeSource{
-						EmptyDir: &corev1.EmptyDirVolumeSource{},
-					},
-				},
-				{
-					// ADR-005: OpenShift Compatibility
-					// Jupyter containers expect /home/jovyan to exist and be writable during startup
-					// Mount an emptyDir at /home/jovyan to satisfy this requirement
-					// OpenShift automatically makes emptyDir writable by the assigned UID
-					// Combined with HOME=/workspace env var, this prevents startup failures
-					// while redirecting actual work to the workspace volume
-					Name: "jovyan-home",
-					VolumeSource: corev1.VolumeSource{
-						EmptyDir: &corev1.EmptyDirVolumeSource{},
-					},
-				},
-			},
+			Volumes: r.buildPodVolumes(job),
 		},
 	}
 
@@ -972,6 +953,83 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 
 	logger.Info("Pod created successfully", "podName", pod.Name)
 	return pod, nil
+}
+
+// buildPodVolumes builds the list of volumes for the validation pod
+// Includes default volumes (workspace, jovyan-home) plus user-defined volumes
+func (r *NotebookValidationJobReconciler) buildPodVolumes(job *mlopsv1alpha1.NotebookValidationJob) []corev1.Volume {
+	// Start with default volumes
+	volumes := []corev1.Volume{
+		{
+			Name: "workspace",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
+			// ADR-005: OpenShift Compatibility
+			// Jupyter containers expect /home/jovyan to exist and be writable during startup
+			// Mount an emptyDir at /home/jovyan to satisfy this requirement
+			// OpenShift automatically makes emptyDir writable by the assigned UID
+			// Combined with HOME=/workspace env var, this prevents startup failures
+			// while redirecting actual work to the workspace volume
+			Name: "jovyan-home",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+	}
+
+	// Append user-defined volumes
+	for _, vol := range job.Spec.PodConfig.Volumes {
+		k8sVolume := corev1.Volume{
+			Name: vol.Name,
+		}
+
+		// Convert volume source
+		if vol.PersistentVolumeClaim != nil {
+			k8sVolume.VolumeSource = corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: vol.PersistentVolumeClaim.ClaimName,
+					ReadOnly:  vol.PersistentVolumeClaim.ReadOnly,
+				},
+			}
+		} else if vol.ConfigMap != nil {
+			k8sVolume.VolumeSource = corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: vol.ConfigMap.Name,
+					},
+					Optional: vol.ConfigMap.Optional,
+				},
+			}
+		} else if vol.Secret != nil {
+			k8sVolume.VolumeSource = corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: vol.Secret.SecretName,
+					Optional:   vol.Secret.Optional,
+				},
+			}
+		} else if vol.EmptyDir != nil {
+			emptyDir := &corev1.EmptyDirVolumeSource{}
+			if vol.EmptyDir.Medium != "" {
+				emptyDir.Medium = corev1.StorageMedium(vol.EmptyDir.Medium)
+			}
+			if vol.EmptyDir.SizeLimit != "" {
+				quantity, err := resource.ParseQuantity(vol.EmptyDir.SizeLimit)
+				if err == nil {
+					emptyDir.SizeLimit = &quantity
+				}
+			}
+			k8sVolume.VolumeSource = corev1.VolumeSource{
+				EmptyDir: emptyDir,
+			}
+		}
+
+		volumes = append(volumes, k8sVolume)
+	}
+
+	return volumes
 }
 
 // updateJobPhase updates the job phase and completion time

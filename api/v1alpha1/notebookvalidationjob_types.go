@@ -119,6 +119,15 @@ type PodConfigSpec struct {
 	// When specified, the operator will build a custom image before validation
 	// +optional
 	BuildConfig *BuildConfigSpec `json:"buildConfig,omitempty"`
+
+	// Volumes specifies additional volumes to mount in the validation pod
+	// This allows mounting PVCs, ConfigMaps, Secrets, and EmptyDirs
+	// +optional
+	Volumes []PodVolume `json:"volumes,omitempty"`
+
+	// VolumeMounts specifies where to mount the volumes in the validation container
+	// +optional
+	VolumeMounts []VolumeMount `json:"volumeMounts,omitempty"`
 }
 
 // ResourceRequirements defines compute resource requirements
@@ -203,6 +212,92 @@ type ConfigMapEnvSource struct {
 	// Name is the name of the ConfigMap
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
+}
+
+// PodVolume represents a volume that can be mounted in the validation pod
+type PodVolume struct {
+	// Name is the volume name (must be unique within the pod)
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
+
+	// PersistentVolumeClaim represents a PVC volume source
+	// +optional
+	PersistentVolumeClaim *PersistentVolumeClaimVolumeSource `json:"persistentVolumeClaim,omitempty"`
+
+	// ConfigMap represents a ConfigMap volume source
+	// +optional
+	ConfigMap *ConfigMapVolumeSource `json:"configMap,omitempty"`
+
+	// Secret represents a Secret volume source
+	// +optional
+	Secret *SecretVolumeSource `json:"secret,omitempty"`
+
+	// EmptyDir represents an EmptyDir volume source
+	// +optional
+	EmptyDir *EmptyDirVolumeSource `json:"emptyDir,omitempty"`
+}
+
+// PersistentVolumeClaimVolumeSource represents a PVC volume source
+type PersistentVolumeClaimVolumeSource struct {
+	// ClaimName is the name of the PVC in the same namespace
+	// +kubebuilder:validation:Required
+	ClaimName string `json:"claimName"`
+
+	// ReadOnly specifies whether the volume should be mounted read-only
+	// +optional
+	ReadOnly bool `json:"readOnly,omitempty"`
+}
+
+// ConfigMapVolumeSource represents a ConfigMap volume source
+type ConfigMapVolumeSource struct {
+	// Name is the name of the ConfigMap
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
+
+	// Optional specifies whether the ConfigMap must exist
+	// +optional
+	Optional *bool `json:"optional,omitempty"`
+}
+
+// SecretVolumeSource represents a Secret volume source
+type SecretVolumeSource struct {
+	// SecretName is the name of the Secret
+	// +kubebuilder:validation:Required
+	SecretName string `json:"secretName"`
+
+	// Optional specifies whether the Secret must exist
+	// +optional
+	Optional *bool `json:"optional,omitempty"`
+}
+
+// EmptyDirVolumeSource represents an EmptyDir volume source
+type EmptyDirVolumeSource struct {
+	// Medium specifies the storage medium (e.g., "Memory" for tmpfs)
+	// +optional
+	Medium string `json:"medium,omitempty"`
+
+	// SizeLimit specifies the size limit (e.g., "1Gi")
+	// +optional
+	SizeLimit string `json:"sizeLimit,omitempty"`
+}
+
+// VolumeMount describes a volume mount for the validation container
+type VolumeMount struct {
+	// Name is the name of the volume to mount (must match a volume name)
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
+
+	// MountPath is the path within the container where the volume should be mounted
+	// +kubebuilder:validation:Required
+	MountPath string `json:"mountPath"`
+
+	// ReadOnly specifies whether the volume should be mounted read-only
+	// +optional
+	ReadOnly bool `json:"readOnly,omitempty"`
+
+	// SubPath specifies a sub-path within the volume to mount
+	// +optional
+	SubPath string `json:"subPath,omitempty"`
 }
 
 // BuildConfigSpec defines container image build configuration

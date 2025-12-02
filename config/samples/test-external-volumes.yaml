@@ -1,0 +1,57 @@
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: test-external-volumes
+  namespace: jupyter-validator-volume-test
+spec:
+  notebook:
+    git:
+      url: "https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
+      ref: "main"
+      credentialsSecret: "git-credentials"
+    path: "notebooks/tier3-complex/06-pvc-model-output-test.ipynb"
+  
+  podConfig:
+    containerImage: "quay.io/jupyter/scipy-notebook:latest"
+    serviceAccountName: "notebook-validator-jupyter-notebook-validator-runner"
+    
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+    
+    # NEW: External volume support
+    volumes:
+      - name: model-output
+        persistentVolumeClaim:
+          claimName: model-output-pvc
+          readOnly: false
+      
+      - name: config-data
+        configMap:
+          name: notebook-config
+          optional: true
+      
+      - name: temp-data
+        emptyDir:
+          medium: ""
+          sizeLimit: "1Gi"
+    
+    volumeMounts:
+      - name: model-output
+        mountPath: /models
+        readOnly: false
+      
+      - name: config-data
+        mountPath: /config
+        readOnly: true
+      
+      - name: temp-data
+        mountPath: /tmp/data
+        readOnly: false
+  
+  timeout: "15m"
+

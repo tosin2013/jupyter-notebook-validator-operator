@@ -414,6 +414,31 @@ exit $EXIT_CODE
 		containerImage = job.Spec.PodConfig.ContainerImage
 	}
 
+	// Build volume mounts: start with default mounts, then append user-defined mounts
+	volumeMounts := []corev1.VolumeMount{
+		{
+			Name:      "workspace",
+			MountPath: "/workspace",
+		},
+		{
+			// ADR-005: OpenShift Compatibility
+			// Mount emptyDir at /home/jovyan to prevent permission errors
+			// Jupyter containers expect this directory to exist and be writable
+			Name:      "jovyan-home",
+			MountPath: "/home/jovyan",
+		},
+	}
+
+	// Append user-defined volume mounts
+	for _, vm := range job.Spec.PodConfig.VolumeMounts {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      vm.Name,
+			MountPath: vm.MountPath,
+			ReadOnly:  vm.ReadOnly,
+			SubPath:   vm.SubPath,
+		})
+	}
+
 	container := corev1.Container{
 		Name:  "validator",
 		Image: containerImage,
@@ -422,20 +447,8 @@ exit $EXIT_CODE
 			"-c",
 			executionScript,
 		},
-		VolumeMounts: []corev1.VolumeMount{
-			{
-				Name:      "workspace",
-				MountPath: "/workspace",
-			},
-			{
-				// ADR-005: OpenShift Compatibility
-				// Mount emptyDir at /home/jovyan to prevent permission errors
-				// Jupyter containers expect this directory to exist and be writable
-				Name:      "jovyan-home",
-				MountPath: "/home/jovyan",
-			},
-		},
-		Resources: convertResourceRequirements(job.Spec.PodConfig.Resources),
+		VolumeMounts: volumeMounts,
+		Resources:    convertResourceRequirements(job.Spec.PodConfig.Resources),
 		Env: append(convertEnvVars(job.Spec.PodConfig.Env),
 			corev1.EnvVar{
 				Name:  "HOME",
