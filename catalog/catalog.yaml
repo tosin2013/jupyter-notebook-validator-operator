@@ -1,0 +1,83 @@
+---
+schema: olm.package
+name: jupyter-notebook-validator-operator
+defaultChannel: stable
+description: |
+  Kubernetes operator for validating Jupyter notebooks in MLOps workflows.
+  
+  Features:
+  - Git integration with credential support
+  - Papermill notebook execution
+  - Golden notebook comparison
+  - Model validation (KServe, OpenShift AI, vLLM, etc.)
+  - Build integration (S2I, Tekton)
+  - External volume support (PVC, ConfigMap, Secret, EmptyDir)
+  
+  Supports OpenShift 4.18, 4.19, and 4.20.
+---
+schema: olm.channel
+package: jupyter-notebook-validator-operator
+name: stable
+entries:
+  - name: jupyter-notebook-validator-operator.v1.0.5-ocp4.18
+  - name: jupyter-notebook-validator-operator.v1.0.6-ocp4.19
+    replaces: jupyter-notebook-validator-operator.v1.0.5-ocp4.18
+  - name: jupyter-notebook-validator-operator.v1.0.7-ocp4.20
+    replaces: jupyter-notebook-validator-operator.v1.0.6-ocp4.19
+---
+schema: olm.bundle
+name: jupyter-notebook-validator-operator.v1.0.5-ocp4.18
+package: jupyter-notebook-validator-operator
+image: quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.5-ocp4.18
+properties:
+  - type: olm.package
+    value:
+      packageName: jupyter-notebook-validator-operator
+      version: 1.0.5-ocp4.18
+  - type: olm.gvk
+    value:
+      group: mlops.mlops.dev
+      kind: NotebookValidationJob
+      version: v1alpha1
+  - type: olm.csv.metadata
+    value:
+      annotations:
+        com.redhat.openshift.versions: "v4.18"
+---
+schema: olm.bundle
+name: jupyter-notebook-validator-operator.v1.0.6-ocp4.19
+package: jupyter-notebook-validator-operator
+image: quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.6-ocp4.19
+properties:
+  - type: olm.package
+    value:
+      packageName: jupyter-notebook-validator-operator
+      version: 1.0.6-ocp4.19
+  - type: olm.gvk
+    value:
+      group: mlops.mlops.dev
+      kind: NotebookValidationJob
+      version: v1alpha1
+  - type: olm.csv.metadata
+    value:
+      annotations:
+        com.redhat.openshift.versions: "v4.19"
+---
+schema: olm.bundle
+name: jupyter-notebook-validator-operator.v1.0.7-ocp4.20
+package: jupyter-notebook-validator-operator
+image: quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.7-ocp4.20
+properties:
+  - type: olm.package
+    value:
+      packageName: jupyter-notebook-validator-operator
+      version: 1.0.7-ocp4.20
+  - type: olm.gvk
+    value:
+      group: mlops.mlops.dev
+      kind: NotebookValidationJob
+      version: v1alpha1
+  - type: olm.csv.metadata
+    value:
+      annotations:
+        com.redhat.openshift.versions: "v4.20"

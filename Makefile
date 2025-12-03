@@ -321,6 +321,50 @@ catalog-build: opm ## Build a catalog image.
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
 
+##@ File-Based Catalog (FBC)
+
+.PHONY: catalog-init
+catalog-init: ## Initialize FBC directory structure
+	@echo "Creating FBC catalog structure..."
+	@./scripts/create-fbc-catalog.sh
+
+.PHONY: catalog-validate
+catalog-validate: opm ## Validate FBC catalog
+	@echo "Validating FBC catalog..."
+	$(OPM) validate catalog
+
+.PHONY: catalog-build-fbc
+catalog-build-fbc: ## Build FBC catalog image
+	@echo "Building FBC catalog image: $(CATALOG_IMG)"
+	podman build -f catalog/Dockerfile -t $(CATALOG_IMG) catalog/
+
+.PHONY: catalog-push-fbc
+catalog-push-fbc: ## Push FBC catalog image
+	@echo "Pushing FBC catalog image: $(CATALOG_IMG)"
+	podman push $(CATALOG_IMG)
+
+.PHONY: catalog-deploy
+catalog-deploy: ## Deploy FBC catalog to OpenShift cluster
+	@echo "Deploying FBC catalog to cluster..."
+	@cat <<EOF | oc apply -f - \
+	apiVersion: operators.coreos.com/v1alpha1 \
+	kind: CatalogSource \
+	metadata: \
+	  name: jupyter-notebook-validator-catalog \
+	  namespace: openshift-marketplace \
+	spec: \
+	  sourceType: grpc \
+	  image: $(CATALOG_IMG) \
+	  displayName: Jupyter Notebook Validator Operator \
+	  publisher: Community \
+	  updateStrategy: \
+	    registryPoll: \
+	      interval: 10m \
+	EOF
+	@echo "Waiting for catalog to be ready..."
+	@oc wait --for=condition=Ready catalogsource/jupyter-notebook-validator-catalog \
+	  -n openshift-marketplace --timeout=5m || true
+
 ##@ Git Operations
 
 .PHONY: git-push-rebuild
