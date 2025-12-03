@@ -59,6 +59,7 @@ metadata:
   name: jupyter-notebook-validator-operator.v1.0.7
   namespace: placeholder
 spec:
+  replaces: jupyter-notebook-validator-operator.v1.0.3
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
