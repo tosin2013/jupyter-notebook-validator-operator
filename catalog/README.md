@@ -4,9 +4,13 @@ File-Based Catalog (FBC) for the Jupyter Notebook Validator Operator.
 
 ## Versions
 
-- **v1.0.5-ocp4.18**: OpenShift 4.18 (with volume support)
-- **v1.0.6-ocp4.19**: OpenShift 4.19
+All versions use semantic version **1.0.7** with OpenShift-specific image tags:
+
+- **v1.0.7-ocp4.18**: OpenShift 4.18 (with volume support)
+- **v1.0.7-ocp4.19**: OpenShift 4.19
 - **v1.0.7-ocp4.20**: OpenShift 4.20
+
+**Note**: The operator version (1.0.7) is consistent across all platforms. OpenShift version appears only in container image tags.
 
 ## Build Catalog
 

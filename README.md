@@ -77,6 +77,7 @@ spec:
 
 - **[Architecture Overview](docs/ARCHITECTURE_OVERVIEW.md)** - System design
 - **[Testing Guide](docs/TESTING_GUIDE.md)** - Testing procedures
+- **[Webhook Deployment Guide](docs/WEBHOOK-DEPLOYMENT-GUIDE.md)** - Webhook configuration and certificates
 - **[Notebook Credentials Guide](docs/NOTEBOOK_CREDENTIALS_GUIDE.md)** - Credential injection
 - **[Model Discovery Guide](docs/MODEL_DISCOVERY_GUIDE.md)** - Model validation
 - **[Community Platforms](docs/COMMUNITY_PLATFORMS.md)** - Supported platforms
