@@ -10,9 +10,6 @@ LABEL operators.operatorframework.io.metrics.builder=operator-sdk-v1.37.0
 LABEL operators.operatorframework.io.metrics.mediatype.v1=metrics+v1
 LABEL operators.operatorframework.io.metrics.project_layout=go.kubebuilder.io/v4
 
-# OpenShift version compatibility (4.18 - 4.20)
-LABEL com.redhat.openshift.versions="v4.18-v4.20"
-
 # Labels for testing.
 LABEL operators.operatorframework.io.test.mediatype.v1=scorecard+v1
 LABEL operators.operatorframework.io.test.config.v1=tests/scorecard/
