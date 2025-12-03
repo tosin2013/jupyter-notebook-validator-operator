@@ -83,29 +83,29 @@ schema: olm.channel
 package: jupyter-notebook-validator-operator
 name: stable
 entries:
-  - name: jupyter-notebook-validator-operator.v1.0.5-ocp4.18
-  - name: jupyter-notebook-validator-operator.v1.0.6-ocp4.19
-    replaces: jupyter-notebook-validator-operator.v1.0.5-ocp4.18
+  - name: jupyter-notebook-validator-operator.v1.0.7-ocp4.18
+  - name: jupyter-notebook-validator-operator.v1.0.7-ocp4.19
+    replaces: jupyter-notebook-validator-operator.v1.0.7-ocp4.18
   - name: jupyter-notebook-validator-operator.v1.0.7-ocp4.20
-    replaces: jupyter-notebook-validator-operator.v1.0.6-ocp4.19
+    replaces: jupyter-notebook-validator-operator.v1.0.7-ocp4.19
 
 ---
 schema: olm.bundle
-name: jupyter-notebook-validator-operator.v1.0.5-ocp4.18
+name: jupyter-notebook-validator-operator.v1.0.7-ocp4.18
 package: jupyter-notebook-validator-operator
-image: quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.5-ocp4.18
+image: quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.7-ocp4.18
 relatedImages:
   - name: operator
-    image: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.5-ocp4.18-volumes
+    image: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.7-ocp4.18
   - name: bundle
-    image: quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.5-ocp4.18
+    image: quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.7-ocp4.18
   - name: kube-rbac-proxy
     image: gcr.io/kubebuilder/kube-rbac-proxy:v0.13.1
 properties:
   - type: olm.package
     value:
       packageName: jupyter-notebook-validator-operator
-      version: 1.0.5-ocp4.18
+      version: 1.0.7  # Consistent version across all OpenShift versions
 ```
 
 ## Why We Chose Approach 1
@@ -153,15 +153,19 @@ properties:
 
 ### Current (Approach 1)
 ```
-Bundle Images:
-- quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.5-ocp4.18
-- quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.6-ocp4.19
+Bundle Images (all version 1.0.7):
+- quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.7-ocp4.18
+- quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.7-ocp4.19
 - quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.7-ocp4.20
 
-Operator Images:
-- quay.io/takinosh/jupyter-notebook-validator-operator:1.0.5-ocp4.18-volumes
-- quay.io/takinosh/jupyter-notebook-validator-operator:1.0.6-ocp4.19
+Operator Images (all version 1.0.7):
+- quay.io/takinosh/jupyter-notebook-validator-operator:1.0.7-ocp4.18
+- quay.io/takinosh/jupyter-notebook-validator-operator:1.0.7-ocp4.19
 - quay.io/takinosh/jupyter-notebook-validator-operator:1.0.7-ocp4.20
+
+Note: Version 1.0.7 is consistent across all OpenShift versions.
+      OpenShift version is only in the image tag for platform-specific builds.
+      When we release 1.0.8, all three platforms will use 1.0.8.
 ```
 
 ### Alternative (Approach 2)
