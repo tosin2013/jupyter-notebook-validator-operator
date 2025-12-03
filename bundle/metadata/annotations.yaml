@@ -9,10 +9,6 @@ annotations:
   operators.operatorframework.io.metrics.mediatype.v1: metrics+v1
   operators.operatorframework.io.metrics.project_layout: go.kubebuilder.io/v4
 
-  # OpenShift version compatibility (4.18 - 4.20)
-  # This annotation ensures the operator appears in the correct OpenShift catalogs
-  com.redhat.openshift.versions: "v4.18-v4.20"
-
   # Annotations for testing.
   operators.operatorframework.io.test.mediatype.v1: scorecard+v1
   operators.operatorframework.io.test.config.v1: tests/scorecard/
