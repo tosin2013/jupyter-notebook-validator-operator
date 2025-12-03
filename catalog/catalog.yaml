@@ -29,6 +29,13 @@ schema: olm.bundle
 name: jupyter-notebook-validator-operator.v1.0.5-ocp4.18
 package: jupyter-notebook-validator-operator
 image: quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.5-ocp4.18
+relatedImages:
+  - name: operator
+    image: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.5-ocp4.18-volumes
+  - name: bundle
+    image: quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.5-ocp4.18
+  - name: kube-rbac-proxy
+    image: gcr.io/kubebuilder/kube-rbac-proxy:v0.13.1
 properties:
   - type: olm.package
     value:
@@ -48,6 +55,13 @@ schema: olm.bundle
 name: jupyter-notebook-validator-operator.v1.0.6-ocp4.19
 package: jupyter-notebook-validator-operator
 image: quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.6-ocp4.19
+relatedImages:
+  - name: operator
+    image: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.6-ocp4.19
+  - name: bundle
+    image: quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.6-ocp4.19
+  - name: kube-rbac-proxy
+    image: gcr.io/kubebuilder/kube-rbac-proxy:v0.13.1
 properties:
   - type: olm.package
     value:
@@ -67,6 +81,13 @@ schema: olm.bundle
 name: jupyter-notebook-validator-operator.v1.0.7-ocp4.20
 package: jupyter-notebook-validator-operator
 image: quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.7-ocp4.20
+relatedImages:
+  - name: operator
+    image: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.7-ocp4.20
+  - name: bundle
+    image: quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.7-ocp4.20
+  - name: kube-rbac-proxy
+    image: gcr.io/kubebuilder/kube-rbac-proxy:v0.13.1
 properties:
   - type: olm.package
     value:
