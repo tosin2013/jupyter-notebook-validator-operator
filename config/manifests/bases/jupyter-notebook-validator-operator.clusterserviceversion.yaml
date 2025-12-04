@@ -40,7 +40,7 @@ spec:
 
     ### Supported Platforms
 
-    * Kubernetes 1.33+
+    * Kubernetes 1.28+
     * OpenShift 4.18 - 4.20
     * Tekton Pipelines v0.68+ (OpenShift Pipelines 1.20+)
 
@@ -110,7 +110,7 @@ spec:
   - email: tosin.akinosho@gmail.com
     name: Tosin Akinosho
   maturity: alpha
-  minKubeVersion: 1.33.0
+  minKubeVersion: 1.28.0
   provider:
     name: Tosin Akinosho
     url: https://github.com/tosin2013

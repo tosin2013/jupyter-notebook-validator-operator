@@ -50,7 +50,7 @@ metadata:
     capabilities: Seamless Upgrades
     categories: AI/Machine Learning, Developer Tools, Integration & Delivery
     containerImage: quay.io/takinosh/jupyter-notebook-validator-operator:v1.0.0
-    createdAt: "2025-12-03T21:08:40Z"
+    createdAt: "2025-12-04T03:25:36Z"
     description: Kubernetes operator for validating Jupyter notebooks in MLOps workflows
     operators.operatorframework.io/builder: operator-sdk-v1.37.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
@@ -59,7 +59,6 @@ metadata:
   name: jupyter-notebook-validator-operator.v1.0.9
   namespace: placeholder
 spec:
-  replaces: jupyter-notebook-validator-operator.v1.0.8
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
@@ -85,7 +84,7 @@ spec:
 
     ### Supported Platforms
 
-    * Kubernetes 1.33+
+    * Kubernetes 1.28+
     * OpenShift 4.18 - 4.20
     * Tekton Pipelines v0.68+ (OpenShift Pipelines 1.20+)
 
@@ -502,7 +501,7 @@ spec:
   - email: tosin.akinosho@gmail.com
     name: Tosin Akinosho
   maturity: alpha
-  minKubeVersion: 1.33.0
+  minKubeVersion: 1.28.0
   provider:
     name: Tosin Akinosho
     url: https://github.com/tosin2013
