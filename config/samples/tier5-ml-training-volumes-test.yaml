@@ -1,0 +1,58 @@
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: tier5-ml-training-volumes-test
+  namespace: jupyter-validator-volume-test
+spec:
+  notebook:
+    git:
+      url: https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git
+      ref: main
+      credentialsSecret: git-credentials
+    path: notebooks/tier5-volumes/01-ml-training-pipeline-volumes.ipynb
+  
+  podConfig:
+    containerImage: quay.io/jupyter/scipy-notebook:latest
+    serviceAccountName: notebook-validator-jupyter-notebook-validator-runner
+    
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "1000m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+    
+    # Volume mounts for the validation pod
+    volumeMounts:
+      - name: shared-datasets
+        mountPath: /data
+        readOnly: true
+      - name: trained-models
+        mountPath: /models
+      - name: training-config
+        mountPath: /config
+        readOnly: true
+      - name: scratch
+        mountPath: /scratch
+    
+    # Volume definitions
+    volumes:
+      - name: shared-datasets
+        persistentVolumeClaim:
+          claimName: shared-datasets-pvc
+          readOnly: true
+      - name: trained-models
+        persistentVolumeClaim:
+          claimName: trained-models-pvc
+      - name: training-config
+        configMap:
+          name: training-config
+          optional: false
+      - name: scratch
+        emptyDir:
+          medium: Memory
+          sizeLimit: 512Mi
+  
+  timeout: 30m
+
