@@ -108,9 +108,9 @@ func TestTriggerHandler_ExecuteTriggers_Integration(t *testing.T) {
 			// Setup fake client with existing pods
 			objs := []client.Object{tt.job}
 			objs = append(objs, tt.existingPods...)
-			client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
+			fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
 
-			handler := NewTriggerHandler(client)
+			handler := NewTriggerHandler(fakeClient)
 
 			// Execute triggers
 			err := handler.ExecuteTriggers(context.Background(), tt.job)
@@ -124,7 +124,7 @@ func TestTriggerHandler_ExecuteTriggers_Integration(t *testing.T) {
 				if tt.wantPodsDeleted {
 					for _, pod := range tt.existingPods {
 						podObj := pod.(*corev1.Pod)
-						err := client.Get(context.Background(), client.ObjectKeyFromObject(podObj), &corev1.Pod{})
+						err := fakeClient.Get(context.Background(), client.ObjectKeyFromObject(podObj), &corev1.Pod{})
 						assert.Error(t, err, "Pod should be deleted")
 						assert.True(t, client.IgnoreNotFound(err) == nil, "Error should be NotFound")
 					}
@@ -201,8 +201,8 @@ func TestStatusAggregator_UpdateApplicationStatus_Integration(t *testing.T) {
 				objs[i] = job
 			}
 
-			client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
-			aggregator := NewStatusAggregator(client)
+			fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
+			aggregator := NewStatusAggregator(fakeClient)
 
 			// Update status
 			err := aggregator.UpdateApplicationStatus(context.Background(), "default")
