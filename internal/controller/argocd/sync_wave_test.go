@@ -75,14 +75,14 @@ func TestSetSyncWaveAnnotations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tt.job).Build()
+			fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tt.job).Build()
 
-			err := SetSyncWaveAnnotations(context.Background(), client, tt.job, tt.phase)
+			err := SetSyncWaveAnnotations(context.Background(), fakeClient, tt.job, tt.phase)
 			assert.NoError(t, err)
 
 			// Fetch updated job
 			updatedJob := &mlopsv1alpha1.NotebookValidationJob{}
-			err = client.Get(context.Background(), client.ObjectKeyFromObject(tt.job), updatedJob)
+			err = fakeClient.Get(context.Background(), client.ObjectKeyFromObject(tt.job), updatedJob)
 			assert.NoError(t, err)
 
 			annotations := updatedJob.GetAnnotations()
