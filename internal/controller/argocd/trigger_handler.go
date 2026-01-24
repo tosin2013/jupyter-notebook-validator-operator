@@ -400,6 +400,9 @@ func (h *TriggerHandler) refreshResource(ctx context.Context, trigger ResourceTr
 
 // Helper function to parse group version
 func parseGroupVersion(apiVersion string) (schema.GroupVersion, error) {
+	if apiVersion == "" {
+		return schema.GroupVersion{}, fmt.Errorf("apiVersion cannot be empty")
+	}
 	parts := strings.Split(apiVersion, "/")
 	if len(parts) == 1 {
 		// Core API group (e.g., "v1")
