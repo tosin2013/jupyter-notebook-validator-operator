@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -165,7 +164,7 @@ func (a *StatusAggregator) updateApplicationAnnotation(ctx context.Context, appN
 			logger.V(1).Info("Found ArgoCD Application", "name", appName, "namespace", ns)
 			break
 		}
-		if !client.IgnoreNotFound(err) {
+		if client.IgnoreNotFound(err) != nil {
 			return fmt.Errorf("failed to get Application: %w", err)
 		}
 	}
