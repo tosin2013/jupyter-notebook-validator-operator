@@ -23,11 +23,11 @@ func TestTriggerHandler_ExecuteTriggers_Integration(t *testing.T) {
 	_ = appsv1.AddToScheme(scheme)
 
 	tests := []struct {
-		name           string
-		job            *mlopsv1alpha1.NotebookValidationJob
-		existingPods   []client.Object
+		name            string
+		job             *mlopsv1alpha1.NotebookValidationJob
+		existingPods    []client.Object
 		wantPodsDeleted bool
-		wantError      bool
+		wantError       bool
 	}{
 		{
 			name: "restart InferenceService - deletes pods",
@@ -93,8 +93,8 @@ func TestTriggerHandler_ExecuteTriggers_Integration(t *testing.T) {
 			name: "no triggers configured",
 			job: &mlopsv1alpha1.NotebookValidationJob{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-job",
-					Namespace: "default",
+					Name:        "test-job",
+					Namespace:   "default",
 					Annotations: map[string]string{},
 				},
 			},
