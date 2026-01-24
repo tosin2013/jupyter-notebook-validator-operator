@@ -76,6 +76,19 @@ func TestTriggerHandler_ExecuteTriggers_Integration(t *testing.T) {
 				},
 			},
 			existingPods: []client.Object{
+				&appsv1.Deployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-deployment",
+						Namespace: "default",
+					},
+					Spec: appsv1.DeploymentSpec{
+						Selector: &metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "my-app",
+							},
+						},
+					},
+				},
 				&corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "my-deployment-pod-0",
@@ -122,11 +135,13 @@ func TestTriggerHandler_ExecuteTriggers_Integration(t *testing.T) {
 
 				// Verify pods were deleted if expected
 				if tt.wantPodsDeleted {
-					for _, pod := range tt.existingPods {
-						podObj := pod.(*corev1.Pod)
-						err := fakeClient.Get(context.Background(), client.ObjectKeyFromObject(podObj), &corev1.Pod{})
-						assert.Error(t, err, "Pod should be deleted")
-						assert.True(t, client.IgnoreNotFound(err) == nil, "Error should be NotFound")
+					for _, obj := range tt.existingPods {
+						// Only check Pod objects, skip other types like Deployments
+						if podObj, ok := obj.(*corev1.Pod); ok {
+							err := fakeClient.Get(context.Background(), client.ObjectKeyFromObject(podObj), &corev1.Pod{})
+							assert.Error(t, err, "Pod should be deleted")
+							assert.True(t, client.IgnoreNotFound(err) == nil, "Error should be NotFound")
+						}
 					}
 				}
 			}
