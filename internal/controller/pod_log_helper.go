@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
+	"github.com/tosin2013/jupyter-notebook-validator-operator/internal/controller/argocd"
 )
 
 // NotebookExecutionResult represents the parsed results from the validation pod
@@ -403,6 +404,28 @@ func (r *NotebookValidationJobReconciler) handlePodSuccess(
 	recordValidationComplete(job.Namespace, status)
 	logger.Info("Recorded validation completion metric", "namespace", job.Namespace, "status", status)
 
+	// Create notification event for ArgoCD integration
+	if err := r.createNotificationEvent(ctx, job, finalPhase); err != nil {
+		// Log error but don't fail - events are optional
+		logger.V(1).Info("Failed to create notification event (non-critical)", "error", err)
+	}
+
+	// Execute resource triggers if job succeeded
+	if finalPhase == PhaseSucceeded {
+		triggerHandler := argocd.NewTriggerHandler(r.Client)
+		if err := triggerHandler.ExecuteTriggers(ctx, job); err != nil {
+			// Log error but don't fail - triggers are optional
+			logger.V(1).Info("Failed to execute resource triggers (non-critical)", "error", err)
+		}
+	}
+
+	// Update ArgoCD Application status aggregation
+	statusAggregator := argocd.NewStatusAggregator(r.Client)
+	if err := statusAggregator.UpdateApplicationStatus(ctx, job.Namespace); err != nil {
+		// Log error but don't fail - status aggregation is optional
+		logger.V(1).Info("Failed to update Application status (non-critical)", "error", err)
+	}
+
 	// Update phase and completion time
 	return r.updateJobPhase(ctx, job, finalPhase, job.Status.Message)
 }
@@ -500,6 +523,19 @@ func (r *NotebookValidationJobReconciler) handlePodFailure(
 		recordValidationComplete(job.Namespace, "failed")
 		logger.Info("Recorded validation completion metric", "namespace", job.Namespace, "status", "failed")
 
+		// Create notification event for ArgoCD integration
+		if err := r.createNotificationEvent(ctx, job, PhaseFailed); err != nil {
+			// Log error but don't fail - events are optional
+			logger.V(1).Info("Failed to create notification event (non-critical)", "error", err)
+		}
+
+		// Update ArgoCD Application status aggregation
+		statusAggregator := argocd.NewStatusAggregator(r.Client)
+		if err := statusAggregator.UpdateApplicationStatus(ctx, job.Namespace); err != nil {
+			// Log error but don't fail - status aggregation is optional
+			logger.V(1).Info("Failed to update Application status (non-critical)", "error", err)
+		}
+
 		return r.updateJobPhase(ctx, job, PhaseFailed,
 			fmt.Sprintf("Validation failed after %d retries: %s. Suggested action: %s",
 				job.Status.RetryCount, errorMsg, analysis.SuggestedAction))
@@ -522,7 +558,60 @@ func (r *NotebookValidationJobReconciler) handlePodFailure(
 	recordValidationComplete(job.Namespace, StatusFailed)
 	logger.Info("Recorded validation completion metric", "namespace", job.Namespace, "status", StatusFailed)
 
+	// Create notification event for ArgoCD integration
+	if err := r.createNotificationEvent(ctx, job, PhaseFailed); err != nil {
+		// Log error but don't fail - events are optional
+		logger.V(1).Info("Failed to create notification event (non-critical)", "error", err)
+	}
+
+	// Update ArgoCD Application status aggregation
+	statusAggregator := argocd.NewStatusAggregator(r.Client)
+	if err := statusAggregator.UpdateApplicationStatus(ctx, job.Namespace); err != nil {
+		// Log error but don't fail - status aggregation is optional
+		logger.V(1).Info("Failed to update Application status (non-critical)", "error", err)
+	}
+
 	return r.updateJobPhase(ctx, job, PhaseFailed,
 		fmt.Sprintf("Validation failed after %d retries: %s. Suggested action: %s",
 			MaxRetries, errorMsg, analysis.SuggestedAction))
+}
+
+// createNotificationEvent creates a Kubernetes Event with ArgoCD notification labels
+func (r *NotebookValidationJobReconciler) createNotificationEvent(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob, phase string) error {
+	logger := log.FromContext(ctx)
+
+	// Only create events for terminal phases
+	if phase != PhaseSucceeded && phase != PhaseFailed {
+		return nil
+	}
+
+	// Create clientset from RestConfig
+	if r.RestConfig == nil {
+		return fmt.Errorf("REST config is not available")
+	}
+
+	clientset, err := kubernetes.NewForConfig(r.RestConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create clientset: %w", err)
+	}
+
+	// Determine event type and reason
+	eventType := corev1.EventTypeNormal
+	reason := "ValidationSucceeded"
+	message := job.Status.Message
+	if phase == PhaseFailed {
+		eventType = corev1.EventTypeWarning
+		reason = "ValidationFailed"
+		if message == "" {
+			message = "Notebook validation failed"
+		}
+	}
+
+	// Create the notification event
+	if err := argocd.CreateNotificationEvent(ctx, clientset, r.Scheme, job, eventType, reason, message); err != nil {
+		logger.V(1).Info("Failed to create notification event", "error", err)
+		return err
+	}
+
+	return nil
 }
