@@ -1,11 +1,11 @@
 # ADR-031: Tekton Build Strategy - Dockerfile vs Base Image Support
 
-**Status**: ✅ **ACCEPTED** - Primary build method for the operator
+**Status**: Implemented
 **Date**: 2025-11-09
-**Updated**: 2025-11-10
+**Updated**: 2026-01-24
 **Authors**: Sophia (AI Assistant), User Feedback
 **Related**: ADR-028 (Tekton Task Strategy), ADR-027 (S2I Build Strategy - Superseded), ADR-009 (Secret Management)
-**Implementation**: Commits `3c95bc7` (Phase 1), `7d4fbd8` (Phase 2), `2f0ce75` (Git Credentials)
+**Implementation**: `pkg/build/tekton_strategy.go`, `pkg/build/dockerfile_generator.go`
 **Supersedes**: ADR-027 (S2I Build Strategy)
 
 ## Context
