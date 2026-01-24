@@ -1,0 +1,12 @@
+# Kustomization file for ArgoCD integration configuration
+# This can be included in other kustomizations to add ArgoCD health check support
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - health-check-configmap.yaml
+
+# Note: This ConfigMap should be applied to the argocd namespace
+# The namespace is specified in the resource itself, but kustomize
+# can be used to change it if needed:
+# namespace: argocd

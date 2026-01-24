@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
+	"github.com/tosin2013/jupyter-notebook-validator-operator/internal/controller/argocd"
 	"github.com/tosin2013/jupyter-notebook-validator-operator/pkg/build"
 	"github.com/tosin2013/jupyter-notebook-validator-operator/pkg/logging"
 )
@@ -1026,6 +1027,15 @@ func (r *NotebookValidationJobReconciler) updateJobPhase(ctx context.Context, jo
 
 		logger.Error(err, "Failed to update job status")
 		return ctrl.Result{}, err
+	}
+
+	// Set ArgoCD sync wave annotations if job is in terminal phase
+	// This enables GitOps tools to coordinate deployment ordering
+	if phase == PhaseSucceeded || phase == PhaseFailed {
+		if err := argocd.SetSyncWaveAnnotations(ctx, r.Client, job, phase); err != nil {
+			// Log error but don't fail - sync wave annotations are optional
+			logger.V(1).Info("Failed to set sync wave annotations (non-critical)", "error", err)
+		}
 	}
 
 	logger.Info("Job phase updated", "phase", phase, "message", message)
