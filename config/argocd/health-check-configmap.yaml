@@ -1,0 +1,78 @@
+# ArgoCD Health Check Configuration for NotebookValidationJob
+# This ConfigMap should be applied to the argocd namespace to enable
+# custom health status reporting for NotebookValidationJob resources.
+#
+# Installation:
+#   kubectl apply -f config/argocd/health-check-configmap.yaml -n argocd
+#   kubectl rollout restart deployment argocd-server -n argocd
+#
+# Or merge into existing argocd-cm ConfigMap:
+#   kubectl patch configmap argocd-cm -n argocd --type merge \
+#     -p "$(cat config/argocd/health-check-configmap.yaml | grep -A 100 'data:')"
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  namespace: argocd
+data:
+  # Health assessment for NotebookValidationJob
+  # Maps NotebookValidationJob phases to ArgoCD health status
+  resource.customizations.health.mlops.mlops.dev_NotebookValidationJob: |
+    hs = {}
+    
+    -- Handle missing status
+    if obj.status == nil or obj.status.phase == nil then
+      hs.status = "Progressing"
+      hs.message = "Initializing notebook validation"
+      return hs
+    end
+    
+    -- Map phase to ArgoCD health status
+    local phase = obj.status.phase
+    
+    if phase == "Succeeded" then
+      hs.status = "Healthy"
+      hs.message = "Notebook validation succeeded"
+      
+      -- Add completion timestamp if available
+      if obj.status.completionTime ~= nil then
+        hs.message = hs.message .. " at " .. obj.status.completionTime
+      end
+      
+    elseif phase == "Failed" then
+      hs.status = "Degraded"
+      hs.message = obj.status.message or "Notebook validation failed"
+      
+      -- Show retry information
+      if obj.status.retryCount ~= nil then
+        hs.message = hs.message .. " (retry " .. obj.status.retryCount .. "/3)"
+      end
+      
+    elseif phase == "ValidationRunning" then
+      hs.status = "Progressing"
+      hs.message = "Validating notebook"
+      
+      -- Show pod name if available
+      if obj.status.validationPodName ~= nil and obj.status.validationPodName ~= "" then
+        hs.message = hs.message .. " (pod: " .. obj.status.validationPodName .. ")"
+      end
+      
+    elseif phase == "Building" then
+      hs.status = "Progressing"
+      hs.message = "Building validation environment"
+      
+    elseif phase == "BuildComplete" then
+      hs.status = "Progressing"
+      hs.message = "Build complete, preparing validation"
+      
+    elseif phase == "Initializing" or phase == "Pending" or phase == "Running" then
+      hs.status = "Progressing"
+      hs.message = "Initializing notebook validation"
+      
+    else
+      -- Unknown phase
+      hs.status = "Progressing"
+      hs.message = "Phase: " .. phase
+    end
+    
+    return hs

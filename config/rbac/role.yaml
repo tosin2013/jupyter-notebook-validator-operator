@@ -84,6 +84,7 @@ rules:
   - get
   - list
   - watch
+  - patch
 - apiGroups:
   - build.openshift.io
   resources:
@@ -171,6 +172,7 @@ rules:
   - get
   - list
   - watch
+  - patch
 - apiGroups:
   - serving.kserve.io
   resources:
@@ -203,3 +205,13 @@ rules:
   - patch
   - update
   - watch
+# Feature 2: ArgoCD Integration - Generic resource triggering
+- apiGroups:
+  - argoproj.io
+  resources:
+  - applications
+  verbs:
+  - get
+  - list
+  - patch
+  - update
