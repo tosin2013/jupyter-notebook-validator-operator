@@ -61,8 +61,8 @@ func TestSetSyncWaveAnnotations(t *testing.T) {
 			name: "no sync wave annotation",
 			job: &mlopsv1alpha1.NotebookValidationJob{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-job",
-					Namespace: "default",
+					Name:        "test-job",
+					Namespace:   "default",
 					Annotations: map[string]string{},
 				},
 			},
