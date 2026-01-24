@@ -64,6 +64,21 @@ Architectural Decision Records document important architectural decisions made d
 | [026](026-smart-validation-pod-recovery.md) | Smart Validation Pod Recovery and Build Strategy Selection | Accepted | 2025-11-09 |
 | [027](027-s2i-build-strategy-for-git-integration.md) | S2I Build Strategy for Git Integration | Accepted | 2025-11-09 |
 
+### Testing & Validation ADRs (NEW - 2025-11-12)
+
+| ADR | Title | Status | Date |
+|-----|-------|--------|------|
+| [032](032-github-actions-ci-testing-kubernetes-version.md) | GitHub Actions CI Testing Against Kubernetes 1.31.10 | Proposed | 2025-11-09 |
+| [033](033-e2e-testing-live-openshift-cluster.md) | End-to-End Testing Against Live OpenShift Cluster | Accepted | 2025-11-09 |
+| [034](034-dual-testing-strategy-kind-openshift.md) | Dual Testing Strategy with Kind and OpenShift | Accepted | 2025-11-11 |
+| [048](048-pre-submission-validation-test-rig-strategy.md) | Pre-Submission Validation Test Rig Strategy | Accepted | 2025-11-12 |
+
+### ArgoCD Integration ADRs (NEW - 2026-01-24)
+
+| ADR | Title | Status | Date |
+|-----|-------|--------|------|
+| [049](049-argocd-integration-strategy.md) | ArgoCD Integration Strategy for GitOps Workflows | Implemented | 2026-01-24 |
+
 ### Planned ADRs
 
 The following ADRs are planned for future documentation:
