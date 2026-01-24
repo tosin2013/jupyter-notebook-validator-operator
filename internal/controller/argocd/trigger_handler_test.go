@@ -143,32 +143,32 @@ func TestParseTriggers(t *testing.T) {
 
 func TestParseGroupVersion(t *testing.T) {
 	tests := []struct {
-		name      string
-		apiVersion string
-		wantGroup  string
+		name        string
+		apiVersion  string
+		wantGroup   string
 		wantVersion string
-		wantError  bool
+		wantError   bool
 	}{
 		{
-			name:       "core API group",
-			apiVersion: "v1",
-			wantGroup:  "",
+			name:        "core API group",
+			apiVersion:  "v1",
+			wantGroup:   "",
 			wantVersion: "v1",
-			wantError:  false,
+			wantError:   false,
 		},
 		{
-			name:       "group/version format",
-			apiVersion: "apps/v1",
-			wantGroup:  "apps",
+			name:        "group/version format",
+			apiVersion:  "apps/v1",
+			wantGroup:   "apps",
 			wantVersion: "v1",
-			wantError:  false,
+			wantError:   false,
 		},
 		{
-			name:       "full group/version",
-			apiVersion: "serving.kserve.io/v1beta1",
-			wantGroup:  "serving.kserve.io",
+			name:        "full group/version",
+			apiVersion:  "serving.kserve.io/v1beta1",
+			wantGroup:   "serving.kserve.io",
 			wantVersion: "v1beta1",
-			wantError:  false,
+			wantError:   false,
 		},
 		{
 			name:       "empty string",
