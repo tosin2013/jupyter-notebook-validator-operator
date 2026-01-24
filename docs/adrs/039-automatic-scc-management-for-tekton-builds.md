@@ -1,9 +1,11 @@
 # ADR-039: Automatic SCC Management for Tekton Builds
 
-**Status**: Accepted
+**Status**: Implemented
 **Date**: 2025-11-21
+**Updated**: 2026-01-24
 **Authors**: Claude Code (Anthropic)
 **Related ADRs**: ADR-028 (Tekton Task Strategy), ADR-019 (RBAC & Pod Security)
+**Implementation**: `pkg/build/scc_helper.go`
 
 ---
 

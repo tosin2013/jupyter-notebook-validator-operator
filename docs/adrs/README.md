@@ -58,11 +58,16 @@ Architectural Decision Records document important architectural decisions made d
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
-| [023](023-s2i-build-integration-openshift.md) | S2I Build Integration for OpenShift | Accepted | 2025-11-08 |
+| [023](023-s2i-build-integration-openshift.md) | S2I Build Integration for OpenShift | Archived | 2025-11-08 |
 | [024](024-fallback-strategy-missing-requirements.md) | Fallback Strategy for Missing Requirements | Accepted | 2025-11-08 |
 | [025](025-community-build-methods-extension-framework.md) | Community Build Methods Extension Framework | Accepted | 2025-11-08 |
-| [026](026-smart-validation-pod-recovery.md) | Smart Validation Pod Recovery and Build Strategy Selection | Accepted | 2025-11-09 |
-| [027](027-s2i-build-strategy-for-git-integration.md) | S2I Build Strategy for Git Integration | Accepted | 2025-11-09 |
+| [026](026-smart-validation-pod-recovery.md) | Smart Validation Pod Recovery and Build Strategy Selection | Implemented | 2025-11-09 |
+| [027](027-s2i-build-strategy-for-git-integration.md) | S2I Build Strategy for Git Integration | Superseded | 2025-11-09 |
+| [028](028-tekton-task-strategy-custom-vs-cluster-tasks.md) | Tekton Task Strategy - Custom vs Cluster Tasks | Accepted | 2025-11-09 |
+| [031](031-tekton-build-dockerfile-vs-base-image.md) | Tekton Build Strategy - Dockerfile vs Base Image | Implemented | 2025-11-09 |
+| [037](037-build-validation-sequencing-and-state-machine.md) | Build-Validation Sequencing and State Machine | Implemented | 2025-11-10 |
+| [039](039-automatic-scc-management-for-tekton-builds.md) | Automatic SCC Management for Tekton Builds | Implemented | 2025-11-21 |
+| [040](040-unique-build-pvcs-for-concurrent-tekton-builds.md) | Unique Build PVCs for Concurrent Tekton Builds | Implemented | 2025-11-24 |
 
 ### Testing & Validation ADRs (NEW - 2025-11-12)
 
@@ -95,8 +100,10 @@ The following ADRs are planned for future documentation:
 
 - **Proposed**: ADR is under discussion and review
 - **Accepted**: ADR has been approved and is being implemented
+- **Implemented**: ADR has been fully implemented in the codebase
 - **Deprecated**: ADR is no longer recommended but kept for historical reference
 - **Superseded**: ADR has been replaced by a newer decision (link to new ADR)
+- **Archived**: ADR is a duplicate or has been consolidated into another ADR
 
 ## ADR Template
 
