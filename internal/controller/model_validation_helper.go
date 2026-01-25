@@ -151,7 +151,12 @@ func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Con
 }
 
 // performNamespaceAwareModelHealthChecks performs health checks on target models with namespace isolation
-func (r *NotebookValidationJobReconciler) performNamespaceAwareModelHealthChecks(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob, detector *platform.Detector, platformInfo *platform.PlatformInfo) error {
+func (r *NotebookValidationJobReconciler) performNamespaceAwareModelHealthChecks(
+	ctx context.Context,
+	job *mlopsv1alpha1.NotebookValidationJob,
+	detector *platform.Detector,
+	platformInfo *platform.PlatformInfo,
+) error {
 	logger := log.FromContext(ctx)
 
 	// Build validation config based on job settings
@@ -277,23 +282,6 @@ func (r *NotebookValidationJobReconciler) performNamespaceAwareModelHealthChecks
 	return nil
 }
 
-// getModelValidationConfigForJob extracts model validation config from a job
-func getModelValidationConfigForJob(job *mlopsv1alpha1.NotebookValidationJob) *ModelValidationConfig {
-	config := &ModelValidationConfig{
-		JobNamespace:        job.Namespace,
-		AllowCrossNamespace: false,
-		AllowedNamespaces:   []string{},
-		TimeoutSeconds:      300,
-	}
-
-	if job.Spec.ModelValidation != nil && job.Spec.ModelValidation.Timeout != "" {
-		if timeout, err := time.ParseDuration(job.Spec.ModelValidation.Timeout); err == nil {
-			config.TimeoutSeconds = int(timeout.Seconds())
-		}
-	}
-
-	return config
-}
 
 // buildModelValidationEnvVars builds environment variables for model validation with namespace context
 func (r *NotebookValidationJobReconciler) buildModelValidationEnvVars(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) []corev1.EnvVar {
