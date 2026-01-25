@@ -282,7 +282,6 @@ func (r *NotebookValidationJobReconciler) performNamespaceAwareModelHealthChecks
 	return nil
 }
 
-
 // buildModelValidationEnvVars builds environment variables for model validation with namespace context
 func (r *NotebookValidationJobReconciler) buildModelValidationEnvVars(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) []corev1.EnvVar {
 	logger := log.FromContext(ctx)
