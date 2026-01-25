@@ -161,7 +161,7 @@ func TestBuildModelValidationEnvVars(t *testing.T) {
 					},
 				},
 			},
-			expected: 2, // MODEL_VALIDATION_ENABLED, MODEL_VALIDATION_PLATFORM
+			expected: 3, // MODEL_VALIDATION_ENABLED, MODEL_VALIDATION_PLATFORM, MODEL_VALIDATION_NAMESPACE
 		},
 		{
 			name: "model validation with phase and target models",
@@ -179,7 +179,7 @@ func TestBuildModelValidationEnvVars(t *testing.T) {
 					},
 				},
 			},
-			expected: 4, // + MODEL_VALIDATION_PHASE, MODEL_VALIDATION_TARGET_MODELS
+			expected: 7, // + MODEL_VALIDATION_NAMESPACE, MODEL_VALIDATION_PHASE, MODEL_VALIDATION_TARGET_MODELS, MODEL_VALIDATION_TARGET_MODELS_ORIGINAL, MODEL_VALIDATION_TARGET_NAMESPACES
 		},
 		{
 			name: "model validation with prediction validation",
@@ -201,7 +201,7 @@ func TestBuildModelValidationEnvVars(t *testing.T) {
 					},
 				},
 			},
-			expected: 6, // + 4 prediction validation vars
+			expected: 7, // + MODEL_VALIDATION_NAMESPACE + 4 prediction validation vars
 		},
 		{
 			name: "model validation with custom platform",
@@ -223,7 +223,7 @@ func TestBuildModelValidationEnvVars(t *testing.T) {
 					},
 				},
 			},
-			expected: 6, // + 4 custom platform vars
+			expected: 7, // + MODEL_VALIDATION_NAMESPACE + 4 custom platform vars
 		},
 	}
 
