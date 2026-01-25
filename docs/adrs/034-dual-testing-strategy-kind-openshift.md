@@ -1,7 +1,8 @@
 # ADR-034: Dual Testing Strategy with Kind and OpenShift
 
-**Status**: Accepted  
+**Status**: Implemented  
 **Date**: 2025-11-11  
+**Updated**: 2026-01-24  
 **Authors**: Sophia (AI Assistant), User Feedback  
 **Related**: ADR-032 (CI Testing), ADR-033 (E2E Testing), ADR-035 (Test Tier Organization)
 

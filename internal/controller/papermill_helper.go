@@ -201,6 +201,63 @@ DURATION=$((END_TIME - START_TIME))
 
 log "Execution duration: ${DURATION}s"
 
+# ADR-041: Exit Code Validation and Developer Safety Framework
+# Apply validation config checks
+log ""
+log "=========================================="
+log "ADR-041: Validation Safety Checks"
+log "=========================================="
+log "Validation Level: ${VALIDATION_LEVEL:-development}"
+log "Strict Mode: ${VALIDATION_STRICT_MODE:-false}"
+log "Fail on Stderr: ${VALIDATION_FAIL_ON_STDERR:-false}"
+log "Fail on Warnings: ${VALIDATION_FAIL_ON_WARNINGS:-false}"
+log "Detect Silent Failures: ${VALIDATION_DETECT_SILENT_FAILURES:-true}"
+
+# Check for stderr output (ADR-041: failOnStderr)
+if [ "${VALIDATION_FAIL_ON_STDERR}" = "true" ] && [ -f /workspace/execution.log ]; then
+    # Check if there's any stderr content (warnings, errors printed to stderr)
+    if grep -q "^\(WARNING\|Error\|ERROR\|Traceback\|DeprecationWarning\|FutureWarning\)" /workspace/execution.log; then
+        if [ "$STATUS" = "succeeded" ]; then
+            log "⚠️ ADR-041: Stderr output detected with failOnStderr=true"
+            STATUS="failed"
+            ERROR_MSG="Validation failed: stderr output detected (ADR-041 failOnStderr enabled)"
+            ERROR_CATEGORY="validation_stderr_failure"
+            EXIT_CODE=1
+        fi
+    fi
+fi
+
+# Check for Python warnings (ADR-041: failOnWarnings)
+if [ "${VALIDATION_FAIL_ON_WARNINGS}" = "true" ] && [ -f /workspace/execution.log ]; then
+    if grep -qE "(Warning|warning|WARN|UserWarning|DeprecationWarning|FutureWarning|RuntimeWarning)" /workspace/execution.log; then
+        if [ "$STATUS" = "succeeded" ]; then
+            log "⚠️ ADR-041: Python warnings detected with failOnWarnings=true"
+            STATUS="failed"
+            ERROR_MSG="Validation failed: Python warnings detected (ADR-041 failOnWarnings enabled)"
+            ERROR_CATEGORY="validation_warning_failure"
+            EXIT_CODE=1
+        fi
+    fi
+fi
+
+# Strict mode enforcement (ADR-041: strictMode)
+if [ "${VALIDATION_STRICT_MODE}" = "true" ]; then
+    log "🔒 ADR-041: Strict mode enabled - applying maximum validation rigor"
+    # In strict mode, any stderr or warning is a failure
+    if [ -f /workspace/execution.log ]; then
+        STDERR_LINES=$(grep -c "^\(WARNING\|Error\|Traceback\)" /workspace/execution.log 2>/dev/null || echo "0")
+        if [ "$STDERR_LINES" -gt 0 ] && [ "$STATUS" = "succeeded" ]; then
+            log "⚠️ ADR-041: Strict mode detected $STDERR_LINES stderr/warning lines"
+            STATUS="failed"
+            ERROR_MSG="Validation failed in strict mode: found $STDERR_LINES stderr/warning lines"
+            ERROR_CATEGORY="validation_strict_mode_failure"
+            EXIT_CODE=1
+        fi
+    fi
+fi
+
+log "✓ ADR-041 safety checks completed"
+
 # Parse notebook output for cell results
 log ""
 log "Parsing notebook results..."
@@ -414,6 +471,9 @@ exit $EXIT_CODE
 		containerImage = job.Spec.PodConfig.ContainerImage
 	}
 
+	// ADR-041: Build validation config environment variables
+	validationEnvVars := buildValidationConfigEnvVars(job.Spec.ValidationConfig)
+
 	container := corev1.Container{
 		Name:  "validator",
 		Image: containerImage,
@@ -436,7 +496,7 @@ exit $EXIT_CODE
 			},
 		},
 		Resources: convertResourceRequirements(job.Spec.PodConfig.Resources),
-		Env: append(convertEnvVars(job.Spec.PodConfig.Env),
+		Env: append(append(convertEnvVars(job.Spec.PodConfig.Env), validationEnvVars...),
 			corev1.EnvVar{
 				Name:  "HOME",
 				Value: "/workspace",
@@ -570,6 +630,61 @@ func convertEnvVars(customEnvVars []mlopsv1alpha1.EnvVar) []corev1.EnvVar {
 	}
 
 	return k8sEnvVars
+}
+
+// buildValidationConfigEnvVars builds environment variables from ValidationConfig
+// ADR-041: Exit Code Validation and Developer Safety Framework
+func buildValidationConfigEnvVars(config *mlopsv1alpha1.ValidationConfigSpec) []corev1.EnvVar {
+	envVars := []corev1.EnvVar{}
+
+	if config == nil {
+		// Default values when no config specified
+		envVars = append(envVars,
+			corev1.EnvVar{Name: "VALIDATION_LEVEL", Value: "development"},
+			corev1.EnvVar{Name: "VALIDATION_STRICT_MODE", Value: "false"},
+			corev1.EnvVar{Name: "VALIDATION_FAIL_ON_STDERR", Value: "false"},
+			corev1.EnvVar{Name: "VALIDATION_FAIL_ON_WARNINGS", Value: "false"},
+			corev1.EnvVar{Name: "VALIDATION_DETECT_SILENT_FAILURES", Value: "true"},
+		)
+		return envVars
+	}
+
+	// Validation level
+	level := config.Level
+	if level == "" {
+		level = "development"
+	}
+	envVars = append(envVars, corev1.EnvVar{Name: "VALIDATION_LEVEL", Value: level})
+
+	// Strict mode
+	strictMode := "false"
+	if config.StrictMode {
+		strictMode = "true"
+	}
+	envVars = append(envVars, corev1.EnvVar{Name: "VALIDATION_STRICT_MODE", Value: strictMode})
+
+	// Fail on stderr
+	failOnStderr := "false"
+	if config.FailOnStderr {
+		failOnStderr = "true"
+	}
+	envVars = append(envVars, corev1.EnvVar{Name: "VALIDATION_FAIL_ON_STDERR", Value: failOnStderr})
+
+	// Fail on warnings
+	failOnWarnings := "false"
+	if config.FailOnWarnings {
+		failOnWarnings = "true"
+	}
+	envVars = append(envVars, corev1.EnvVar{Name: "VALIDATION_FAIL_ON_WARNINGS", Value: failOnWarnings})
+
+	// Detect silent failures (default true)
+	detectSilentFailures := "true"
+	if config.DetectSilentFailures != nil && !*config.DetectSilentFailures {
+		detectSilentFailures = "false"
+	}
+	envVars = append(envVars, corev1.EnvVar{Name: "VALIDATION_DETECT_SILENT_FAILURES", Value: detectSilentFailures})
+
+	return envVars
 }
 
 // convertVolumes converts custom Volume slice to Kubernetes Volume slice

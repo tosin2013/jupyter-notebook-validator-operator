@@ -50,6 +50,11 @@ type NotebookValidationJobSpec struct {
 	// ModelValidation specifies optional model-aware validation configuration
 	// +optional
 	ModelValidation *ModelValidationSpec `json:"modelValidation,omitempty"`
+
+	// ValidationConfig specifies exit code validation and developer safety configuration
+	// ADR-041: Exit Code Validation and Developer Safety Framework
+	// +optional
+	ValidationConfig *ValidationConfigSpec `json:"validationConfig,omitempty"`
 }
 
 // NotebookSpec defines the notebook source
@@ -447,6 +452,103 @@ type BuildConfigSpec struct {
 	// +kubebuilder:default="15m"
 	// +optional
 	Timeout string `json:"timeout,omitempty"`
+}
+
+// ValidationConfigSpec defines exit code validation and developer safety configuration
+// ADR-041: Exit Code Validation and Developer Safety Framework
+type ValidationConfigSpec struct {
+	// Level specifies the validation strictness level
+	// ADR-041: Controls which checks are enabled and whether they cause failures
+	// - learning: Warnings only, no failures. Extensive educational feedback.
+	// - development: Fail on obvious errors (None returns, NaN). Warn on missing assertions.
+	// - staging: Strict exit code enforcement. Require explicit error handling.
+	// - production: Maximum strictness. Require test coverage. Fail on warnings.
+	// +kubebuilder:validation:Enum=learning;development;staging;production
+	// +kubebuilder:default="development"
+	// +optional
+	Level string `json:"level,omitempty"`
+
+	// StrictMode enables all safety checks (equivalent to production level)
+	// ADR-041: When true, any detected issue causes validation failure
+	// +kubebuilder:default=false
+	// +optional
+	StrictMode bool `json:"strictMode,omitempty"`
+
+	// FailOnStderr causes validation to fail if stderr contains any output
+	// ADR-041: Useful for catching warnings and error messages that don't raise exceptions
+	// +kubebuilder:default=false
+	// +optional
+	FailOnStderr bool `json:"failOnStderr,omitempty"`
+
+	// FailOnWarnings causes validation to fail even on Python warnings
+	// ADR-041: Only recommended for production level validation
+	// +kubebuilder:default=false
+	// +optional
+	FailOnWarnings bool `json:"failOnWarnings,omitempty"`
+
+	// DetectSilentFailures enables detection of None returns and NaN values
+	// ADR-041: Catches common silent failure patterns in data science notebooks
+	// +kubebuilder:default=true
+	// +optional
+	DetectSilentFailures *bool `json:"detectSilentFailures,omitempty"`
+
+	// RequireExplicitExitCodes requires cells to explicitly set exit codes
+	// ADR-041: Advanced feature for production validation
+	// +kubebuilder:default=false
+	// +optional
+	RequireExplicitExitCodes bool `json:"requireExplicitExitCodes,omitempty"`
+
+	// CheckOutputTypes verifies that cell outputs match expected types
+	// ADR-041: Enables post-execution type validation
+	// +kubebuilder:default=false
+	// +optional
+	CheckOutputTypes bool `json:"checkOutputTypes,omitempty"`
+
+	// VerifyAssertions ensures assertion statements are present in code cells
+	// ADR-041: Encourages defensive programming practices
+	// +kubebuilder:default=false
+	// +optional
+	VerifyAssertions bool `json:"verifyAssertions,omitempty"`
+
+	// ExpectedOutputs specifies expected output types and values for specific cells
+	// ADR-041: Enables post-execution validation of cell outputs
+	// +optional
+	ExpectedOutputs []ExpectedOutputSpec `json:"expectedOutputs,omitempty"`
+}
+
+// ExpectedOutputSpec defines expected output for a specific cell
+// ADR-041: Used for post-execution validation
+type ExpectedOutputSpec struct {
+	// Cell is the zero-based index of the cell to validate
+	// +kubebuilder:validation:Minimum=0
+	Cell int `json:"cell"`
+
+	// Type is the expected Python type name (e.g., "pandas.DataFrame", "float", "list")
+	// +optional
+	Type string `json:"type,omitempty"`
+
+	// Shape specifies expected shape for array-like outputs as a string
+	// Format: "rows,cols" where -1 means any dimension
+	// Example: "-1,10" means any number of rows, exactly 10 columns
+	// +optional
+	Shape string `json:"shape,omitempty"`
+
+	// MinValue specifies the minimum expected numeric value for scalar outputs
+	// Stored as string to avoid float serialization issues across languages
+	// +kubebuilder:validation:Pattern=`^-?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?$`
+	// +optional
+	MinValue string `json:"minValue,omitempty"`
+
+	// MaxValue specifies the maximum expected numeric value for scalar outputs
+	// Stored as string to avoid float serialization issues across languages
+	// +kubebuilder:validation:Pattern=`^-?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?$`
+	// +optional
+	MaxValue string `json:"maxValue,omitempty"`
+
+	// NotEmpty ensures the output is not empty (for DataFrames, lists, etc.)
+	// +kubebuilder:default=false
+	// +optional
+	NotEmpty bool `json:"notEmpty,omitempty"`
 }
 
 // ComparisonConfigSpec defines advanced comparison configuration
