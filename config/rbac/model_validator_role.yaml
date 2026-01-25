@@ -1,0 +1,242 @@
+---
+# RBAC Templates for Model-Aware Validation Multi-User Support
+# These templates provide namespace-scoped and cross-namespace access patterns
+# for model validation in multi-user/multi-environment deployments.
+
+# =============================================================================
+# Option 1: Namespace-Scoped Role (DEFAULT - Most Secure)
+# =============================================================================
+# Use this when validation pods only need to access models in their own namespace.
+# This is the recommended configuration for multi-tenant environments.
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: model-validator-namespace-scoped
+  namespace: mlops  # Replace with your namespace
+  labels:
+    app.kubernetes.io/name: jupyter-notebook-validator-operator
+    app.kubernetes.io/component: model-validation
+    app.kubernetes.io/part-of: jupyter-notebook-validator
+rules:
+  # KServe InferenceService access (read-only)
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices/status"]
+    verbs: ["get"]
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["servingruntimes"]
+    verbs: ["get", "list", "watch"]
+
+  # Ray Serve access (read-only)
+  - apiGroups: ["ray.io"]
+    resources: ["rayservices", "rayclusters"]
+    verbs: ["get", "list", "watch"]
+
+  # Seldon Core access (read-only)
+  - apiGroups: ["machinelearning.seldon.io"]
+    resources: ["seldondeployments"]
+    verbs: ["get", "list", "watch"]
+
+  # BentoML access (read-only)
+  - apiGroups: ["serving.yatai.ai"]
+    resources: ["bentos", "bentodeployments"]
+    verbs: ["get", "list", "watch"]
+
+  # Standard deployments (for vLLM, TorchServe, TensorFlow Serving, Triton)
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/status"]
+    verbs: ["get"]
+
+  # Services for endpoint discovery
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch"]
+
+  # Pods for health checking
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/status"]
+    verbs: ["get"]
+
+---
+# RoleBinding for namespace-scoped access
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: model-validator-namespace-scoped
+  namespace: mlops  # Replace with your namespace
+  labels:
+    app.kubernetes.io/name: jupyter-notebook-validator-operator
+    app.kubernetes.io/component: model-validation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: model-validator-namespace-scoped
+subjects:
+  # Bind to the ServiceAccount used by validation pods
+  - kind: ServiceAccount
+    name: model-validator-sa  # Or your custom ServiceAccount
+    namespace: mlops  # Replace with your namespace
+
+---
+# =============================================================================
+# Option 2: Cross-Namespace ClusterRole (For Platform Teams)
+# =============================================================================
+# Use this when validation pods need to access models across multiple namespaces.
+# This requires cluster-admin to install and should be used carefully.
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: model-validator-cross-namespace
+  labels:
+    app.kubernetes.io/name: jupyter-notebook-validator-operator
+    app.kubernetes.io/component: model-validation
+    app.kubernetes.io/part-of: jupyter-notebook-validator
+rules:
+  # KServe InferenceService access (read-only, cluster-wide)
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices/status"]
+    verbs: ["get"]
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["servingruntimes"]
+    verbs: ["get", "list", "watch"]
+
+  # Ray Serve access (read-only, cluster-wide)
+  - apiGroups: ["ray.io"]
+    resources: ["rayservices", "rayclusters"]
+    verbs: ["get", "list", "watch"]
+
+  # Seldon Core access (read-only, cluster-wide)
+  - apiGroups: ["machinelearning.seldon.io"]
+    resources: ["seldondeployments"]
+    verbs: ["get", "list", "watch"]
+
+  # BentoML access (read-only, cluster-wide)
+  - apiGroups: ["serving.yatai.ai"]
+    resources: ["bentos", "bentodeployments"]
+    verbs: ["get", "list", "watch"]
+
+  # Standard deployments (for vLLM, TorchServe, TensorFlow Serving, Triton)
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/status"]
+    verbs: ["get"]
+
+  # Services for endpoint discovery
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch"]
+
+  # Pods for health checking
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/status"]
+    verbs: ["get"]
+
+---
+# =============================================================================
+# Option 3: Limited Cross-Namespace Access (Recommended for Shared Models)
+# =============================================================================
+# Use this pattern when you have shared model namespaces that multiple teams access.
+# Create RoleBindings in the target namespace to grant access.
+
+# Example: Allow team-a to access models in shared-models namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: team-a-model-access
+  namespace: shared-models  # The namespace containing shared models
+  labels:
+    app.kubernetes.io/name: jupyter-notebook-validator-operator
+    app.kubernetes.io/component: model-validation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: model-validator-cross-namespace  # Use the ClusterRole but bind in specific namespace
+subjects:
+  - kind: ServiceAccount
+    name: model-validator-sa
+    namespace: team-a  # The team's namespace
+
+---
+# =============================================================================
+# ServiceAccount Template
+# =============================================================================
+# ServiceAccount for model validation pods
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: model-validator-sa
+  namespace: mlops  # Replace with your namespace
+  labels:
+    app.kubernetes.io/name: jupyter-notebook-validator-operator
+    app.kubernetes.io/component: model-validation
+    app.kubernetes.io/part-of: jupyter-notebook-validator
+automountServiceAccountToken: true
+
+---
+# =============================================================================
+# OpenShift-Specific: SCC (Security Context Constraints)
+# =============================================================================
+# On OpenShift, you may need to associate the ServiceAccount with an appropriate SCC
+
+# Option A: Use existing restricted-v2 SCC (recommended)
+# The restricted-v2 SCC is the default and should work for most cases.
+# No additional configuration needed.
+
+# Option B: Allow specific capabilities if needed (advanced)
+# apiVersion: security.openshift.io/v1
+# kind: SecurityContextConstraints
+# metadata:
+#   name: model-validator-scc
+# allowHostDirVolumePlugin: false
+# allowHostIPC: false
+# allowHostNetwork: false
+# allowHostPID: false
+# allowHostPorts: false
+# allowPrivilegedContainer: false
+# allowedCapabilities: []
+# defaultAddCapabilities: []
+# fsGroup:
+#   type: MustRunAs
+# readOnlyRootFilesystem: false
+# requiredDropCapabilities:
+#   - ALL
+# runAsUser:
+#   type: MustRunAsNonRoot
+# seLinuxContext:
+#   type: MustRunAs
+# supplementalGroups:
+#   type: RunAsAny
+# volumes:
+#   - configMap
+#   - downwardAPI
+#   - emptyDir
+#   - persistentVolumeClaim
+#   - projected
+#   - secret
+# users:
+#   - system:serviceaccount:mlops:model-validator-sa
