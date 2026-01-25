@@ -8,11 +8,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
+// testLoggerKey is a custom type for context key to avoid staticcheck SA1029
+type testLoggerKey struct{}
+
 func TestResolveModelReference(t *testing.T) {
 	// Set up a logger for tests
 	logger := zap.New(zap.UseDevMode(true))
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, struct{}{}, logger)
+	ctx = context.WithValue(ctx, testLoggerKey{}, logger)
 
 	tests := []struct {
 		name              string
@@ -153,7 +156,7 @@ func TestResolveModelReference(t *testing.T) {
 func TestResolveModelReferences(t *testing.T) {
 	logger := zap.New(zap.UseDevMode(true))
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, struct{}{}, logger)
+	ctx = context.WithValue(ctx, testLoggerKey{}, logger)
 
 	resolver := NewDefaultModelResolver("mlops")
 
