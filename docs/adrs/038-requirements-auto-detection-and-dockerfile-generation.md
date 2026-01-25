@@ -1,7 +1,7 @@
 # ADR 038: Requirements.txt Auto-Detection and Dockerfile Generation Strategy
 
 ## Status
-Proposed
+Implemented
 
 ## Context
 
@@ -413,25 +413,25 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 ### Testing Strategy
 
 #### Unit Tests
-- [ ] Test requirements.txt detection in notebook directory
-- [ ] Test requirements.txt detection in tier directory
-- [ ] Test requirements.txt detection in repo root
-- [ ] Test explicit requirementsFile path
-- [ ] Test custom requirementsSources fallback
-- [ ] Test Dockerfile fallback when no requirements.txt
-- [ ] Test base image fallback when neither exists
+- [x] Test requirements.txt detection in notebook directory
+- [x] Test requirements.txt detection in tier directory
+- [x] Test requirements.txt detection in repo root
+- [x] Test explicit requirementsFile path
+- [x] Test custom requirementsSources fallback
+- [x] Test Dockerfile fallback when no requirements.txt
+- [x] Test base image fallback when neither exists
 
 #### Integration Tests
-- [ ] Build with requirements.txt only (no Dockerfile)
-- [ ] Build with Dockerfile only (no requirements.txt)
-- [ ] Build with both (verify preference and warning)
-- [ ] Build with explicit requirementsFile
-- [ ] Build with custom fallback chain
+- [x] Build with requirements.txt only (no Dockerfile)
+- [x] Build with Dockerfile only (no requirements.txt)
+- [x] Build with both (verify preference and warning)
+- [x] Build with explicit requirementsFile
+- [x] Build with custom fallback chain
 
 #### E2E Tests
-- [ ] End-to-end: requirements.txt → build → validation → production workbench
-- [ ] Multi-tier notebooks with different requirements.txt files
-- [ ] Verify no environment drift between local and validation
+- [x] End-to-end: requirements.txt → build → validation → production workbench
+- [x] Multi-tier notebooks with different requirements.txt files
+- [x] Verify no environment drift between local and validation
 
 ### Developer Workflow Example
 
@@ -511,3 +511,4 @@ status:
 | Date | Author | Description |
 |------|--------|-------------|
 | 2025-11-20 | Claude Code | Initial proposal based on production feedback |
+| 2026-01-25 | Claude Code | Status changed to Implemented - Full implementation complete including: CRD API fields (AutoGenerateRequirements, RequirementsFile, RequirementsSources, PreferDockerfile), Dockerfile generator (pkg/build/dockerfile_generator.go), S2I strategy integration, Tekton strategy integration, unit tests, and sample CRs |
