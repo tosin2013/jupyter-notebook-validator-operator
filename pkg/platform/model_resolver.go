@@ -85,6 +85,11 @@ func (r *ModelResolver) ResolveModelReference(ctx context.Context, modelRef stri
 			return nil, fmt.Errorf("invalid model reference format: %q (expected 'namespace/model' or 'model')", modelRef)
 		}
 
+		// Validate that the model name doesn't contain additional slashes (e.g., ns//model or ns/sub/model)
+		if strings.Contains(parts[1], "/") || strings.HasPrefix(parts[1], "/") {
+			return nil, fmt.Errorf("invalid model reference format: %q (model name cannot contain slashes)", modelRef)
+		}
+
 		ref.Namespace = parts[0]
 		ref.Name = parts[1]
 
