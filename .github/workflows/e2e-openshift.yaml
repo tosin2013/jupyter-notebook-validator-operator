@@ -25,6 +25,7 @@ on:
           - '2'
           - '3'
           - '4'
+          - '5'
           - 'all'
 
 # Concurrency control: Only one E2E test run per branch at a time
@@ -924,10 +925,12 @@ jobs:
 
           echo "✅ All E2E tests passed!"
           echo ""
-          echo "Complete end-to-end workflow validated on OpenShift 4.18 cluster:"
+          echo "Complete end-to-end workflow validated on OpenShift cluster:"
           echo "  - Tier 1: Simple notebooks (< 30s)"
           echo "  - Tier 2: Intermediate notebooks with Tekton builds (1-5 min)"
           echo "  - Tier 3: Complex integration tests with credentials (5-30 min)"
+          echo "  - Tier 4: S2I/BuildConfig validation (5-15 min)"
+          echo "  - Tier 5: Volume/PVC support - ADR-045 (10-20 min)"
           echo ""
           echo "Note: KServe tests require manual infrastructure setup"
 

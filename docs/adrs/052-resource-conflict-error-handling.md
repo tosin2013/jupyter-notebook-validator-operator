@@ -1,8 +1,10 @@
-# ADR-042: Resource Conflict Error Handling in Reconciliation Loop
+# ADR-052: Resource Conflict Error Handling in Reconciliation Loop
 
-**Status**: Accepted
+**Status**: Implemented
 **Date**: 2025-11-24
+**Updated**: 2026-01-24
 **Related**: ADR-011 (Error Handling and Retry Strategy), ADR-037 (Build-Validation Sequencing)
+**Supersedes**: Previously numbered as ADR-042 (renumbered to resolve duplicate)
 
 ## Context
 
@@ -136,8 +138,8 @@ func classifyError(err error) string {
 - [x] Update `classifyError()` to check `errors.IsConflict()`
 - [x] Add unit tests for conflict error classification
 - [x] Verify existing tests still pass
-- [x] Document decision in ADR-042
-- [ ] Run E2E tests to verify Tier 2/3 now pass
+- [x] Document decision in ADR-052
+- [x] Run E2E tests to verify Tier 2/3 now pass
 - [ ] Monitor conflict rate in production (metrics)
 - [ ] Update troubleshooting guide with conflict information
 

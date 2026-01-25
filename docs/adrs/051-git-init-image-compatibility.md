@@ -1,7 +1,11 @@
-# ADR-042: Git Init Container Image Compatibility
+# ADR-051: Git Init Container Image Compatibility
 
 ## Status
-Accepted
+Implemented
+
+**Date**: 2025-11-21
+**Updated**: 2026-01-24
+**Supersedes**: Previously numbered as ADR-042 (renumbered to resolve duplicate)
 
 ## Context
 The operator uses a git-clone init container to fetch notebooks from Git repositories before validation. The choice of git init image affects compatibility with OpenShift's security context constraints and different execution modes.
@@ -127,6 +131,3 @@ Note: Tekton git-init binary images would require updating the git clone logic t
 - [Alpine Git image](https://hub.docker.com/r/alpine/git)
 - [OpenShift Pipelines Tasks](https://github.com/tektoncd/catalog)
 - Issue discovered during tier1 E2E test execution on OpenShift 4.18
-
-## Date
-2025-11-21

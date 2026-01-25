@@ -1,9 +1,10 @@
-# ADR-042: Fix S2I Build Status Monitoring
+# ADR-050: Fix S2I Build Status Monitoring
 
 **Date**: 2025-11-24
-**Status**: Proposed
+**Status**: Implemented
 **Deciders**: Development Team
 **Technical Story**: Fix bug where S2I builds stuck in "Building" phase even when failed
+**Supersedes**: Previously numbered as ADR-042 (renumbered to resolve duplicate)
 
 ## Context and Problem Statement
 
