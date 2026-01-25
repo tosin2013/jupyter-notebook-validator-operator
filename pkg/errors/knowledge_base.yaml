@@ -1,0 +1,262 @@
+# ADR-030: Smart Error Messages - Error Knowledge Base
+# This file contains error patterns, categories, and remediation guidance
+# Used by the SmartError system for intelligent error analysis
+
+version: "1.0.0"
+last_updated: "2026-01-25"
+
+# Error Categories
+categories:
+  - name: RBAC
+    description: Permission and RBAC-related errors
+    severity: Critical
+    
+  - name: Resource
+    description: Resource lifecycle errors (not found, already exists)
+    severity: Error
+    
+  - name: Configuration
+    description: Configuration and validation errors
+    severity: Error
+    
+  - name: Platform
+    description: Platform availability and compatibility errors
+    severity: Critical
+    
+  - name: Dependency
+    description: Missing prerequisite or dependency errors
+    severity: Error
+    
+  - name: Tekton
+    description: Tekton pipeline and task errors
+    severity: Error
+    
+  - name: Build
+    description: Container image build errors
+    severity: Error
+    
+  - name: Network
+    description: Network connectivity errors
+    severity: Warning
+    
+  - name: Authentication
+    description: Authentication and credential errors
+    severity: Critical
+
+# Error Patterns and Remediation
+errors:
+  # RBAC Errors
+  - code: RBAC_TASKS_FORBIDDEN
+    pattern: "forbidden.*tasks|tasks.*forbidden"
+    category: RBAC
+    message: "Permission denied: Cannot access Tekton Tasks"
+    root_cause: "ClusterRole missing 'tasks' resource permission for tekton.dev API group"
+    impact: "Tekton builds cannot run. Operator cannot copy Tasks to user namespace."
+    actions:
+      - "Add 'tasks' to ClusterRole resources in config/rbac/role.yaml"
+      - "Apply updated RBAC: kubectl apply -f config/rbac/role.yaml"
+      - "Or patch directly: kubectl patch clusterrole <role-name> --type='json' -p='[{\"op\": \"add\", \"path\": \"/rules/-\", \"value\": {\"apiGroups\": [\"tekton.dev\"], \"resources\": [\"tasks\"], \"verbs\": [\"create\", \"delete\", \"get\", \"list\", \"patch\", \"update\", \"watch\"]}}]'"
+    references:
+      - "ADR-028: Tekton Task Strategy"
+      - "config/rbac/role.yaml"
+    retryable: false
+
+  - code: RBAC_PIPELINES_FORBIDDEN
+    pattern: "forbidden.*pipeline|pipeline.*forbidden"
+    category: RBAC
+    message: "Permission denied: Cannot access Tekton Pipelines"
+    root_cause: "ClusterRole missing 'pipelines' or 'pipelineruns' resource permission"
+    impact: "Tekton builds cannot be created or monitored."
+    actions:
+      - "Verify ClusterRole has permissions for pipelines and pipelineruns resources"
+      - "Check ServiceAccount binding to ClusterRole"
+    references:
+      - "ADR-028: Tekton Task Strategy"
+    retryable: false
+
+  # Resource Errors
+  - code: TASK_NOT_FOUND
+    pattern: "task.*not found|not found.*task"
+    category: Resource
+    message: "Tekton Task not found in namespace"
+    root_cause: "Task not copied to target namespace. May need operator RBAC fix."
+    impact: "Pipeline cannot start without required Tasks."
+    actions:
+      - "Check operator logs for RBAC errors"
+      - "Verify Task exists: kubectl get task -n <namespace>"
+      - "Manual copy: kubectl get task <name> -n openshift-pipelines -o yaml | kubectl apply -n <namespace> -f -"
+    references:
+      - "ADR-028: Tekton Task Strategy"
+    retryable: true
+
+  - code: CLUSTERTASK_DEPRECATED
+    pattern: "clustertask.*not found|clustertasks.tekton.dev"
+    category: Resource
+    message: "ClusterTask reference deprecated"
+    root_cause: "Pipeline uses ClusterTask reference which is deprecated in Tekton v1"
+    impact: "Pipeline cannot run with ClusterTask references."
+    actions:
+      - "Delete Pipeline to recreate with Task references"
+      - "Command: kubectl delete pipeline <name> -n <namespace>"
+      - "Update operator to latest version"
+    references:
+      - "ADR-028: Tekton Task Strategy"
+      - "Tekton deprecation notice for ClusterTasks"
+    retryable: false
+
+  # Tekton Errors
+  - code: TEKTON_PARAM_MISMATCH
+    pattern: "missing values for these params|param.*not provided"
+    category: Tekton
+    message: "Pipeline parameter mismatch"
+    root_cause: "Pipeline parameters don't match Task parameters. OpenShift Pipelines uses UPPERCASE names."
+    impact: "Pipeline cannot execute without correct parameters."
+    actions:
+      - "Check parameter names (OpenShift uses UPPERCASE: URL, REVISION)"
+      - "Delete and recreate Pipeline"
+      - "Verify Task parameter definitions"
+    references:
+      - "ADR-028: Tekton Task Strategy"
+      - "OpenShift Pipelines documentation"
+    retryable: false
+
+  - code: TEKTON_PIPELINE_INVALID
+    pattern: "pipeline.*can't be run|cannot be run"
+    category: Tekton
+    message: "Pipeline configuration invalid"
+    root_cause: "Pipeline has structural or reference issues"
+    impact: "Build cannot proceed."
+    actions:
+      - "Check PipelineRun conditions for details"
+      - "Delete and recreate Pipeline"
+      - "Verify all referenced Tasks exist"
+    references:
+      - "ADR-028: Tekton Task Strategy"
+    retryable: false
+
+  # Authentication Errors
+  - code: GIT_AUTH_FAILED
+    pattern: "authentication failed|could not read.*repository|permission denied.*git"
+    category: Authentication
+    message: "Git authentication failed"
+    root_cause: "Git credentials missing, invalid, or insufficient permissions"
+    impact: "Cannot clone repository for validation."
+    actions:
+      - "Verify git-credentials secret exists"
+      - "Check token has 'Contents' read permission (GitHub)"
+      - "Add tekton.dev/git-0 annotation for OpenShift Tekton"
+      - "Regenerate token if expired (max 1 year for fine-grained tokens)"
+    references:
+      - "ADR-042: Automatic Tekton Git Credentials Conversion"
+      - "config/samples/mlops_v1alpha1_notebookvalidationjob_tekton.yaml"
+    retryable: false
+
+  - code: GIT_REPO_NOT_FOUND
+    pattern: "repository not found|remote.*not found"
+    category: Authentication
+    message: "Git repository not found"
+    root_cause: "Repository URL incorrect, private without credentials, or deleted"
+    impact: "Cannot access repository."
+    actions:
+      - "Verify repository URL is correct"
+      - "Check if repository is private (needs credentials)"
+      - "Ensure repository exists and is accessible"
+    references:
+      - "config/samples/"
+    retryable: false
+
+  # Build Errors
+  - code: BUILD_IMAGE_PULL_FAILED
+    pattern: "imagepullbackoff|errimagepull|pull.*failed"
+    category: Build
+    message: "Container image pull failed"
+    root_cause: "Image not found, registry unavailable, or credentials missing"
+    impact: "Cannot run validation with specified image."
+    actions:
+      - "Verify image exists in registry"
+      - "Check registry credentials if private"
+      - "Check for rate limiting (DockerHub)"
+      - "Use pre-built fallback image"
+    references:
+      - "ADR-031: Tekton Build Dockerfile vs Base Image"
+    retryable: true
+
+  - code: BUILD_OOM_KILLED
+    pattern: "oomkilled|out of memory"
+    category: Build
+    message: "Container killed due to memory limit"
+    root_cause: "Container exceeded memory limits"
+    impact: "Build or validation cannot complete."
+    actions:
+      - "Increase memory limits in podConfig.resources"
+      - "Optimize notebook memory usage"
+      - "Use streaming processing for large datasets"
+    references:
+      - "API documentation for resource configuration"
+    retryable: true
+
+  # SCC/Security Errors
+  - code: SCC_VIOLATION
+    pattern: "security context|scc|runasnonroot"
+    category: Platform
+    message: "OpenShift Security Context Constraint violation"
+    root_cause: "Container security settings conflict with cluster SCC policy"
+    impact: "Container cannot run under restricted SCC."
+    actions:
+      - "Use Tekton build strategy (designed for OpenShift SCC)"
+      - "Verify base image is OpenShift compatible"
+      - "Check ServiceAccount SCC bindings"
+    references:
+      - "ADR-039: Automatic SCC Management"
+      - "OpenShift SCC documentation"
+    retryable: false
+
+  # Network Errors
+  - code: NETWORK_TIMEOUT
+    pattern: "timeout|connection refused|unreachable"
+    category: Network
+    message: "Network connectivity issue"
+    root_cause: "Cannot reach required service or endpoint"
+    impact: "Operation cannot complete due to network issues."
+    actions:
+      - "Check network connectivity"
+      - "Verify service endpoints"
+      - "Check NetworkPolicy rules"
+      - "Retry after transient issue resolves"
+    references: []
+    retryable: true
+
+# Condition Types for Status Reporting (ADR-030 Phase 4)
+condition_types:
+  - type: BuildReady
+    description: "Build phase completed successfully"
+    true_reason: BuildComplete
+    false_reasons:
+      - BuildFailed
+      - BuildTimeout
+      - RBACPermissionDenied
+      - TaskNotFound
+      - ParameterMismatch
+
+  - type: ValidationReady
+    description: "Validation phase ready to run or completed"
+    true_reason: ValidationComplete
+    false_reasons:
+      - ValidationFailed
+      - ValidationTimeout
+      - WaitingForBuild
+      - PodCreationFailed
+
+  - type: Progressing
+    description: "Operation is in progress"
+    true_reason: InProgress
+    false_reasons:
+      - Stalled
+      - WaitingForDependency
+
+  - type: Available
+    description: "Job has completed successfully"
+    true_reason: Succeeded
+    false_reasons:
+      - Failed
+      - Unknown
