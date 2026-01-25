@@ -641,10 +641,10 @@ func buildValidationConfigEnvVars(config *mlopsv1alpha1.ValidationConfigSpec) []
 		// Default values when no config specified
 		envVars = append(envVars,
 			corev1.EnvVar{Name: "VALIDATION_LEVEL", Value: "development"},
-			corev1.EnvVar{Name: "VALIDATION_STRICT_MODE", Value: "false"},
-			corev1.EnvVar{Name: "VALIDATION_FAIL_ON_STDERR", Value: "false"},
-			corev1.EnvVar{Name: "VALIDATION_FAIL_ON_WARNINGS", Value: "false"},
-			corev1.EnvVar{Name: "VALIDATION_DETECT_SILENT_FAILURES", Value: "true"},
+			corev1.EnvVar{Name: "VALIDATION_STRICT_MODE", Value: boolFalse},
+			corev1.EnvVar{Name: "VALIDATION_FAIL_ON_STDERR", Value: boolFalse},
+			corev1.EnvVar{Name: "VALIDATION_FAIL_ON_WARNINGS", Value: boolFalse},
+			corev1.EnvVar{Name: "VALIDATION_DETECT_SILENT_FAILURES", Value: boolTrue},
 		)
 		return envVars
 	}
@@ -657,30 +657,30 @@ func buildValidationConfigEnvVars(config *mlopsv1alpha1.ValidationConfigSpec) []
 	envVars = append(envVars, corev1.EnvVar{Name: "VALIDATION_LEVEL", Value: level})
 
 	// Strict mode
-	strictMode := "false"
+	strictMode := boolFalse
 	if config.StrictMode {
-		strictMode = "true"
+		strictMode = boolTrue
 	}
 	envVars = append(envVars, corev1.EnvVar{Name: "VALIDATION_STRICT_MODE", Value: strictMode})
 
 	// Fail on stderr
-	failOnStderr := "false"
+	failOnStderr := boolFalse
 	if config.FailOnStderr {
-		failOnStderr = "true"
+		failOnStderr = boolTrue
 	}
 	envVars = append(envVars, corev1.EnvVar{Name: "VALIDATION_FAIL_ON_STDERR", Value: failOnStderr})
 
 	// Fail on warnings
-	failOnWarnings := "false"
+	failOnWarnings := boolFalse
 	if config.FailOnWarnings {
-		failOnWarnings = "true"
+		failOnWarnings = boolTrue
 	}
 	envVars = append(envVars, corev1.EnvVar{Name: "VALIDATION_FAIL_ON_WARNINGS", Value: failOnWarnings})
 
 	// Detect silent failures (default true)
-	detectSilentFailures := "true"
+	detectSilentFailures := boolTrue
 	if config.DetectSilentFailures != nil && !*config.DetectSilentFailures {
-		detectSilentFailures = "false"
+		detectSilentFailures = boolFalse
 	}
 	envVars = append(envVars, corev1.EnvVar{Name: "VALIDATION_DETECT_SILENT_FAILURES", Value: detectSilentFailures})
 

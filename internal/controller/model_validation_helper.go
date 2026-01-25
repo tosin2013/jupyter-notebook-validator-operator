@@ -297,7 +297,7 @@ func (r *NotebookValidationJobReconciler) buildModelValidationEnvVars(ctx contex
 	envVars := []corev1.EnvVar{
 		{
 			Name:  "MODEL_VALIDATION_ENABLED",
-			Value: "true",
+			Value: boolTrue,
 		},
 		{
 			Name:  "MODEL_VALIDATION_PLATFORM",
@@ -356,7 +356,7 @@ func (r *NotebookValidationJobReconciler) buildModelValidationEnvVars(ctx contex
 
 		envVars = append(envVars, corev1.EnvVar{
 			Name:  "MODEL_VALIDATION_PREDICTION_ENABLED",
-			Value: "true",
+			Value: boolTrue,
 		})
 
 		if job.Spec.ModelValidation.PredictionValidation.TestData != "" {

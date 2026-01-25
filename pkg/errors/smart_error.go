@@ -263,7 +263,10 @@ func analyzeRBACError(err error, errStr string) *SmartError {
 		smartErr.Actions = []string{
 			"Add 'tasks' to ClusterRole resources in config/rbac/role.yaml",
 			"Apply updated RBAC: kubectl apply -f config/rbac/role.yaml",
-			"Or patch directly: kubectl patch clusterrole <role-name> --type='json' -p='[{\"op\": \"add\", \"path\": \"/rules/-\", \"value\": {\"apiGroups\": [\"tekton.dev\"], \"resources\": [\"tasks\"], \"verbs\": [\"create\", \"delete\", \"get\", \"list\", \"patch\", \"update\", \"watch\"]}}]'",
+			"Or patch directly: kubectl patch clusterrole <role-name> --type='json' " +
+				"-p='[{\"op\": \"add\", \"path\": \"/rules/-\", \"value\": " +
+				"{\"apiGroups\": [\"tekton.dev\"], \"resources\": [\"tasks\"], " +
+				"\"verbs\": [\"create\", \"delete\", \"get\", \"list\", \"patch\", \"update\", \"watch\"]}}]'",
 		}
 		smartErr.References = []string{
 			"ADR-028: Tekton Task Strategy",
