@@ -329,10 +329,10 @@ func TestS2IStrategyGetLatestBuild(t *testing.T) {
 		expectedErrContain string
 	}{
 		{
-			name:            "No builds found returns error",
-			buildConfigName: "test-buildconfig",
-			builds:          []buildv1.Build{},
-			expectError:     true,
+			name:               "No builds found returns error",
+			buildConfigName:    "test-buildconfig",
+			builds:             []buildv1.Build{},
+			expectError:        true,
 			expectedErrContain: "no builds found",
 		},
 		{
