@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -30,7 +31,20 @@ import (
 	"github.com/tosin2013/jupyter-notebook-validator-operator/pkg/platform"
 )
 
-// performModelValidation performs platform detection and model validation
+// ModelValidationConfig contains configuration for model validation with multi-user support
+type ModelValidationConfig struct {
+	// JobNamespace is the namespace where the NotebookValidationJob is running
+	JobNamespace string
+	// AllowCrossNamespace enables cross-namespace model access
+	AllowCrossNamespace bool
+	// AllowedNamespaces is a list of namespaces that can be accessed for models
+	// Empty list means all namespaces (when AllowCrossNamespace is true)
+	AllowedNamespaces []string
+	// TimeoutSeconds is the timeout for model validation operations
+	TimeoutSeconds int
+}
+
+// performModelValidation performs platform detection and model validation with multi-user namespace isolation
 func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) error {
 	startTime := time.Now()
 	logger := log.FromContext(ctx)
@@ -44,7 +58,9 @@ func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Con
 	targetPlatform := job.Spec.ModelValidation.Platform
 	logger.Info("Performing model validation",
 		"platform", targetPlatform,
-		"phase", job.Spec.ModelValidation.Phase)
+		"phase", job.Spec.ModelValidation.Phase,
+		"jobNamespace", job.Namespace,
+		"targetModels", job.Spec.ModelValidation.TargetModels)
 
 	// Create discovery client for platform detection
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(r.RestConfig)
@@ -63,7 +79,8 @@ func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Con
 
 	if err != nil {
 		logger.Error(err, "Failed to detect model serving platform",
-			"platformHint", job.Spec.ModelValidation.Platform)
+			"platformHint", job.Spec.ModelValidation.Platform,
+			"namespace", job.Namespace)
 
 		// Record platform detection failure
 		recordPlatformDetection(job.Namespace, targetPlatform, false, detectionDuration)
@@ -75,7 +92,7 @@ func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Con
 			Platform:         job.Spec.ModelValidation.Platform,
 			PlatformDetected: false,
 			Success:          false,
-			Message:          fmt.Sprintf("Platform detection failed: %v", err),
+			Message:          fmt.Sprintf("Platform detection failed in namespace %s: %v", job.Namespace, err),
 		}
 
 		return fmt.Errorf("platform detection failed: %w", err)
@@ -87,7 +104,8 @@ func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Con
 	logger.Info("Platform detected successfully",
 		"platform", platformInfo.Platform,
 		"available", platformInfo.Available,
-		"detectedCRDs", platformInfo.CRDs)
+		"detectedCRDs", platformInfo.CRDs,
+		"namespace", job.Namespace)
 
 	// Update status with platform detection result
 	if job.Status.ModelValidationResult == nil {
@@ -100,8 +118,8 @@ func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Con
 
 	if !platformInfo.Available {
 		job.Status.ModelValidationResult.Success = false
-		job.Status.ModelValidationResult.Message = fmt.Sprintf("Platform %s not available in cluster", platformInfo.Platform)
-		logger.Info("Platform not available", "platform", platformInfo.Platform)
+		job.Status.ModelValidationResult.Message = fmt.Sprintf("Platform %s not available in cluster (checked from namespace %s)", platformInfo.Platform, job.Namespace)
+		logger.Info("Platform not available", "platform", platformInfo.Platform, "namespace", job.Namespace)
 
 		// Record model validation failure due to platform unavailability
 		recordModelValidationDuration(job.Namespace, targetPlatform, "platform_unavailable", time.Since(startTime).Seconds())
@@ -109,9 +127,22 @@ func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Con
 		return fmt.Errorf("platform %s not available", platformInfo.Platform)
 	}
 
+	// Perform namespace-aware model health checks if target models are specified
+	if len(job.Spec.ModelValidation.TargetModels) > 0 {
+		err = r.performNamespaceAwareModelHealthChecks(ctx, job, detector, platformInfo)
+		if err != nil {
+			logger.Error(err, "Model health checks failed",
+				"namespace", job.Namespace,
+				"targetModels", job.Spec.ModelValidation.TargetModels)
+			recordModelValidationDuration(job.Namespace, targetPlatform, "health_check_failed", time.Since(startTime).Seconds())
+			return err
+		}
+	}
+
 	logger.Info("Model validation platform ready",
 		"platform", platformInfo.Platform,
-		"phase", job.Spec.ModelValidation.Phase)
+		"phase", job.Spec.ModelValidation.Phase,
+		"namespace", job.Namespace)
 
 	// Record successful model validation setup
 	recordModelValidationDuration(job.Namespace, targetPlatform, "success", time.Since(startTime).Seconds())
@@ -119,7 +150,152 @@ func (r *NotebookValidationJobReconciler) performModelValidation(ctx context.Con
 	return nil
 }
 
-// buildModelValidationEnvVars builds environment variables for model validation
+// performNamespaceAwareModelHealthChecks performs health checks on target models with namespace isolation
+func (r *NotebookValidationJobReconciler) performNamespaceAwareModelHealthChecks(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob, detector *platform.Detector, platformInfo *platform.PlatformInfo) error {
+	logger := log.FromContext(ctx)
+
+	// Build validation config based on job settings
+	// By default, only allow same-namespace access
+	config := &ModelValidationConfig{
+		JobNamespace:        job.Namespace,
+		AllowCrossNamespace: false,
+		AllowedNamespaces:   []string{},
+		TimeoutSeconds:      300, // 5 minute default
+	}
+
+	// Parse timeout if specified
+	if job.Spec.ModelValidation.Timeout != "" {
+		if timeout, err := time.ParseDuration(job.Spec.ModelValidation.Timeout); err == nil {
+			config.TimeoutSeconds = int(timeout.Seconds())
+		}
+	}
+
+	// Create model resolver with namespace isolation
+	resolver := platform.NewDefaultModelResolver(job.Namespace)
+
+	// Resolve model references
+	modelRefs, err := resolver.ResolveModelReferences(ctx, job.Spec.ModelValidation.TargetModels, job.Namespace)
+	if err != nil {
+		logger.Error(err, "Failed to resolve model references",
+			"targetModels", job.Spec.ModelValidation.TargetModels,
+			"namespace", job.Namespace)
+
+		job.Status.ModelValidationResult.Success = false
+		job.Status.ModelValidationResult.Message = fmt.Sprintf("Failed to resolve model references in namespace %s: %v", job.Namespace, err)
+		return err
+	}
+
+	logger.Info("Resolved model references",
+		"count", len(modelRefs),
+		"namespace", job.Namespace)
+
+	// Group models by namespace for efficient checking
+	modelsByNamespace := platform.GroupByNamespace(modelRefs)
+
+	// Log which namespaces will be checked
+	namespaces := make([]string, 0, len(modelsByNamespace))
+	for ns := range modelsByNamespace {
+		namespaces = append(namespaces, ns)
+	}
+	sort.Strings(namespaces)
+	logger.V(1).Info("Models grouped by namespace",
+		"namespaces", namespaces,
+		"jobNamespace", job.Namespace)
+
+	// Check health of all models
+	healthConfig := &platform.ModelHealthCheckConfig{
+		Namespace:           job.Namespace,
+		AllowCrossNamespace: config.AllowCrossNamespace,
+		AllowedNamespaces:   config.AllowedNamespaces,
+		TimeoutSeconds:      config.TimeoutSeconds,
+	}
+
+	healthResults, err := detector.CheckMultipleModelsHealth(ctx, modelRefs, platformInfo.Platform, job.Namespace, healthConfig)
+	if err != nil {
+		logger.Error(err, "Model health checks failed",
+			"namespace", job.Namespace)
+
+		job.Status.ModelValidationResult.Success = false
+		job.Status.ModelValidationResult.Message = fmt.Sprintf("Model health checks failed in namespace %s: %v", job.Namespace, err)
+		return err
+	}
+
+	// Update status with detailed health check results
+	modelCheckResults := make([]mlopsv1alpha1.ModelCheckResult, 0, len(healthResults))
+	allHealthy := true
+	var unhealthyModels []string
+
+	for _, healthStatus := range healthResults {
+		modelResult := mlopsv1alpha1.ModelCheckResult{
+			ModelName: healthStatus.ModelName,
+			Available: healthStatus.Available,
+			Healthy:   healthStatus.Ready,
+			Version:   "", // Version detection not implemented yet
+			Message:   healthStatus.Message,
+		}
+
+		if healthStatus.Namespace != job.Namespace {
+			modelResult.Message = fmt.Sprintf("[namespace: %s] %s", healthStatus.Namespace, healthStatus.Message)
+		}
+
+		modelCheckResults = append(modelCheckResults, modelResult)
+
+		if !healthStatus.Ready {
+			allHealthy = false
+			unhealthyModels = append(unhealthyModels, fmt.Sprintf("%s/%s", healthStatus.Namespace, healthStatus.ModelName))
+		}
+	}
+
+	// Update existing environment check or create new one
+	if job.Status.ModelValidationResult.ExistingEnvironmentCheck == nil {
+		job.Status.ModelValidationResult.ExistingEnvironmentCheck = &mlopsv1alpha1.ExistingEnvironmentCheckResult{}
+	}
+
+	job.Status.ModelValidationResult.ExistingEnvironmentCheck.ModelsChecked = modelCheckResults
+	job.Status.ModelValidationResult.ExistingEnvironmentCheck.Success = allHealthy
+
+	if allHealthy {
+		job.Status.ModelValidationResult.ExistingEnvironmentCheck.Message = fmt.Sprintf("All %d model(s) are healthy in namespace %s", len(modelCheckResults), job.Namespace)
+		job.Status.ModelValidationResult.Success = true
+		job.Status.ModelValidationResult.Message = "Model validation successful"
+	} else {
+		job.Status.ModelValidationResult.ExistingEnvironmentCheck.Message = fmt.Sprintf("%d of %d model(s) are unhealthy: %v", len(unhealthyModels), len(modelCheckResults), unhealthyModels)
+		job.Status.ModelValidationResult.Success = false
+		job.Status.ModelValidationResult.Message = fmt.Sprintf("Model health check failed: unhealthy models: %v", unhealthyModels)
+	}
+
+	logger.Info("Model health checks completed",
+		"totalModels", len(modelCheckResults),
+		"healthyModels", len(modelCheckResults)-len(unhealthyModels),
+		"unhealthyModels", len(unhealthyModels),
+		"namespace", job.Namespace)
+
+	if !allHealthy {
+		return fmt.Errorf("some models are unhealthy: %v", unhealthyModels)
+	}
+
+	return nil
+}
+
+// getModelValidationConfigForJob extracts model validation config from a job
+func getModelValidationConfigForJob(job *mlopsv1alpha1.NotebookValidationJob) *ModelValidationConfig {
+	config := &ModelValidationConfig{
+		JobNamespace:        job.Namespace,
+		AllowCrossNamespace: false,
+		AllowedNamespaces:   []string{},
+		TimeoutSeconds:      300,
+	}
+
+	if job.Spec.ModelValidation != nil && job.Spec.ModelValidation.Timeout != "" {
+		if timeout, err := time.ParseDuration(job.Spec.ModelValidation.Timeout); err == nil {
+			config.TimeoutSeconds = int(timeout.Seconds())
+		}
+	}
+
+	return config
+}
+
+// buildModelValidationEnvVars builds environment variables for model validation with namespace context
 func (r *NotebookValidationJobReconciler) buildModelValidationEnvVars(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) []corev1.EnvVar {
 	logger := log.FromContext(ctx)
 
@@ -128,7 +304,8 @@ func (r *NotebookValidationJobReconciler) buildModelValidationEnvVars(ctx contex
 		return nil
 	}
 
-	logger.V(1).Info("Building model validation environment variables")
+	logger.V(1).Info("Building model validation environment variables",
+		"namespace", job.Namespace)
 
 	envVars := []corev1.EnvVar{
 		{
@@ -138,6 +315,11 @@ func (r *NotebookValidationJobReconciler) buildModelValidationEnvVars(ctx contex
 		{
 			Name:  "MODEL_VALIDATION_PLATFORM",
 			Value: job.Spec.ModelValidation.Platform,
+		},
+		// Add namespace context for multi-user isolation
+		{
+			Name:  "MODEL_VALIDATION_NAMESPACE",
+			Value: job.Namespace,
 		},
 	}
 
@@ -149,11 +331,34 @@ func (r *NotebookValidationJobReconciler) buildModelValidationEnvVars(ctx contex
 		})
 	}
 
-	// Add target models
+	// Add target models with namespace resolution
 	if len(job.Spec.ModelValidation.TargetModels) > 0 {
+		// Resolve and normalize model references
+		resolver := platform.NewDefaultModelResolver(job.Namespace)
+		resolvedRefs, _ := resolver.ResolveModelReferences(ctx, job.Spec.ModelValidation.TargetModels, job.Namespace)
+
+		// Build comma-separated list of resolved model references (namespace/model format)
+		resolvedModels := make([]string, 0, len(resolvedRefs))
+		for _, ref := range resolvedRefs {
+			resolvedModels = append(resolvedModels, ref.FormatModelReference())
+		}
+
 		envVars = append(envVars, corev1.EnvVar{
 			Name:  "MODEL_VALIDATION_TARGET_MODELS",
+			Value: strings.Join(resolvedModels, ","),
+		})
+
+		// Also provide the original model list for backward compatibility
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "MODEL_VALIDATION_TARGET_MODELS_ORIGINAL",
 			Value: strings.Join(job.Spec.ModelValidation.TargetModels, ","),
+		})
+
+		// Add unique namespaces being accessed
+		namespaces := platform.GetUniqueNamespaces(resolvedRefs)
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "MODEL_VALIDATION_TARGET_NAMESPACES",
+			Value: strings.Join(namespaces, ","),
 		})
 	}
 
@@ -228,7 +433,9 @@ func (r *NotebookValidationJobReconciler) buildModelValidationEnvVars(ctx contex
 		})
 	}
 
-	logger.Info("Built model validation environment variables", "count", len(envVars))
+	logger.Info("Built model validation environment variables",
+		"count", len(envVars),
+		"namespace", job.Namespace)
 	return envVars
 }
 
