@@ -1,0 +1,285 @@
+---
+# =============================================================================
+# Example: Cross-Namespace Model Validation
+# =============================================================================
+# This example demonstrates notebook validation against models in a shared
+# model serving namespace, which is a common pattern in enterprise environments
+# where a central ML platform team manages shared models.
+#
+# Architecture:
+#   team-a (validation runs here) → shared-models (models live here)
+#
+# Prerequisites:
+#   1. KServe installed in the cluster
+#   2. RBAC configured for cross-namespace access (see config/rbac/model_validator_role.yaml)
+#   3. InferenceServices deployed in the shared-models namespace
+
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: cross-namespace-model-validation
+  namespace: team-a  # Validation runs in team-a's namespace
+spec:
+  notebook:
+    path: cross-namespace-inference.ipynb
+    git:
+      url: https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git
+      ref: main
+  
+  podConfig:
+    containerImage: quay.io/jupyter/scipy-notebook:latest
+    # Use a ServiceAccount with cross-namespace permissions
+    serviceAccountName: model-validator-sa
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+  
+  # Model validation with cross-namespace references
+  modelValidation:
+    enabled: true
+    platform: kserve
+    phase: existing  # Validate against deployed models
+    
+    # Target models with explicit namespace prefixes
+    # Format: "namespace/model-name" for cross-namespace
+    # Format: "model-name" for same namespace
+    targetModels:
+      - shared-models/fraud-detection-model  # In shared-models namespace
+      - shared-models/risk-scoring-model     # In shared-models namespace
+      - team-a-internal-model                # In same namespace (team-a)
+    
+    # Optional: Prediction validation
+    predictionValidation:
+      enabled: true
+      testData: |
+        {
+          "instances": [
+            [1.0, 2.0, 3.0, 4.0, 5.0]
+          ]
+        }
+      expectedOutput: |
+        {
+          "predictions": [
+            [0.95, 0.05]
+          ]
+        }
+      tolerance: "0.01"
+    
+    timeout: "5m"
+  
+  timeout: "30m"
+
+---
+# =============================================================================
+# Example: Multi-Team Shared Model Access
+# =============================================================================
+# This example shows how multiple teams can validate against the same
+# shared model serving namespace.
+
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: team-b-model-validation
+  namespace: team-b  # Different team
+spec:
+  notebook:
+    path: team-b-inference.ipynb
+    git:
+      url: https://github.com/example/team-b-notebooks.git
+      ref: main
+  
+  podConfig:
+    containerImage: quay.io/jupyter/scipy-notebook:latest
+    serviceAccountName: model-validator-sa
+  
+  modelValidation:
+    enabled: true
+    platform: kserve
+    phase: existing
+    
+    # Same shared models, accessed from team-b namespace
+    targetModels:
+      - shared-models/fraud-detection-model
+      - shared-models/customer-segmentation-model
+    
+    timeout: "5m"
+  
+  timeout: "30m"
+
+---
+# =============================================================================
+# Example: Platform Team Cluster-Wide Validation
+# =============================================================================
+# This example shows how a platform team might validate models across
+# all namespaces for health monitoring.
+
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: platform-model-health-check
+  namespace: ml-platform-admin
+spec:
+  notebook:
+    path: platform-health-check.ipynb
+    git:
+      url: https://github.com/example/platform-notebooks.git
+      ref: main
+  
+  podConfig:
+    containerImage: quay.io/jupyter/scipy-notebook:latest
+    # Platform team uses a ServiceAccount with cluster-wide access
+    serviceAccountName: platform-model-validator-sa
+  
+  modelValidation:
+    enabled: true
+    platform: kserve
+    phase: both  # Check both platform availability and model health
+    
+    # Check models across multiple namespaces
+    targetModels:
+      - production/fraud-detection-v2
+      - production/risk-scoring-v3
+      - staging/fraud-detection-v3-beta
+      - shared-models/customer-segmentation-model
+    
+    timeout: "10m"
+  
+  timeout: "60m"
+
+---
+# =============================================================================
+# RBAC: Cross-Namespace Access for team-a
+# =============================================================================
+# Grant team-a's ServiceAccount permission to access models in shared-models
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: team-a-shared-models-access
+  namespace: shared-models  # The target namespace with models
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: model-validator-cross-namespace
+subjects:
+  - kind: ServiceAccount
+    name: model-validator-sa
+    namespace: team-a  # Allow team-a's SA to access shared-models
+
+---
+# =============================================================================
+# RBAC: Cross-Namespace Access for team-b
+# =============================================================================
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: team-b-shared-models-access
+  namespace: shared-models
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: model-validator-cross-namespace
+subjects:
+  - kind: ServiceAccount
+    name: model-validator-sa
+    namespace: team-b
+
+---
+# =============================================================================
+# ServiceAccount: team-a namespace
+# =============================================================================
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: model-validator-sa
+  namespace: team-a
+  labels:
+    app.kubernetes.io/name: jupyter-notebook-validator-operator
+    app.kubernetes.io/component: model-validation
+
+---
+# =============================================================================
+# ServiceAccount: team-b namespace
+# =============================================================================
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: model-validator-sa
+  namespace: team-b
+  labels:
+    app.kubernetes.io/name: jupyter-notebook-validator-operator
+    app.kubernetes.io/component: model-validation
+
+---
+# =============================================================================
+# Example InferenceServices in shared-models namespace
+# =============================================================================
+
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: fraud-detection-model
+  namespace: shared-models
+  labels:
+    app.kubernetes.io/name: fraud-detection
+    app.kubernetes.io/component: inference
+    shared: "true"
+spec:
+  predictor:
+    sklearn:
+      storageUri: "gs://kfserving-examples/models/sklearn/1.0/model"
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "256Mi"
+        limits:
+          cpu: "1"
+          memory: "1Gi"
+
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: risk-scoring-model
+  namespace: shared-models
+  labels:
+    app.kubernetes.io/name: risk-scoring
+    app.kubernetes.io/component: inference
+    shared: "true"
+spec:
+  predictor:
+    sklearn:
+      storageUri: "gs://kfserving-examples/models/sklearn/1.0/model"
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "256Mi"
+        limits:
+          cpu: "1"
+          memory: "1Gi"
+
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: customer-segmentation-model
+  namespace: shared-models
+  labels:
+    app.kubernetes.io/name: customer-segmentation
+    app.kubernetes.io/component: inference
+    shared: "true"
+spec:
+  predictor:
+    sklearn:
+      storageUri: "gs://kfserving-examples/models/sklearn/1.0/model"
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "256Mi"
