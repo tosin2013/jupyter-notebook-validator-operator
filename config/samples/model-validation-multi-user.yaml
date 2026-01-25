@@ -1,0 +1,254 @@
+---
+# =============================================================================
+# Example: Multi-User Model Validation (Same Namespace)
+# =============================================================================
+# This example demonstrates multiple users running model validation jobs
+# within the same namespace, each with their own isolated validation context.
+#
+# Use Case: Data science team where multiple users share a namespace but
+# run independent notebook validation against shared models.
+
+# User 1: Data Scientist validating fraud detection notebook
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: user1-fraud-detection-validation
+  namespace: ml-team
+  labels:
+    user: user1
+    team: ml-team
+    notebook-type: inference
+spec:
+  notebook:
+    path: notebooks/user1/fraud-detection-inference.ipynb
+    git:
+      url: https://github.com/example/ml-team-notebooks.git
+      ref: main
+      credentialsSecret: user1-git-credentials  # User-specific credentials
+  
+  podConfig:
+    containerImage: quay.io/jupyter/scipy-notebook:latest
+    serviceAccountName: model-validator-sa
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+    # User-specific environment variables
+    env:
+      - name: NOTEBOOK_USER
+        value: "user1"
+      - name: MLFLOW_TRACKING_URI
+        value: "http://mlflow.ml-team.svc:5000"
+  
+  modelValidation:
+    enabled: true
+    platform: kserve
+    phase: existing
+    
+    # Models in the same namespace
+    targetModels:
+      - fraud-detection-model
+    
+    predictionValidation:
+      enabled: true
+      testData: |
+        {"instances": [[1.0, 2.0, 3.0, 4.0, 5.0]]}
+      expectedOutput: |
+        {"predictions": [[0.95, 0.05]]}
+      tolerance: "0.01"
+    
+    timeout: "5m"
+  
+  timeout: "30m"
+
+---
+# User 2: ML Engineer validating model training pipeline
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: user2-model-training-validation
+  namespace: ml-team
+  labels:
+    user: user2
+    team: ml-team
+    notebook-type: training
+spec:
+  notebook:
+    path: notebooks/user2/model-training-pipeline.ipynb
+    git:
+      url: https://github.com/example/ml-team-notebooks.git
+      ref: feature/user2-training
+      credentialsSecret: user2-git-credentials
+  
+  podConfig:
+    containerImage: quay.io/jupyter/scipy-notebook:latest
+    serviceAccountName: model-validator-sa
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "1000m"
+        nvidia.com/gpu: "1"  # GPU for training
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+        nvidia.com/gpu: "1"
+    env:
+      - name: NOTEBOOK_USER
+        value: "user2"
+      - name: WANDB_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: user2-wandb-credentials
+            key: api-key
+  
+  modelValidation:
+    enabled: true
+    platform: kserve
+    phase: clean  # Check platform readiness before training
+    timeout: "2m"
+  
+  timeout: "60m"
+
+---
+# User 3: Data Engineer validating data preprocessing notebook
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: user3-preprocessing-validation
+  namespace: ml-team
+  labels:
+    user: user3
+    team: ml-team
+    notebook-type: preprocessing
+spec:
+  notebook:
+    path: notebooks/user3/data-preprocessing.ipynb
+    git:
+      url: https://github.com/example/ml-team-notebooks.git
+      ref: main
+      credentialsSecret: team-git-credentials  # Shared team credentials
+  
+  podConfig:
+    containerImage: quay.io/jupyter/scipy-notebook:latest
+    serviceAccountName: model-validator-sa
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+    env:
+      - name: NOTEBOOK_USER
+        value: "user3"
+    # Mount shared data
+    volumes:
+      - name: shared-data
+        persistentVolumeClaim:
+          claimName: ml-team-shared-data
+    volumeMounts:
+      - name: shared-data
+        mountPath: /data
+        readOnly: true
+  
+  # No model validation needed for preprocessing
+  # modelValidation not specified = disabled
+  
+  timeout: "15m"
+
+---
+# =============================================================================
+# Shared Resources for Multi-User Scenario
+# =============================================================================
+
+# ServiceAccount for all users in the namespace
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: model-validator-sa
+  namespace: ml-team
+  labels:
+    app.kubernetes.io/name: jupyter-notebook-validator-operator
+    app.kubernetes.io/component: model-validation
+
+---
+# Role for namespace-scoped model access
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: model-validator-role
+  namespace: ml-team
+rules:
+  # KServe InferenceService access
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices/status"]
+    verbs: ["get"]
+  
+  # Deployments for health checking
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
+  
+  # Services and endpoints
+  - apiGroups: [""]
+    resources: ["services", "endpoints", "pods"]
+    verbs: ["get", "list", "watch"]
+
+---
+# RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: model-validator-rolebinding
+  namespace: ml-team
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: model-validator-role
+subjects:
+  - kind: ServiceAccount
+    name: model-validator-sa
+    namespace: ml-team
+
+---
+# Shared model in the namespace
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: fraud-detection-model
+  namespace: ml-team
+  labels:
+    app.kubernetes.io/name: fraud-detection
+    shared: "true"
+spec:
+  predictor:
+    sklearn:
+      storageUri: "gs://kfserving-examples/models/sklearn/1.0/model"
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "256Mi"
+        limits:
+          cpu: "1"
+          memory: "1Gi"
+
+---
+# Shared data PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ml-team-shared-data
+  namespace: ml-team
+spec:
+  accessModes:
+    - ReadOnlyMany  # Multiple pods can read
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: standard  # Use your cluster's storage class
