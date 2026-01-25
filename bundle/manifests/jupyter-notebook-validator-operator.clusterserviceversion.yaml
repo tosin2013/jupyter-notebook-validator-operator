@@ -50,7 +50,7 @@ metadata:
     capabilities: Seamless Upgrades
     categories: AI/Machine Learning, Developer Tools, Integration & Delivery
     containerImage: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.4
-    createdAt: "2026-01-25T00:00:00Z"
+    createdAt: "2026-01-25T16:00:57Z"
     description: Kubernetes operator for validating Jupyter notebooks in MLOps workflows
     operators.operatorframework.io/builder: operator-sdk-v1.37.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
@@ -206,7 +206,17 @@ spec:
           verbs:
           - get
           - list
+          - patch
           - watch
+        - apiGroups:
+          - argoproj.io
+          resources:
+          - applications
+          verbs:
+          - get
+          - list
+          - patch
+          - update
         - apiGroups:
           - build.openshift.io
           resources:
@@ -293,6 +303,7 @@ spec:
           verbs:
           - get
           - list
+          - patch
           - watch
         - apiGroups:
           - serving.kserve.io
@@ -371,7 +382,7 @@ spec:
                 - name: PLATFORM
                   value: openshift
                 - name: GIT_INIT_IMAGE
-                image: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.9-ocp4.20
+                image: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.4
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
