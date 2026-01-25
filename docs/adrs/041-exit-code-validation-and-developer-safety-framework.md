@@ -1,7 +1,9 @@
 # ADR 041: Exit Code Validation and Developer Safety Framework
 
 ## Status
-Proposed
+Partially Implemented (2026-01-24)
+
+> **Note**: Basic exit code validation (Phase 1) is complete. Advanced features (validation levels, pre-execution linting, runtime instrumentation, educational feedback) are pending. See [GitHub Issue #11](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/11) for tracking.
 
 ## Context
 
