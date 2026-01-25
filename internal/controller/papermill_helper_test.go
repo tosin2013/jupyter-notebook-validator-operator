@@ -183,3 +183,392 @@ func TestBuildPapermillValidationContainerResources(t *testing.T) {
 		t.Errorf("Memory limit = %v, want 4Gi", memLimit)
 	}
 }
+
+// TestConvertVolumes tests the volume conversion function (ADR-045)
+func TestConvertVolumes(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []mlopsv1alpha1.Volume
+		expected int
+		checks   func(t *testing.T, volumes []corev1.Volume)
+	}{
+		{
+			name:     "nil input",
+			input:    nil,
+			expected: 0,
+			checks: func(t *testing.T, volumes []corev1.Volume) {
+				if volumes != nil {
+					t.Error("Expected nil output for nil input")
+				}
+			},
+		},
+		{
+			name:     "empty input",
+			input:    []mlopsv1alpha1.Volume{},
+			expected: 0,
+			checks:   nil,
+		},
+		{
+			name: "PVC volume",
+			input: []mlopsv1alpha1.Volume{
+				{
+					Name: "model-output",
+					PersistentVolumeClaim: &mlopsv1alpha1.PersistentVolumeClaimVolumeSource{
+						ClaimName: "trained-models-pvc",
+						ReadOnly:  false,
+					},
+				},
+			},
+			expected: 1,
+			checks: func(t *testing.T, volumes []corev1.Volume) {
+				if volumes[0].Name != "model-output" {
+					t.Errorf("Volume name = %s, want model-output", volumes[0].Name)
+				}
+				if volumes[0].PersistentVolumeClaim == nil {
+					t.Error("PVC volume source should not be nil")
+					return
+				}
+				if volumes[0].PersistentVolumeClaim.ClaimName != "trained-models-pvc" {
+					t.Errorf("ClaimName = %s, want trained-models-pvc", volumes[0].PersistentVolumeClaim.ClaimName)
+				}
+				if volumes[0].PersistentVolumeClaim.ReadOnly != false {
+					t.Error("ReadOnly should be false")
+				}
+			},
+		},
+		{
+			name: "PVC volume read-only",
+			input: []mlopsv1alpha1.Volume{
+				{
+					Name: "shared-data",
+					PersistentVolumeClaim: &mlopsv1alpha1.PersistentVolumeClaimVolumeSource{
+						ClaimName: "shared-datasets-pvc",
+						ReadOnly:  true,
+					},
+				},
+			},
+			expected: 1,
+			checks: func(t *testing.T, volumes []corev1.Volume) {
+				if !volumes[0].PersistentVolumeClaim.ReadOnly {
+					t.Error("ReadOnly should be true")
+				}
+			},
+		},
+		{
+			name: "ConfigMap volume",
+			input: []mlopsv1alpha1.Volume{
+				{
+					Name: "config",
+					ConfigMap: &mlopsv1alpha1.ConfigMapVolumeSource{
+						Name: "notebook-config",
+					},
+				},
+			},
+			expected: 1,
+			checks: func(t *testing.T, volumes []corev1.Volume) {
+				if volumes[0].ConfigMap == nil {
+					t.Error("ConfigMap volume source should not be nil")
+					return
+				}
+				if volumes[0].ConfigMap.Name != "notebook-config" {
+					t.Errorf("ConfigMap name = %s, want notebook-config", volumes[0].ConfigMap.Name)
+				}
+			},
+		},
+		{
+			name: "ConfigMap volume with items",
+			input: []mlopsv1alpha1.Volume{
+				{
+					Name: "config-items",
+					ConfigMap: &mlopsv1alpha1.ConfigMapVolumeSource{
+						Name: "my-config",
+						Items: []mlopsv1alpha1.KeyToPath{
+							{Key: "config.yaml", Path: "app-config.yaml"},
+						},
+					},
+				},
+			},
+			expected: 1,
+			checks: func(t *testing.T, volumes []corev1.Volume) {
+				if len(volumes[0].ConfigMap.Items) != 1 {
+					t.Errorf("ConfigMap items length = %d, want 1", len(volumes[0].ConfigMap.Items))
+					return
+				}
+				if volumes[0].ConfigMap.Items[0].Key != "config.yaml" {
+					t.Errorf("Item key = %s, want config.yaml", volumes[0].ConfigMap.Items[0].Key)
+				}
+				if volumes[0].ConfigMap.Items[0].Path != "app-config.yaml" {
+					t.Errorf("Item path = %s, want app-config.yaml", volumes[0].ConfigMap.Items[0].Path)
+				}
+			},
+		},
+		{
+			name: "Secret volume",
+			input: []mlopsv1alpha1.Volume{
+				{
+					Name: "creds",
+					Secret: &mlopsv1alpha1.SecretVolumeSource{
+						SecretName: "api-credentials",
+					},
+				},
+			},
+			expected: 1,
+			checks: func(t *testing.T, volumes []corev1.Volume) {
+				if volumes[0].Secret == nil {
+					t.Error("Secret volume source should not be nil")
+					return
+				}
+				if volumes[0].Secret.SecretName != "api-credentials" {
+					t.Errorf("SecretName = %s, want api-credentials", volumes[0].Secret.SecretName)
+				}
+			},
+		},
+		{
+			name: "EmptyDir volume",
+			input: []mlopsv1alpha1.Volume{
+				{
+					Name:     "scratch",
+					EmptyDir: &mlopsv1alpha1.EmptyDirVolumeSource{},
+				},
+			},
+			expected: 1,
+			checks: func(t *testing.T, volumes []corev1.Volume) {
+				if volumes[0].EmptyDir == nil {
+					t.Error("EmptyDir volume source should not be nil")
+				}
+			},
+		},
+		{
+			name: "EmptyDir volume with memory medium",
+			input: []mlopsv1alpha1.Volume{
+				{
+					Name: "ramdisk",
+					EmptyDir: &mlopsv1alpha1.EmptyDirVolumeSource{
+						Medium:    "Memory",
+						SizeLimit: "1Gi",
+					},
+				},
+			},
+			expected: 1,
+			checks: func(t *testing.T, volumes []corev1.Volume) {
+				if volumes[0].EmptyDir.Medium != corev1.StorageMediumMemory {
+					t.Errorf("Medium = %s, want Memory", volumes[0].EmptyDir.Medium)
+				}
+				if volumes[0].EmptyDir.SizeLimit == nil {
+					t.Error("SizeLimit should not be nil")
+					return
+				}
+				if volumes[0].EmptyDir.SizeLimit.Cmp(resource.MustParse("1Gi")) != 0 {
+					t.Errorf("SizeLimit = %v, want 1Gi", volumes[0].EmptyDir.SizeLimit)
+				}
+			},
+		},
+		{
+			name: "multiple volumes",
+			input: []mlopsv1alpha1.Volume{
+				{
+					Name: "data",
+					PersistentVolumeClaim: &mlopsv1alpha1.PersistentVolumeClaimVolumeSource{
+						ClaimName: "data-pvc",
+					},
+				},
+				{
+					Name: "config",
+					ConfigMap: &mlopsv1alpha1.ConfigMapVolumeSource{
+						Name: "app-config",
+					},
+				},
+				{
+					Name:     "temp",
+					EmptyDir: &mlopsv1alpha1.EmptyDirVolumeSource{},
+				},
+			},
+			expected: 3,
+			checks: func(t *testing.T, volumes []corev1.Volume) {
+				// Check first volume is PVC
+				if volumes[0].PersistentVolumeClaim == nil {
+					t.Error("First volume should be PVC")
+				}
+				// Check second volume is ConfigMap
+				if volumes[1].ConfigMap == nil {
+					t.Error("Second volume should be ConfigMap")
+				}
+				// Check third volume is EmptyDir
+				if volumes[2].EmptyDir == nil {
+					t.Error("Third volume should be EmptyDir")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := convertVolumes(tt.input)
+
+			if tt.input == nil {
+				if result != nil {
+					t.Error("Expected nil result for nil input")
+				}
+				if tt.checks != nil {
+					tt.checks(t, result)
+				}
+				return
+			}
+
+			if len(result) != tt.expected {
+				t.Errorf("convertVolumes() returned %d volumes, want %d", len(result), tt.expected)
+			}
+
+			if tt.checks != nil {
+				tt.checks(t, result)
+			}
+		})
+	}
+}
+
+// TestConvertVolumeMounts tests the volume mount conversion function (ADR-045)
+func TestConvertVolumeMounts(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []mlopsv1alpha1.VolumeMount
+		expected int
+		checks   func(t *testing.T, mounts []corev1.VolumeMount)
+	}{
+		{
+			name:     "nil input",
+			input:    nil,
+			expected: 0,
+			checks: func(t *testing.T, mounts []corev1.VolumeMount) {
+				if mounts != nil {
+					t.Error("Expected nil output for nil input")
+				}
+			},
+		},
+		{
+			name:     "empty input",
+			input:    []mlopsv1alpha1.VolumeMount{},
+			expected: 0,
+			checks:   nil,
+		},
+		{
+			name: "basic mount",
+			input: []mlopsv1alpha1.VolumeMount{
+				{
+					Name:      "model-output",
+					MountPath: "/models",
+				},
+			},
+			expected: 1,
+			checks: func(t *testing.T, mounts []corev1.VolumeMount) {
+				if mounts[0].Name != "model-output" {
+					t.Errorf("Name = %s, want model-output", mounts[0].Name)
+				}
+				if mounts[0].MountPath != "/models" {
+					t.Errorf("MountPath = %s, want /models", mounts[0].MountPath)
+				}
+				if mounts[0].ReadOnly != false {
+					t.Error("ReadOnly should default to false")
+				}
+			},
+		},
+		{
+			name: "read-only mount",
+			input: []mlopsv1alpha1.VolumeMount{
+				{
+					Name:      "shared-data",
+					MountPath: "/data",
+					ReadOnly:  true,
+				},
+			},
+			expected: 1,
+			checks: func(t *testing.T, mounts []corev1.VolumeMount) {
+				if !mounts[0].ReadOnly {
+					t.Error("ReadOnly should be true")
+				}
+			},
+		},
+		{
+			name: "mount with subpath",
+			input: []mlopsv1alpha1.VolumeMount{
+				{
+					Name:      "config",
+					MountPath: "/app/config.yaml",
+					SubPath:   "config.yaml",
+				},
+			},
+			expected: 1,
+			checks: func(t *testing.T, mounts []corev1.VolumeMount) {
+				if mounts[0].SubPath != "config.yaml" {
+					t.Errorf("SubPath = %s, want config.yaml", mounts[0].SubPath)
+				}
+			},
+		},
+		{
+			name: "multiple mounts",
+			input: []mlopsv1alpha1.VolumeMount{
+				{
+					Name:      "data",
+					MountPath: "/data",
+					ReadOnly:  true,
+				},
+				{
+					Name:      "models",
+					MountPath: "/models",
+					ReadOnly:  false,
+				},
+				{
+					Name:      "config",
+					MountPath: "/config",
+				},
+				{
+					Name:      "scratch",
+					MountPath: "/scratch",
+				},
+			},
+			expected: 4,
+			checks: func(t *testing.T, mounts []corev1.VolumeMount) {
+				// Check all mounts have correct paths
+				paths := map[string]string{
+					"data":    "/data",
+					"models":  "/models",
+					"config":  "/config",
+					"scratch": "/scratch",
+				}
+				for _, mount := range mounts {
+					expectedPath, ok := paths[mount.Name]
+					if !ok {
+						t.Errorf("Unexpected mount name: %s", mount.Name)
+						continue
+					}
+					if mount.MountPath != expectedPath {
+						t.Errorf("Mount %s has path %s, want %s", mount.Name, mount.MountPath, expectedPath)
+					}
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := convertVolumeMounts(tt.input)
+
+			if tt.input == nil {
+				if result != nil {
+					t.Error("Expected nil result for nil input")
+				}
+				if tt.checks != nil {
+					tt.checks(t, result)
+				}
+				return
+			}
+
+			if len(result) != tt.expected {
+				t.Errorf("convertVolumeMounts() returned %d mounts, want %d", len(result), tt.expected)
+			}
+
+			if tt.checks != nil {
+				tt.checks(t, result)
+			}
+		})
+	}
+}

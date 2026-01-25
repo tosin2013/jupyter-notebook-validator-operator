@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"os"
+	"strings"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -69,12 +70,24 @@ func init() {
 	//+kubebuilder:scaffold:scheme
 }
 
+// getEnvBool returns true if the environment variable is set to "true", "1", or "yes" (case-insensitive)
+func getEnvBool(key string, defaultVal bool) bool {
+	val := os.Getenv(key)
+	if val == "" {
+		return defaultVal
+	}
+	val = strings.ToLower(val)
+	return val == "true" || val == "1" || val == "yes"
+}
+
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var enableWebhooks bool
+
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -84,13 +97,28 @@ func main() {
 		"If set the metrics endpoint is served securely")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.BoolVar(&enableWebhooks, "enable-webhooks", false,
+		"Enable admission webhooks. Requires cert-manager or manual certificate management. "+
+			"Can also be set via ENABLE_WEBHOOKS environment variable.")
+
 	opts := zap.Options{
 		Development: true,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
+	// Check environment variable for webhooks (env var takes precedence if set)
+	if envWebhooks := os.Getenv("ENABLE_WEBHOOKS"); envWebhooks != "" {
+		enableWebhooks = getEnvBool("ENABLE_WEBHOOKS", enableWebhooks)
+	}
+
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	setupLog.Info("configuration",
+		"enableWebhooks", enableWebhooks,
+		"enableLeaderElection", enableLeaderElection,
+		"metricsAddr", metricsAddr,
+		"probeAddr", probeAddr)
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
@@ -108,18 +136,14 @@ func main() {
 		tlsOpts = append(tlsOpts, disableHTTP2)
 	}
 
-	webhookServer := webhook.NewServer(webhook.Options{
-		TLSOpts: tlsOpts,
-	})
-
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	// Configure manager options
+	mgrOptions := ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
 			BindAddress:   metricsAddr,
 			SecureServing: secureMetrics,
 			TLSOpts:       tlsOpts,
 		},
-		WebhookServer:          webhookServer,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "16681bfb.mlops.dev",
@@ -134,7 +158,20 @@ func main() {
 		// if you are doing or is intended to do any operation such as perform cleanups
 		// after the manager stops then its usage might be unsafe.
 		// LeaderElectionReleaseOnCancel: true,
-	})
+	}
+
+	// Only configure webhook server if webhooks are enabled
+	if enableWebhooks {
+		setupLog.Info("webhooks enabled - configuring webhook server")
+		webhookServer := webhook.NewServer(webhook.Options{
+			TLSOpts: tlsOpts,
+		})
+		mgrOptions.WebhookServer = webhookServer
+	} else {
+		setupLog.Info("webhooks disabled - operator will run without admission webhooks")
+	}
+
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), mgrOptions)
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
@@ -149,9 +186,14 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "NotebookValidationJob")
 		os.Exit(1)
 	}
-	if err = (&mlopsv1alpha1.NotebookValidationJob{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "NotebookValidationJob")
-		os.Exit(1)
+
+	// Only set up webhooks if enabled
+	if enableWebhooks {
+		if err = (&mlopsv1alpha1.NotebookValidationJob{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "NotebookValidationJob")
+			os.Exit(1)
+		}
+		setupLog.Info("webhook registered", "webhook", "NotebookValidationJob")
 	}
 	//+kubebuilder:scaffold:builder
 

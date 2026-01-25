@@ -2,19 +2,21 @@ name: OLM Bundle Validation
 
 on:
   push:
-    branches: [ release-4.18, main ]
+    branches: [ main, 'release-4.18', 'release-4.19', 'release-4.20' ]
     paths:
       - 'bundle/**'
       - 'config/manifests/**'
       - 'api/**'
+      - 'catalog/**'
       - '.github/workflows/bundle-validation.yaml'
       - 'Makefile'
   pull_request:
-    branches: [ release-4.18, main ]
+    branches: [ main, 'release-4.18', 'release-4.19', 'release-4.20' ]
     paths:
       - 'bundle/**'
       - 'config/manifests/**'
       - 'api/**'
+      - 'catalog/**'
       - '.github/workflows/bundle-validation.yaml'
       - 'Makefile'
   workflow_dispatch:
@@ -22,19 +24,15 @@ on:
 env:
   GO_VERSION: '1.22'
   OPERATOR_SDK_VERSION: 'v1.37.0'
+  OPM_VERSION: 'v1.43.0'
 
 jobs:
-  bundle-sync-check:
-    name: Check Bundle Sync Status
+  bundle-validate:
+    name: Validate OLM Bundle
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
 
       - name: Install operator-sdk
         run: |
@@ -45,34 +43,6 @@ jobs:
           chmod +x operator-sdk_${OS}_${ARCH}
           sudo mv operator-sdk_${OS}_${ARCH} /usr/local/bin/operator-sdk
           operator-sdk version
-
-      - name: Check if bundle is in sync
-        run: |
-          echo "🔍 Checking if bundle is in sync with CRDs..."
-          make bundle VERSION=1.0.0 IMG=quay.io/takinosh/jupyter-notebook-validator-operator:v1.0.0
-          if ! git diff --exit-code bundle/; then
-            echo "⚠️  WARNING: Bundle may be out of sync with current API definitions"
-            echo "Consider running 'make bundle' and committing the changes."
-            git diff bundle/
-          fi
-          echo "✅ Bundle sync check completed"
-
-  bundle-validate:
-    name: Validate OLM Bundle
-    runs-on: ubuntu-latest
-    needs: bundle-sync-check
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install operator-sdk
-        run: |
-          export ARCH=$(case $(uname -m) in x86_64) echo -n amd64 ;; aarch64) echo -n arm64 ;; *) echo -n $(uname -m) ;; esac)
-          export OS=$(uname | awk '{print tolower($0)}')
-          export OPERATOR_SDK_DL_URL=https://github.com/operator-framework/operator-sdk/releases/download/${{ env.OPERATOR_SDK_VERSION }}
-          curl -LO ${OPERATOR_SDK_DL_URL}/operator-sdk_${OS}_${ARCH}
-          chmod +x operator-sdk_${OS}_${ARCH}
-          sudo mv operator-sdk_${OS}_${ARCH} /usr/local/bin/operator-sdk
 
       - name: Validate Bundle (Basic)
         run: |
@@ -91,6 +61,55 @@ jobs:
           echo "🔍 Running Operator Framework suite validation..."
           operator-sdk bundle validate ./bundle --select-optional suite=operatorframework
           echo "✅ Operator Framework suite validation passed"
+
+      - name: Check replaces field exists
+        run: |
+          echo "🔍 Checking for replaces field in CSV..."
+          if grep -q "replaces:" bundle/manifests/*.clusterserviceversion.yaml; then
+            echo "✅ replaces field found:"
+            grep "replaces:" bundle/manifests/*.clusterserviceversion.yaml
+          else
+            echo "⚠️  WARNING: No replaces field found in CSV"
+            echo "This may cause issues with OLM upgrade chain"
+          fi
+
+      - name: Check OpenShift version annotation
+        run: |
+          echo "🔍 Checking for OpenShift version annotation..."
+          if grep -q "com.redhat.openshift.versions" bundle/manifests/*.clusterserviceversion.yaml; then
+            echo "✅ OpenShift version annotation found:"
+            grep "com.redhat.openshift.versions" bundle/manifests/*.clusterserviceversion.yaml
+          else
+            echo "⚠️  WARNING: No OpenShift version annotation found"
+          fi
+
+  catalog-validate:
+    name: Validate FBC Catalog
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install opm
+        run: |
+          export ARCH=$(case $(uname -m) in x86_64) echo -n amd64 ;; aarch64) echo -n arm64 ;; *) echo -n $(uname -m) ;; esac)
+          curl -LO https://github.com/operator-framework/operator-registry/releases/download/${{ env.OPM_VERSION }}/linux-${ARCH}-opm
+          chmod +x linux-${ARCH}-opm
+          sudo mv linux-${ARCH}-opm /usr/local/bin/opm
+          opm version
+
+      - name: Validate FBC Catalog
+        run: |
+          echo "🔍 Validating FBC catalog..."
+          opm validate catalog/
+          echo "✅ FBC catalog validation passed"
+
+      - name: Check upgrade chain
+        run: |
+          echo "🔍 Checking upgrade chain in catalog..."
+          echo "Upgrade chain entries:"
+          grep -A 1 "replaces:" catalog/catalog.yaml || echo "No replaces found in catalog"
 
   bundle-build:
     name: Build Bundle Image
@@ -162,24 +181,37 @@ jobs:
   summary:
     name: Bundle Validation Summary
     runs-on: ubuntu-latest
-    needs: [bundle-sync-check, bundle-validate, bundle-build]
+    needs: [bundle-validate, bundle-build]
     if: always()
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Generate Summary
         run: |
+          # Get version from Makefile
+          VERSION=$(grep "^VERSION ?=" Makefile | cut -d'=' -f2 | tr -d ' ')
+          BRANCH="${GITHUB_REF_NAME}"
+          
           echo "## OLM Bundle Validation Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${BRANCH}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Validation Results:" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Bundle sync check" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Basic validation" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ OperatorHub validation" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Operator Framework suite" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Bundle image build" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### OpenShift Compatibility:" >> $GITHUB_STEP_SUMMARY
-          echo "- Supported versions: v4.18 - v4.20" >> $GITHUB_STEP_SUMMARY
+          echo "### Upgrade Chain (ADR-047):" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "v1.0.3 → v1.0.7 (OCP 4.18) → v1.0.8 (OCP 4.19) → v1.0.9 (OCP 4.20)" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Next Steps:" >> $GITHUB_STEP_SUMMARY
-          echo "1. Fork [k8s-operatorhub/community-operators](https://github.com/k8s-operatorhub/community-operators)" >> $GITHUB_STEP_SUMMARY
-          echo "2. Create directory: \`operators/jupyter-notebook-validator-operator/1.0.0/\`" >> $GITHUB_STEP_SUMMARY
-          echo "3. Copy bundle contents and submit PR" >> $GITHUB_STEP_SUMMARY
+          echo "### Version Mapping:" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | OpenShift | Branch |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 1.0.7 | 4.18+ | release-4.18 |" >> $GITHUB_STEP_SUMMARY
+          echo "| 1.0.8 | 4.19+ | release-4.19 |" >> $GITHUB_STEP_SUMMARY
+          echo "| 1.0.9 | 4.20+ | release-4.20 |" >> $GITHUB_STEP_SUMMARY

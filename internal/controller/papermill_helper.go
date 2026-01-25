@@ -201,6 +201,63 @@ DURATION=$((END_TIME - START_TIME))
 
 log "Execution duration: ${DURATION}s"
 
+# ADR-041: Exit Code Validation and Developer Safety Framework
+# Apply validation config checks
+log ""
+log "=========================================="
+log "ADR-041: Validation Safety Checks"
+log "=========================================="
+log "Validation Level: ${VALIDATION_LEVEL:-development}"
+log "Strict Mode: ${VALIDATION_STRICT_MODE:-false}"
+log "Fail on Stderr: ${VALIDATION_FAIL_ON_STDERR:-false}"
+log "Fail on Warnings: ${VALIDATION_FAIL_ON_WARNINGS:-false}"
+log "Detect Silent Failures: ${VALIDATION_DETECT_SILENT_FAILURES:-true}"
+
+# Check for stderr output (ADR-041: failOnStderr)
+if [ "${VALIDATION_FAIL_ON_STDERR}" = "true" ] && [ -f /workspace/execution.log ]; then
+    # Check if there's any stderr content (warnings, errors printed to stderr)
+    if grep -q "^\(WARNING\|Error\|ERROR\|Traceback\|DeprecationWarning\|FutureWarning\)" /workspace/execution.log; then
+        if [ "$STATUS" = "succeeded" ]; then
+            log "⚠️ ADR-041: Stderr output detected with failOnStderr=true"
+            STATUS="failed"
+            ERROR_MSG="Validation failed: stderr output detected (ADR-041 failOnStderr enabled)"
+            ERROR_CATEGORY="validation_stderr_failure"
+            EXIT_CODE=1
+        fi
+    fi
+fi
+
+# Check for Python warnings (ADR-041: failOnWarnings)
+if [ "${VALIDATION_FAIL_ON_WARNINGS}" = "true" ] && [ -f /workspace/execution.log ]; then
+    if grep -qE "(Warning|warning|WARN|UserWarning|DeprecationWarning|FutureWarning|RuntimeWarning)" /workspace/execution.log; then
+        if [ "$STATUS" = "succeeded" ]; then
+            log "⚠️ ADR-041: Python warnings detected with failOnWarnings=true"
+            STATUS="failed"
+            ERROR_MSG="Validation failed: Python warnings detected (ADR-041 failOnWarnings enabled)"
+            ERROR_CATEGORY="validation_warning_failure"
+            EXIT_CODE=1
+        fi
+    fi
+fi
+
+# Strict mode enforcement (ADR-041: strictMode)
+if [ "${VALIDATION_STRICT_MODE}" = "true" ]; then
+    log "🔒 ADR-041: Strict mode enabled - applying maximum validation rigor"
+    # In strict mode, any stderr or warning is a failure
+    if [ -f /workspace/execution.log ]; then
+        STDERR_LINES=$(grep -c "^\(WARNING\|Error\|Traceback\)" /workspace/execution.log 2>/dev/null || echo "0")
+        if [ "$STDERR_LINES" -gt 0 ] && [ "$STATUS" = "succeeded" ]; then
+            log "⚠️ ADR-041: Strict mode detected $STDERR_LINES stderr/warning lines"
+            STATUS="failed"
+            ERROR_MSG="Validation failed in strict mode: found $STDERR_LINES stderr/warning lines"
+            ERROR_CATEGORY="validation_strict_mode_failure"
+            EXIT_CODE=1
+        fi
+    fi
+fi
+
+log "✓ ADR-041 safety checks completed"
+
 # Parse notebook output for cell results
 log ""
 log "Parsing notebook results..."
@@ -414,30 +471,8 @@ exit $EXIT_CODE
 		containerImage = job.Spec.PodConfig.ContainerImage
 	}
 
-	// Build volume mounts: start with default mounts, then append user-defined mounts
-	volumeMounts := []corev1.VolumeMount{
-		{
-			Name:      "workspace",
-			MountPath: "/workspace",
-		},
-		{
-			// ADR-005: OpenShift Compatibility
-			// Mount emptyDir at /home/jovyan to prevent permission errors
-			// Jupyter containers expect this directory to exist and be writable
-			Name:      "jovyan-home",
-			MountPath: "/home/jovyan",
-		},
-	}
-
-	// Append user-defined volume mounts
-	for _, vm := range job.Spec.PodConfig.VolumeMounts {
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      vm.Name,
-			MountPath: vm.MountPath,
-			ReadOnly:  vm.ReadOnly,
-			SubPath:   vm.SubPath,
-		})
-	}
+	// ADR-041: Build validation config environment variables
+	validationEnvVars := buildValidationConfigEnvVars(job.Spec.ValidationConfig)
 
 	container := corev1.Container{
 		Name:  "validator",
@@ -447,9 +482,21 @@ exit $EXIT_CODE
 			"-c",
 			executionScript,
 		},
-		VolumeMounts: volumeMounts,
-		Resources:    convertResourceRequirements(job.Spec.PodConfig.Resources),
-		Env: append(convertEnvVars(job.Spec.PodConfig.Env),
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      "workspace",
+				MountPath: "/workspace",
+			},
+			{
+				// ADR-005: OpenShift Compatibility
+				// Mount emptyDir at /home/jovyan to prevent permission errors
+				// Jupyter containers expect this directory to exist and be writable
+				Name:      "jovyan-home",
+				MountPath: "/home/jovyan",
+			},
+		},
+		Resources: convertResourceRequirements(job.Spec.PodConfig.Resources),
+		Env: append(append(convertEnvVars(job.Spec.PodConfig.Env), validationEnvVars...),
 			corev1.EnvVar{
 				Name:  "HOME",
 				Value: "/workspace",
@@ -583,4 +630,199 @@ func convertEnvVars(customEnvVars []mlopsv1alpha1.EnvVar) []corev1.EnvVar {
 	}
 
 	return k8sEnvVars
+}
+
+// buildValidationConfigEnvVars builds environment variables from ValidationConfig
+// ADR-041: Exit Code Validation and Developer Safety Framework
+func buildValidationConfigEnvVars(config *mlopsv1alpha1.ValidationConfigSpec) []corev1.EnvVar {
+	envVars := []corev1.EnvVar{}
+
+	if config == nil {
+		// Default values when no config specified
+		envVars = append(envVars,
+			corev1.EnvVar{Name: "VALIDATION_LEVEL", Value: "development"},
+			corev1.EnvVar{Name: "VALIDATION_STRICT_MODE", Value: "false"},
+			corev1.EnvVar{Name: "VALIDATION_FAIL_ON_STDERR", Value: "false"},
+			corev1.EnvVar{Name: "VALIDATION_FAIL_ON_WARNINGS", Value: "false"},
+			corev1.EnvVar{Name: "VALIDATION_DETECT_SILENT_FAILURES", Value: "true"},
+		)
+		return envVars
+	}
+
+	// Validation level
+	level := config.Level
+	if level == "" {
+		level = "development"
+	}
+	envVars = append(envVars, corev1.EnvVar{Name: "VALIDATION_LEVEL", Value: level})
+
+	// Strict mode
+	strictMode := "false"
+	if config.StrictMode {
+		strictMode = "true"
+	}
+	envVars = append(envVars, corev1.EnvVar{Name: "VALIDATION_STRICT_MODE", Value: strictMode})
+
+	// Fail on stderr
+	failOnStderr := "false"
+	if config.FailOnStderr {
+		failOnStderr = "true"
+	}
+	envVars = append(envVars, corev1.EnvVar{Name: "VALIDATION_FAIL_ON_STDERR", Value: failOnStderr})
+
+	// Fail on warnings
+	failOnWarnings := "false"
+	if config.FailOnWarnings {
+		failOnWarnings = "true"
+	}
+	envVars = append(envVars, corev1.EnvVar{Name: "VALIDATION_FAIL_ON_WARNINGS", Value: failOnWarnings})
+
+	// Detect silent failures (default true)
+	detectSilentFailures := "true"
+	if config.DetectSilentFailures != nil && !*config.DetectSilentFailures {
+		detectSilentFailures = "false"
+	}
+	envVars = append(envVars, corev1.EnvVar{Name: "VALIDATION_DETECT_SILENT_FAILURES", Value: detectSilentFailures})
+
+	return envVars
+}
+
+// convertVolumes converts custom Volume slice to Kubernetes Volume slice
+// ADR-045: Volume and PVC Support for Validation Pods
+func convertVolumes(customVolumes []mlopsv1alpha1.Volume) []corev1.Volume {
+	if customVolumes == nil {
+		return nil
+	}
+
+	k8sVolumes := make([]corev1.Volume, 0, len(customVolumes))
+
+	for _, customVol := range customVolumes {
+		k8sVol := corev1.Volume{
+			Name: customVol.Name,
+		}
+
+		// Handle PersistentVolumeClaim
+		if customVol.PersistentVolumeClaim != nil {
+			k8sVol.VolumeSource = corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: customVol.PersistentVolumeClaim.ClaimName,
+					ReadOnly:  customVol.PersistentVolumeClaim.ReadOnly,
+				},
+			}
+		}
+
+		// Handle ConfigMap
+		if customVol.ConfigMap != nil {
+			configMapVolSource := &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: customVol.ConfigMap.Name,
+				},
+				Optional: customVol.ConfigMap.Optional,
+			}
+
+			// Convert Items if present
+			if len(customVol.ConfigMap.Items) > 0 {
+				configMapVolSource.Items = make([]corev1.KeyToPath, 0, len(customVol.ConfigMap.Items))
+				for _, item := range customVol.ConfigMap.Items {
+					k8sItem := corev1.KeyToPath{
+						Key:  item.Key,
+						Path: item.Path,
+					}
+					if item.Mode != nil {
+						k8sItem.Mode = item.Mode
+					}
+					configMapVolSource.Items = append(configMapVolSource.Items, k8sItem)
+				}
+			}
+
+			// Convert DefaultMode if present
+			if customVol.ConfigMap.DefaultMode != nil {
+				configMapVolSource.DefaultMode = customVol.ConfigMap.DefaultMode
+			}
+
+			k8sVol.VolumeSource = corev1.VolumeSource{
+				ConfigMap: configMapVolSource,
+			}
+		}
+
+		// Handle Secret
+		if customVol.Secret != nil {
+			secretVolSource := &corev1.SecretVolumeSource{
+				SecretName: customVol.Secret.SecretName,
+				Optional:   customVol.Secret.Optional,
+			}
+
+			// Convert Items if present
+			if len(customVol.Secret.Items) > 0 {
+				secretVolSource.Items = make([]corev1.KeyToPath, 0, len(customVol.Secret.Items))
+				for _, item := range customVol.Secret.Items {
+					k8sItem := corev1.KeyToPath{
+						Key:  item.Key,
+						Path: item.Path,
+					}
+					if item.Mode != nil {
+						k8sItem.Mode = item.Mode
+					}
+					secretVolSource.Items = append(secretVolSource.Items, k8sItem)
+				}
+			}
+
+			// Convert DefaultMode if present
+			if customVol.Secret.DefaultMode != nil {
+				secretVolSource.DefaultMode = customVol.Secret.DefaultMode
+			}
+
+			k8sVol.VolumeSource = corev1.VolumeSource{
+				Secret: secretVolSource,
+			}
+		}
+
+		// Handle EmptyDir
+		if customVol.EmptyDir != nil {
+			emptyDirSource := &corev1.EmptyDirVolumeSource{}
+
+			// Convert Medium if specified
+			if customVol.EmptyDir.Medium != "" {
+				emptyDirSource.Medium = corev1.StorageMedium(customVol.EmptyDir.Medium)
+			}
+
+			// Convert SizeLimit if specified
+			if customVol.EmptyDir.SizeLimit != "" {
+				quantity, err := resource.ParseQuantity(customVol.EmptyDir.SizeLimit)
+				if err == nil {
+					emptyDirSource.SizeLimit = &quantity
+				}
+			}
+
+			k8sVol.VolumeSource = corev1.VolumeSource{
+				EmptyDir: emptyDirSource,
+			}
+		}
+
+		k8sVolumes = append(k8sVolumes, k8sVol)
+	}
+
+	return k8sVolumes
+}
+
+// convertVolumeMounts converts custom VolumeMount slice to Kubernetes VolumeMount slice
+// ADR-045: Volume and PVC Support for Validation Pods
+func convertVolumeMounts(customMounts []mlopsv1alpha1.VolumeMount) []corev1.VolumeMount {
+	if customMounts == nil {
+		return nil
+	}
+
+	k8sMounts := make([]corev1.VolumeMount, 0, len(customMounts))
+
+	for _, customMount := range customMounts {
+		k8sMount := corev1.VolumeMount{
+			Name:      customMount.Name,
+			MountPath: customMount.MountPath,
+			SubPath:   customMount.SubPath,
+			ReadOnly:  customMount.ReadOnly,
+		}
+		k8sMounts = append(k8sMounts, k8sMount)
+	}
+
+	return k8sMounts
 }

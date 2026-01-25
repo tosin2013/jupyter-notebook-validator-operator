@@ -50,6 +50,11 @@ type NotebookValidationJobSpec struct {
 	// ModelValidation specifies optional model-aware validation configuration
 	// +optional
 	ModelValidation *ModelValidationSpec `json:"modelValidation,omitempty"`
+
+	// ValidationConfig specifies exit code validation and developer safety configuration
+	// ADR-041: Exit Code Validation and Developer Safety Framework
+	// +optional
+	ValidationConfig *ValidationConfigSpec `json:"validationConfig,omitempty"`
 }
 
 // NotebookSpec defines the notebook source
@@ -120,12 +125,15 @@ type PodConfigSpec struct {
 	// +optional
 	BuildConfig *BuildConfigSpec `json:"buildConfig,omitempty"`
 
-	// Volumes specifies additional volumes to mount in the validation pod
-	// This allows mounting PVCs, ConfigMaps, Secrets, and EmptyDirs
+	// Volumes defines volumes to mount in the validation pod
+	// ADR-045: Supports PersistentVolumeClaim, ConfigMap, Secret, and EmptyDir volume types
+	// Use this to mount storage for model outputs, shared datasets, or configuration files
+	// Example use case: Save trained model to PVC for KServe to serve via pvc:// storageUri
 	// +optional
-	Volumes []PodVolume `json:"volumes,omitempty"`
+	Volumes []Volume `json:"volumes,omitempty"`
 
-	// VolumeMounts specifies where to mount the volumes in the validation container
+	// VolumeMounts defines where to mount volumes in the validation container
+	// Each mount must reference a volume defined in the volumes field
 	// +optional
 	VolumeMounts []VolumeMount `json:"volumeMounts,omitempty"`
 }
@@ -214,90 +222,165 @@ type ConfigMapEnvSource struct {
 	Name string `json:"name"`
 }
 
-// PodVolume represents a volume that can be mounted in the validation pod
-type PodVolume struct {
-	// Name is the volume name (must be unique within the pod)
+// Volume represents a named volume in a pod
+// ADR-045: Full Kubernetes Volume Support for validation pods
+// Supports PersistentVolumeClaim, ConfigMap, Secret, and EmptyDir volume types
+type Volume struct {
+	// Name is the volume name, must match a VolumeMount name
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	// +kubebuilder:validation:MaxLength=63
 	Name string `json:"name"`
 
-	// PersistentVolumeClaim represents a PVC volume source
+	// PersistentVolumeClaim represents a reference to a PVC in the same namespace
+	// Use this for persistent storage such as trained model outputs or shared datasets
 	// +optional
 	PersistentVolumeClaim *PersistentVolumeClaimVolumeSource `json:"persistentVolumeClaim,omitempty"`
 
-	// ConfigMap represents a ConfigMap volume source
+	// ConfigMap represents a ConfigMap to mount as a volume
+	// Use this to mount configuration files into the validation pod
 	// +optional
 	ConfigMap *ConfigMapVolumeSource `json:"configMap,omitempty"`
 
-	// Secret represents a Secret volume source
+	// Secret represents a Secret to mount as a volume
+	// Use this to mount certificates or other sensitive files
 	// +optional
 	Secret *SecretVolumeSource `json:"secret,omitempty"`
 
-	// EmptyDir represents an EmptyDir volume source
+	// EmptyDir represents a temporary directory that shares a pod's lifetime
+	// Use this for scratch space during notebook execution
 	// +optional
 	EmptyDir *EmptyDirVolumeSource `json:"emptyDir,omitempty"`
 }
 
-// PersistentVolumeClaimVolumeSource represents a PVC volume source
+// PersistentVolumeClaimVolumeSource references a PVC in the same namespace
+// This is used to mount persistent storage for model outputs, datasets, etc.
 type PersistentVolumeClaimVolumeSource struct {
-	// ClaimName is the name of the PVC in the same namespace
+	// ClaimName is the name of a PersistentVolumeClaim in the same namespace
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
 	ClaimName string `json:"claimName"`
 
-	// ReadOnly specifies whether the volume should be mounted read-only
+	// ReadOnly will force the volume to be mounted read-only
+	// Default is false (read/write)
 	// +optional
 	ReadOnly bool `json:"readOnly,omitempty"`
 }
 
-// ConfigMapVolumeSource represents a ConfigMap volume source
+// ConfigMapVolumeSource adapts a ConfigMap into a volume
 type ConfigMapVolumeSource struct {
-	// Name is the name of the ConfigMap
+	// Name is the name of the ConfigMap in the same namespace
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
+	// Items if unspecified, each key-value pair in the ConfigMap becomes a file
+	// with the key as the filename and the value as the file contents
+	// +optional
+	Items []KeyToPath `json:"items,omitempty"`
+
+	// DefaultMode is the mode bits used to set permissions on created files (default 0644)
+	// Must be a value between 0 and 0777 (octal)
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=511
+	// +optional
+	DefaultMode *int32 `json:"defaultMode,omitempty"`
+
 	// Optional specifies whether the ConfigMap must exist
+	// If true, the volume will not be mounted if the ConfigMap doesn't exist
 	// +optional
 	Optional *bool `json:"optional,omitempty"`
 }
 
-// SecretVolumeSource represents a Secret volume source
+// SecretVolumeSource adapts a Secret into a volume
 type SecretVolumeSource struct {
-	// SecretName is the name of the Secret
+	// SecretName is the name of the Secret in the same namespace
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
 	SecretName string `json:"secretName"`
 
+	// Items if unspecified, each key-value pair in the Secret becomes a file
+	// with the key as the filename and the value as the file contents
+	// +optional
+	Items []KeyToPath `json:"items,omitempty"`
+
+	// DefaultMode is the mode bits used to set permissions on created files (default 0644)
+	// Must be a value between 0 and 0777 (octal)
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=511
+	// +optional
+	DefaultMode *int32 `json:"defaultMode,omitempty"`
+
 	// Optional specifies whether the Secret must exist
+	// If true, the volume will not be mounted if the Secret doesn't exist
 	// +optional
 	Optional *bool `json:"optional,omitempty"`
 }
 
-// EmptyDirVolumeSource represents an EmptyDir volume source
+// EmptyDirVolumeSource is a temporary directory that shares a pod's lifetime
+// Use this for scratch space during notebook execution
 type EmptyDirVolumeSource struct {
-	// Medium specifies the storage medium (e.g., "Memory" for tmpfs)
+	// Medium is the storage medium type
+	// "" (empty string) uses the node's default medium
+	// "Memory" uses tmpfs (RAM-backed filesystem)
+	// +kubebuilder:validation:Enum="";Memory
 	// +optional
 	Medium string `json:"medium,omitempty"`
 
-	// SizeLimit specifies the size limit (e.g., "1Gi")
+	// SizeLimit is the maximum size of the emptyDir volume
+	// If Medium is "Memory", this limits the tmpfs size
+	// Accepts Kubernetes quantity format (e.g., "10Gi", "500Mi")
+	// +kubebuilder:validation:Pattern=`^([0-9]+(\.[0-9]+)?)(Ki|Mi|Gi|Ti|Pi|Ei|k|M|G|T|P|E)?$`
 	// +optional
 	SizeLimit string `json:"sizeLimit,omitempty"`
 }
 
-// VolumeMount describes a volume mount for the validation container
-type VolumeMount struct {
-	// Name is the name of the volume to mount (must match a volume name)
+// KeyToPath maps a key from a ConfigMap or Secret to a file path
+type KeyToPath struct {
+	// Key is the key to project from the ConfigMap or Secret
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Key string `json:"key"`
+
+	// Path is the relative path of the file to map the key to
+	// May not be an absolute path, may not contain '..', and may not start with '..'
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:Pattern=`^[^/].*$`
+	Path string `json:"path"`
+
+	// Mode is the file mode bits used to set permissions on this file
+	// Must be a value between 0 and 0777 (octal)
+	// If not specified, the volume defaultMode is used
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=511
+	// +optional
+	Mode *int32 `json:"mode,omitempty"`
+}
+
+// VolumeMount describes a mount point for a Volume in the validation container
+// ADR-045: Mount volumes at specific paths for notebook access to storage
+type VolumeMount struct {
+	// Name must match the Name of a Volume defined in spec.podConfig.volumes
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	Name string `json:"name"`
 
 	// MountPath is the path within the container where the volume should be mounted
+	// Must be an absolute path starting with '/'
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^/.*$`
 	MountPath string `json:"mountPath"`
 
-	// ReadOnly specifies whether the volume should be mounted read-only
-	// +optional
-	ReadOnly bool `json:"readOnly,omitempty"`
-
-	// SubPath specifies a sub-path within the volume to mount
+	// SubPath is an optional sub-path inside the volume to mount instead of the root
+	// Use this to mount only a specific directory from a volume
 	// +optional
 	SubPath string `json:"subPath,omitempty"`
+
+	// ReadOnly mounts the volume as read-only when true (default false)
+	// Use this for input data that should not be modified
+	// +optional
+	ReadOnly bool `json:"readOnly,omitempty"`
 }
 
 // BuildConfigSpec defines container image build configuration
@@ -369,6 +452,103 @@ type BuildConfigSpec struct {
 	// +kubebuilder:default="15m"
 	// +optional
 	Timeout string `json:"timeout,omitempty"`
+}
+
+// ValidationConfigSpec defines exit code validation and developer safety configuration
+// ADR-041: Exit Code Validation and Developer Safety Framework
+type ValidationConfigSpec struct {
+	// Level specifies the validation strictness level
+	// ADR-041: Controls which checks are enabled and whether they cause failures
+	// - learning: Warnings only, no failures. Extensive educational feedback.
+	// - development: Fail on obvious errors (None returns, NaN). Warn on missing assertions.
+	// - staging: Strict exit code enforcement. Require explicit error handling.
+	// - production: Maximum strictness. Require test coverage. Fail on warnings.
+	// +kubebuilder:validation:Enum=learning;development;staging;production
+	// +kubebuilder:default="development"
+	// +optional
+	Level string `json:"level,omitempty"`
+
+	// StrictMode enables all safety checks (equivalent to production level)
+	// ADR-041: When true, any detected issue causes validation failure
+	// +kubebuilder:default=false
+	// +optional
+	StrictMode bool `json:"strictMode,omitempty"`
+
+	// FailOnStderr causes validation to fail if stderr contains any output
+	// ADR-041: Useful for catching warnings and error messages that don't raise exceptions
+	// +kubebuilder:default=false
+	// +optional
+	FailOnStderr bool `json:"failOnStderr,omitempty"`
+
+	// FailOnWarnings causes validation to fail even on Python warnings
+	// ADR-041: Only recommended for production level validation
+	// +kubebuilder:default=false
+	// +optional
+	FailOnWarnings bool `json:"failOnWarnings,omitempty"`
+
+	// DetectSilentFailures enables detection of None returns and NaN values
+	// ADR-041: Catches common silent failure patterns in data science notebooks
+	// +kubebuilder:default=true
+	// +optional
+	DetectSilentFailures *bool `json:"detectSilentFailures,omitempty"`
+
+	// RequireExplicitExitCodes requires cells to explicitly set exit codes
+	// ADR-041: Advanced feature for production validation
+	// +kubebuilder:default=false
+	// +optional
+	RequireExplicitExitCodes bool `json:"requireExplicitExitCodes,omitempty"`
+
+	// CheckOutputTypes verifies that cell outputs match expected types
+	// ADR-041: Enables post-execution type validation
+	// +kubebuilder:default=false
+	// +optional
+	CheckOutputTypes bool `json:"checkOutputTypes,omitempty"`
+
+	// VerifyAssertions ensures assertion statements are present in code cells
+	// ADR-041: Encourages defensive programming practices
+	// +kubebuilder:default=false
+	// +optional
+	VerifyAssertions bool `json:"verifyAssertions,omitempty"`
+
+	// ExpectedOutputs specifies expected output types and values for specific cells
+	// ADR-041: Enables post-execution validation of cell outputs
+	// +optional
+	ExpectedOutputs []ExpectedOutputSpec `json:"expectedOutputs,omitempty"`
+}
+
+// ExpectedOutputSpec defines expected output for a specific cell
+// ADR-041: Used for post-execution validation
+type ExpectedOutputSpec struct {
+	// Cell is the zero-based index of the cell to validate
+	// +kubebuilder:validation:Minimum=0
+	Cell int `json:"cell"`
+
+	// Type is the expected Python type name (e.g., "pandas.DataFrame", "float", "list")
+	// +optional
+	Type string `json:"type,omitempty"`
+
+	// Shape specifies expected shape for array-like outputs as a string
+	// Format: "rows,cols" where -1 means any dimension
+	// Example: "-1,10" means any number of rows, exactly 10 columns
+	// +optional
+	Shape string `json:"shape,omitempty"`
+
+	// MinValue specifies the minimum expected numeric value for scalar outputs
+	// Stored as string to avoid float serialization issues across languages
+	// +kubebuilder:validation:Pattern=`^-?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?$`
+	// +optional
+	MinValue string `json:"minValue,omitempty"`
+
+	// MaxValue specifies the maximum expected numeric value for scalar outputs
+	// Stored as string to avoid float serialization issues across languages
+	// +kubebuilder:validation:Pattern=`^-?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?$`
+	// +optional
+	MaxValue string `json:"maxValue,omitempty"`
+
+	// NotEmpty ensures the output is not empty (for DataFrames, lists, etc.)
+	// +kubebuilder:default=false
+	// +optional
+	NotEmpty bool `json:"notEmpty,omitempty"`
 }
 
 // ComparisonConfigSpec defines advanced comparison configuration

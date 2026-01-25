@@ -1,10 +1,9 @@
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    cert-manager.io/inject-ca-from: jupyter-notebook-validator-operator/notebook-validator-serving-cert
     controller-gen.kubebuilder.io/version: v0.14.0
-  creationTimestamp: null
   name: notebookvalidationjobs.mlops.mlops.dev
 spec:
   group: mlops.mlops.dev
@@ -455,27 +454,34 @@ spec:
                       The mutating webhook will inject this default if not specified
                     type: string
                   volumeMounts:
-                    description: VolumeMounts specifies where to mount the volumes
-                      in the validation container
+                    description: |-
+                      VolumeMounts defines where to mount volumes in the validation container
+                      Each mount must reference a volume defined in the volumes field
                     items:
-                      description: VolumeMount describes a volume mount for the validation
-                        container
+                      description: |-
+                        VolumeMount describes a mount point for a Volume in the validation container
+                        ADR-045: Mount volumes at specific paths for notebook access to storage
                       properties:
                         mountPath:
-                          description: MountPath is the path within the container
-                            where the volume should be mounted
+                          description: |-
+                            MountPath is the path within the container where the volume should be mounted
+                            Must be an absolute path starting with '/'
+                          pattern: ^/.*$
                           type: string
                         name:
-                          description: Name is the name of the volume to mount (must
-                            match a volume name)
+                          description: Name must match the Name of a Volume defined
+                            in spec.podConfig.volumes
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                           type: string
                         readOnly:
-                          description: ReadOnly specifies whether the volume should
-                            be mounted read-only
+                          description: |-
+                            ReadOnly mounts the volume as read-only when true (default false)
+                            Use this for input data that should not be modified
                           type: boolean
                         subPath:
-                          description: SubPath specifies a sub-path within the volume
-                            to mount
+                          description: |-
+                            SubPath is an optional sub-path inside the volume to mount instead of the root
+                            Use this to mount only a specific directory from a volume
                           type: string
                       required:
                       - mountPath
@@ -484,65 +490,178 @@ spec:
                     type: array
                   volumes:
                     description: |-
-                      Volumes specifies additional volumes to mount in the validation pod
-                      This allows mounting PVCs, ConfigMaps, Secrets, and EmptyDirs
+                      Volumes defines volumes to mount in the validation pod
+                      ADR-045: Supports PersistentVolumeClaim, ConfigMap, Secret, and EmptyDir volume types
+                      Use this to mount storage for model outputs, shared datasets, or configuration files
+                      Example use case: Save trained model to PVC for KServe to serve via pvc:// storageUri
                     items:
-                      description: PodVolume represents a volume that can be mounted
-                        in the validation pod
+                      description: |-
+                        Volume represents a named volume in a pod
+                        ADR-045: Full Kubernetes Volume Support for validation pods
+                        Supports PersistentVolumeClaim, ConfigMap, Secret, and EmptyDir volume types
                       properties:
                         configMap:
-                          description: ConfigMap represents a ConfigMap volume source
+                          description: |-
+                            ConfigMap represents a ConfigMap to mount as a volume
+                            Use this to mount configuration files into the validation pod
                           properties:
+                            defaultMode:
+                              description: |-
+                                DefaultMode is the mode bits used to set permissions on created files (default 0644)
+                                Must be a value between 0 and 0777 (octal)
+                              format: int32
+                              maximum: 511
+                              minimum: 0
+                              type: integer
+                            items:
+                              description: |-
+                                Items if unspecified, each key-value pair in the ConfigMap becomes a file
+                                with the key as the filename and the value as the file contents
+                              items:
+                                description: KeyToPath maps a key from a ConfigMap
+                                  or Secret to a file path
+                                properties:
+                                  key:
+                                    description: Key is the key to project from the
+                                      ConfigMap or Secret
+                                    minLength: 1
+                                    type: string
+                                  mode:
+                                    description: |-
+                                      Mode is the file mode bits used to set permissions on this file
+                                      Must be a value between 0 and 0777 (octal)
+                                      If not specified, the volume defaultMode is used
+                                    format: int32
+                                    maximum: 511
+                                    minimum: 0
+                                    type: integer
+                                  path:
+                                    description: |-
+                                      Path is the relative path of the file to map the key to
+                                      May not be an absolute path, may not contain '..', and may not start with '..'
+                                    minLength: 1
+                                    pattern: ^[^/].*$
+                                    type: string
+                                required:
+                                - key
+                                - path
+                                type: object
+                              type: array
                             name:
-                              description: Name is the name of the ConfigMap
+                              description: Name is the name of the ConfigMap in the
+                                same namespace
+                              minLength: 1
                               type: string
                             optional:
-                              description: Optional specifies whether the ConfigMap
-                                must exist
+                              description: |-
+                                Optional specifies whether the ConfigMap must exist
+                                If true, the volume will not be mounted if the ConfigMap doesn't exist
                               type: boolean
                           required:
                           - name
                           type: object
                         emptyDir:
-                          description: EmptyDir represents an EmptyDir volume source
+                          description: |-
+                            EmptyDir represents a temporary directory that shares a pod's lifetime
+                            Use this for scratch space during notebook execution
                           properties:
                             medium:
-                              description: Medium specifies the storage medium (e.g.,
-                                "Memory" for tmpfs)
+                              description: |-
+                                Medium is the storage medium type
+                                "" (empty string) uses the node's default medium
+                                "Memory" uses tmpfs (RAM-backed filesystem)
+                              enum:
+                              - ""
+                              - Memory
                               type: string
                             sizeLimit:
-                              description: SizeLimit specifies the size limit (e.g.,
-                                "1Gi")
+                              description: |-
+                                SizeLimit is the maximum size of the emptyDir volume
+                                If Medium is "Memory", this limits the tmpfs size
+                                Accepts Kubernetes quantity format (e.g., "10Gi", "500Mi")
+                              pattern: ^([0-9]+(\.[0-9]+)?)(Ki|Mi|Gi|Ti|Pi|Ei|k|M|G|T|P|E)?$
                               type: string
                           type: object
                         name:
-                          description: Name is the volume name (must be unique within
-                            the pod)
+                          description: Name is the volume name, must match a VolumeMount
+                            name
+                          maxLength: 63
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                           type: string
                         persistentVolumeClaim:
-                          description: PersistentVolumeClaim represents a PVC volume
-                            source
+                          description: |-
+                            PersistentVolumeClaim represents a reference to a PVC in the same namespace
+                            Use this for persistent storage such as trained model outputs or shared datasets
                           properties:
                             claimName:
-                              description: ClaimName is the name of the PVC in the
-                                same namespace
+                              description: ClaimName is the name of a PersistentVolumeClaim
+                                in the same namespace
+                              minLength: 1
                               type: string
                             readOnly:
-                              description: ReadOnly specifies whether the volume should
-                                be mounted read-only
+                              description: |-
+                                ReadOnly will force the volume to be mounted read-only
+                                Default is false (read/write)
                               type: boolean
                           required:
                           - claimName
                           type: object
                         secret:
-                          description: Secret represents a Secret volume source
+                          description: |-
+                            Secret represents a Secret to mount as a volume
+                            Use this to mount certificates or other sensitive files
                           properties:
+                            defaultMode:
+                              description: |-
+                                DefaultMode is the mode bits used to set permissions on created files (default 0644)
+                                Must be a value between 0 and 0777 (octal)
+                              format: int32
+                              maximum: 511
+                              minimum: 0
+                              type: integer
+                            items:
+                              description: |-
+                                Items if unspecified, each key-value pair in the Secret becomes a file
+                                with the key as the filename and the value as the file contents
+                              items:
+                                description: KeyToPath maps a key from a ConfigMap
+                                  or Secret to a file path
+                                properties:
+                                  key:
+                                    description: Key is the key to project from the
+                                      ConfigMap or Secret
+                                    minLength: 1
+                                    type: string
+                                  mode:
+                                    description: |-
+                                      Mode is the file mode bits used to set permissions on this file
+                                      Must be a value between 0 and 0777 (octal)
+                                      If not specified, the volume defaultMode is used
+                                    format: int32
+                                    maximum: 511
+                                    minimum: 0
+                                    type: integer
+                                  path:
+                                    description: |-
+                                      Path is the relative path of the file to map the key to
+                                      May not be an absolute path, may not contain '..', and may not start with '..'
+                                    minLength: 1
+                                    pattern: ^[^/].*$
+                                    type: string
+                                required:
+                                - key
+                                - path
+                                type: object
+                              type: array
                             optional:
-                              description: Optional specifies whether the Secret must
-                                exist
+                              description: |-
+                                Optional specifies whether the Secret must exist
+                                If true, the volume will not be mounted if the Secret doesn't exist
                               type: boolean
                             secretName:
-                              description: SecretName is the name of the Secret
+                              description: SecretName is the name of the Secret in
+                                the same namespace
+                              minLength: 1
                               type: string
                           required:
                           - secretName
@@ -560,6 +679,114 @@ spec:
                   validation job
                 pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
                 type: string
+              validationConfig:
+                description: |-
+                  ValidationConfig specifies exit code validation and developer safety configuration
+                  ADR-041: Exit Code Validation and Developer Safety Framework
+                properties:
+                  checkOutputTypes:
+                    default: false
+                    description: |-
+                      CheckOutputTypes verifies that cell outputs match expected types
+                      ADR-041: Enables post-execution type validation
+                    type: boolean
+                  detectSilentFailures:
+                    default: true
+                    description: |-
+                      DetectSilentFailures enables detection of None returns and NaN values
+                      ADR-041: Catches common silent failure patterns in data science notebooks
+                    type: boolean
+                  expectedOutputs:
+                    description: |-
+                      ExpectedOutputs specifies expected output types and values for specific cells
+                      ADR-041: Enables post-execution validation of cell outputs
+                    items:
+                      description: |-
+                        ExpectedOutputSpec defines expected output for a specific cell
+                        ADR-041: Used for post-execution validation
+                      properties:
+                        cell:
+                          description: Cell is the zero-based index of the cell to
+                            validate
+                          minimum: 0
+                          type: integer
+                        maxValue:
+                          description: |-
+                            MaxValue specifies the maximum expected numeric value for scalar outputs
+                            Stored as string to avoid float serialization issues across languages
+                          pattern: ^-?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?$
+                          type: string
+                        minValue:
+                          description: |-
+                            MinValue specifies the minimum expected numeric value for scalar outputs
+                            Stored as string to avoid float serialization issues across languages
+                          pattern: ^-?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?$
+                          type: string
+                        notEmpty:
+                          default: false
+                          description: NotEmpty ensures the output is not empty (for
+                            DataFrames, lists, etc.)
+                          type: boolean
+                        shape:
+                          description: |-
+                            Shape specifies expected shape for array-like outputs as a string
+                            Format: "rows,cols" where -1 means any dimension
+                            Example: "-1,10" means any number of rows, exactly 10 columns
+                          type: string
+                        type:
+                          description: Type is the expected Python type name (e.g.,
+                            "pandas.DataFrame", "float", "list")
+                          type: string
+                      required:
+                      - cell
+                      type: object
+                    type: array
+                  failOnStderr:
+                    default: false
+                    description: |-
+                      FailOnStderr causes validation to fail if stderr contains any output
+                      ADR-041: Useful for catching warnings and error messages that don't raise exceptions
+                    type: boolean
+                  failOnWarnings:
+                    default: false
+                    description: |-
+                      FailOnWarnings causes validation to fail even on Python warnings
+                      ADR-041: Only recommended for production level validation
+                    type: boolean
+                  level:
+                    default: development
+                    description: |-
+                      Level specifies the validation strictness level
+                      ADR-041: Controls which checks are enabled and whether they cause failures
+                      - learning: Warnings only, no failures. Extensive educational feedback.
+                      - development: Fail on obvious errors (None returns, NaN). Warn on missing assertions.
+                      - staging: Strict exit code enforcement. Require explicit error handling.
+                      - production: Maximum strictness. Require test coverage. Fail on warnings.
+                    enum:
+                    - learning
+                    - development
+                    - staging
+                    - production
+                    type: string
+                  requireExplicitExitCodes:
+                    default: false
+                    description: |-
+                      RequireExplicitExitCodes requires cells to explicitly set exit codes
+                      ADR-041: Advanced feature for production validation
+                    type: boolean
+                  strictMode:
+                    default: false
+                    description: |-
+                      StrictMode enables all safety checks (equivalent to production level)
+                      ADR-041: When true, any detected issue causes validation failure
+                    type: boolean
+                  verifyAssertions:
+                    default: false
+                    description: |-
+                      VerifyAssertions ensures assertion statements are present in code cells
+                      ADR-041: Encourages defensive programming practices
+                    type: boolean
+                type: object
             required:
             - notebook
             - podConfig
@@ -1032,9 +1259,3 @@ spec:
     storage: true
     subresources:
       status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: null
-  storedVersions: null

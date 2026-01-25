@@ -371,7 +371,7 @@ func (r *NotebookValidationJobReconciler) reconcileBuildingS2I(ctx context.Conte
 	// S2I: BuildConfig creates Builds with -1, -2 suffixes
 	// Use GetLatestBuild to find by buildconfig label
 	buildName := fmt.Sprintf("%s-build", job.Name)
-	// ADR-042: Use GetLatestBuild for S2I build discovery
+	// ADR-050: Use GetLatestBuild for S2I build discovery
 	// This finds Builds with -1, -2 suffixes by buildconfig label
 	buildInfo, err := strategy.GetLatestBuild(ctx, buildName)
 
@@ -918,6 +918,22 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 	// Apply all envFrom sources to the pod
 	if len(envFromSources) > 0 {
 		pod.Spec.Containers[0].EnvFrom = envFromSources
+	}
+
+	// ADR-045: Volume and PVC Support for Validation Pods
+	// Add user-defined volumes to pod spec
+	if len(job.Spec.PodConfig.Volumes) > 0 {
+		logger.Info("Adding user-defined volumes", "volumeCount", len(job.Spec.PodConfig.Volumes))
+		userVolumes := convertVolumes(job.Spec.PodConfig.Volumes)
+		pod.Spec.Volumes = append(pod.Spec.Volumes, userVolumes...)
+	}
+
+	// ADR-045: Volume and PVC Support for Validation Pods
+	// Add user-defined volume mounts to main container
+	if len(job.Spec.PodConfig.VolumeMounts) > 0 {
+		logger.Info("Adding user-defined volume mounts", "mountCount", len(job.Spec.PodConfig.VolumeMounts))
+		userMounts := convertVolumeMounts(job.Spec.PodConfig.VolumeMounts)
+		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, userMounts...)
 	}
 
 	// Add resource requirements if specified

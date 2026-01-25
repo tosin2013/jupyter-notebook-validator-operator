@@ -1,7 +1,9 @@
 # ADR 041: Exit Code Validation and Developer Safety Framework
 
 ## Status
-Proposed
+Implemented
+
+> **Note**: Phase 1 (CRD API, validation levels, strictMode, failOnStderr, failOnWarnings, detectSilentFailures) is complete. Advanced features (pre-execution linting, runtime instrumentation, educational feedback) are available for future enhancement.
 
 ## Context
 
@@ -492,23 +494,28 @@ status:
 
 ### Phased Rollout
 
-#### Phase 1: Basic Exit Code Validation (Week 1)
-- [ ] Implement runtime instrumentation for None/NaN detection
-- [ ] Add `strictMode` flag (default: false)
-- [ ] Add `failOnStderr` flag
+#### Phase 1: Basic Exit Code Validation (Week 1) - COMPLETED
+- [x] Implement ValidationConfig CRD API with all fields
+- [x] Add `strictMode` flag (default: false)
+- [x] Add `failOnStderr` flag
+- [x] Add `failOnWarnings` flag
+- [x] Add `detectSilentFailures` flag
+- [x] Add validation level support (learning/development/staging/production)
+- [x] Integrate with papermill_helper.go execution script
+- [x] Add unit tests for ValidationConfig
 
-#### Phase 2: Data Quality Checks (Week 2)
-- [ ] Implement post-execution output validation
-- [ ] Add `expectedOutputs` field
+#### Phase 2: Data Quality Checks (Week 2) - CRD READY
+- [x] Add `expectedOutputs` field to CRD
+- [ ] Implement post-execution output validation logic
 - [ ] Support DataFrame shape/type checks
 
-#### Phase 3: Educational Mode (Week 3)
+#### Phase 3: Educational Mode (Week 3) - FUTURE
 - [ ] Implement pre-execution linting
 - [ ] Add educational feedback generation
 - [ ] Create best practice templates
 
-#### Phase 4: Validation Levels (Week 4)
-- [ ] Implement level-based configuration
+#### Phase 4: Runtime Instrumentation (Week 4) - FUTURE
+- [ ] Implement runtime None/NaN detection in Python
 - [ ] Document level usage guidelines
 - [ ] Create migration guide
 

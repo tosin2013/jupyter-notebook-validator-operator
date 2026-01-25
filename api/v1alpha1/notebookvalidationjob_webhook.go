@@ -121,7 +121,11 @@ func (r *NotebookValidationJob) ValidateCreate(ctx context.Context, obj runtime.
 	}
 	notebookvalidationjoblog.Info("validate create", "name", job.Name, "namespace", job.Namespace)
 
-	// TODO(user): fill in your validation logic upon object creation.
+	// Validate volumes and volume mounts (ADR-045)
+	if err := validateVolumes(job); err != nil {
+		return nil, err
+	}
+
 	return nil, nil
 }
 
@@ -133,7 +137,11 @@ func (r *NotebookValidationJob) ValidateUpdate(ctx context.Context, oldObj, newO
 	}
 	notebookvalidationjoblog.Info("validate update", "name", job.Name, "namespace", job.Namespace)
 
-	// TODO(user): fill in your validation logic upon object update.
+	// Validate volumes and volume mounts (ADR-045)
+	if err := validateVolumes(job); err != nil {
+		return nil, err
+	}
+
 	return nil, nil
 }
 
@@ -147,4 +155,81 @@ func (r *NotebookValidationJob) ValidateDelete(ctx context.Context, obj runtime.
 
 	// TODO(user): fill in your validation logic upon object deletion.
 	return nil, nil
+}
+
+// Reserved volume names that conflict with operator-created volumes
+// ADR-045: Prevent user volumes from conflicting with internal volumes
+var reservedVolumeNames = map[string]bool{
+	"git-clone":     true, // Used by git clone init container
+	"notebook-data": true, // Used for notebook data
+	"source":        true, // Used by Tekton builds
+}
+
+// validateVolumes validates volumes and volume mounts configuration
+// ADR-045: Volume and PVC Support for Validation Pods
+func validateVolumes(job *NotebookValidationJob) error {
+	volumes := job.Spec.PodConfig.Volumes
+	volumeMounts := job.Spec.PodConfig.VolumeMounts
+
+	// Build a map of defined volumes for quick lookup
+	volumeNames := make(map[string]bool)
+
+	// Validate volumes
+	for i, vol := range volumes {
+		// Check for reserved volume names
+		if reservedVolumeNames[vol.Name] {
+			return fmt.Errorf("spec.podConfig.volumes[%d].name: volume name %q is reserved for internal use; "+
+				"please choose a different name", i, vol.Name)
+		}
+
+		// Check for duplicate volume names
+		if volumeNames[vol.Name] {
+			return fmt.Errorf("spec.podConfig.volumes[%d].name: duplicate volume name %q; "+
+				"each volume must have a unique name", i, vol.Name)
+		}
+		volumeNames[vol.Name] = true
+
+		// Validate exactly one volume source is specified
+		sourceCount := 0
+		if vol.PersistentVolumeClaim != nil {
+			sourceCount++
+		}
+		if vol.ConfigMap != nil {
+			sourceCount++
+		}
+		if vol.Secret != nil {
+			sourceCount++
+		}
+		if vol.EmptyDir != nil {
+			sourceCount++
+		}
+
+		if sourceCount == 0 {
+			return fmt.Errorf("spec.podConfig.volumes[%d]: volume %q must specify exactly one volume source "+
+				"(persistentVolumeClaim, configMap, secret, or emptyDir)", i, vol.Name)
+		}
+		if sourceCount > 1 {
+			return fmt.Errorf("spec.podConfig.volumes[%d]: volume %q specifies multiple volume sources; "+
+				"exactly one must be specified", i, vol.Name)
+		}
+	}
+
+	// Validate volume mounts
+	mountPaths := make(map[string]bool)
+	for i, mount := range volumeMounts {
+		// Check that volume mount references a defined volume
+		if !volumeNames[mount.Name] {
+			return fmt.Errorf("spec.podConfig.volumeMounts[%d].name: volume mount references undefined volume %q; "+
+				"ensure a volume with this name is defined in spec.podConfig.volumes", i, mount.Name)
+		}
+
+		// Check for duplicate mount paths
+		if mountPaths[mount.MountPath] {
+			return fmt.Errorf("spec.podConfig.volumeMounts[%d].mountPath: duplicate mount path %q; "+
+				"each volume mount must have a unique mountPath", i, mount.MountPath)
+		}
+		mountPaths[mount.MountPath] = true
+	}
+
+	return nil
 }

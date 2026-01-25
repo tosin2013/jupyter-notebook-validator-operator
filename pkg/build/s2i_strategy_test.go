@@ -310,3 +310,253 @@ func TestS2IStrategyDeleteBuild(t *testing.T) {
 		t.Errorf("DeleteBuild() error = %v", err)
 	}
 }
+
+// TestS2IStrategyGetLatestBuild tests ADR-050: GetLatestBuild for S2I build discovery
+// This verifies that builds are found by buildconfig label and properly prioritized
+func TestS2IStrategyGetLatestBuild(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = mlopsv1alpha1.AddToScheme(scheme)
+	_ = buildv1.AddToScheme(scheme)
+	_ = imagev1.AddToScheme(scheme)
+
+	tests := []struct {
+		name               string
+		buildConfigName    string
+		builds             []buildv1.Build
+		expectedBuildName  string
+		expectedStatus     BuildStatus
+		expectError        bool
+		expectedErrContain string
+	}{
+		{
+			name:            "No builds found returns error",
+			buildConfigName: "test-buildconfig",
+			builds:          []buildv1.Build{},
+			expectError:     true,
+			expectedErrContain: "no builds found",
+		},
+		{
+			name:            "Finds build by buildconfig label with suffix",
+			buildConfigName: "test-buildconfig",
+			builds: []buildv1.Build{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-buildconfig-1", // Has -1 suffix like real S2I builds
+						Namespace: "default",
+						Labels: map[string]string{
+							"buildconfig": "test-buildconfig",
+						},
+					},
+					Status: buildv1.BuildStatus{
+						Phase: buildv1.BuildPhaseComplete,
+					},
+				},
+			},
+			expectedBuildName: "test-buildconfig-1",
+			expectedStatus:    BuildStatusComplete,
+			expectError:       false,
+		},
+		{
+			name:            "Prioritizes Complete over Running",
+			buildConfigName: "test-buildconfig",
+			builds: []buildv1.Build{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-buildconfig-1",
+						Namespace: "default",
+						Labels: map[string]string{
+							"buildconfig": "test-buildconfig",
+						},
+					},
+					Status: buildv1.BuildStatus{
+						Phase: buildv1.BuildPhaseRunning,
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-buildconfig-2",
+						Namespace: "default",
+						Labels: map[string]string{
+							"buildconfig": "test-buildconfig",
+						},
+					},
+					Status: buildv1.BuildStatus{
+						Phase: buildv1.BuildPhaseComplete,
+					},
+				},
+			},
+			expectedBuildName: "test-buildconfig-2",
+			expectedStatus:    BuildStatusComplete,
+			expectError:       false,
+		},
+		{
+			name:            "Prioritizes Running over Pending",
+			buildConfigName: "test-buildconfig",
+			builds: []buildv1.Build{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-buildconfig-1",
+						Namespace: "default",
+						Labels: map[string]string{
+							"buildconfig": "test-buildconfig",
+						},
+					},
+					Status: buildv1.BuildStatus{
+						Phase: buildv1.BuildPhasePending,
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-buildconfig-2",
+						Namespace: "default",
+						Labels: map[string]string{
+							"buildconfig": "test-buildconfig",
+						},
+					},
+					Status: buildv1.BuildStatus{
+						Phase: buildv1.BuildPhaseRunning,
+					},
+				},
+			},
+			expectedBuildName: "test-buildconfig-2",
+			expectedStatus:    BuildStatusRunning,
+			expectError:       false,
+		},
+		{
+			name:            "Prioritizes Pending over Failed",
+			buildConfigName: "test-buildconfig",
+			builds: []buildv1.Build{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-buildconfig-1",
+						Namespace: "default",
+						Labels: map[string]string{
+							"buildconfig": "test-buildconfig",
+						},
+					},
+					Status: buildv1.BuildStatus{
+						Phase: buildv1.BuildPhaseFailed,
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-buildconfig-2",
+						Namespace: "default",
+						Labels: map[string]string{
+							"buildconfig": "test-buildconfig",
+						},
+					},
+					Status: buildv1.BuildStatus{
+						Phase: buildv1.BuildPhasePending,
+					},
+				},
+			},
+			expectedBuildName: "test-buildconfig-2",
+			expectedStatus:    BuildStatusPending,
+			expectError:       false,
+		},
+		{
+			name:            "Returns Failed build when only failed builds exist",
+			buildConfigName: "test-buildconfig",
+			builds: []buildv1.Build{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-buildconfig-1",
+						Namespace: "default",
+						Labels: map[string]string{
+							"buildconfig": "test-buildconfig",
+						},
+					},
+					Status: buildv1.BuildStatus{
+						Phase:   buildv1.BuildPhaseFailed,
+						Message: "Build failed: error building at STEP",
+					},
+				},
+			},
+			expectedBuildName: "test-buildconfig-1",
+			expectedStatus:    BuildStatusFailed,
+			expectError:       false,
+		},
+		{
+			name:            "Ignores builds without matching buildconfig label",
+			buildConfigName: "my-buildconfig",
+			builds: []buildv1.Build{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "other-buildconfig-1",
+						Namespace: "default",
+						Labels: map[string]string{
+							"buildconfig": "other-buildconfig", // Different buildconfig
+						},
+					},
+					Status: buildv1.BuildStatus{
+						Phase: buildv1.BuildPhaseComplete,
+					},
+				},
+			},
+			expectError:        true,
+			expectedErrContain: "no builds found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Convert builds slice to runtime.Object slice for fake client
+			objects := make([]runtime.Object, len(tt.builds))
+			for i := range tt.builds {
+				objects[i] = &tt.builds[i]
+			}
+
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithRuntimeObjects(objects...).
+				Build()
+
+			strategy := NewS2IStrategy(fakeClient, fakeClient, scheme)
+			ctx := context.Background()
+
+			buildInfo, err := strategy.GetLatestBuild(ctx, tt.buildConfigName)
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("GetLatestBuild() expected error, got nil")
+				} else if tt.expectedErrContain != "" && !contains(err.Error(), tt.expectedErrContain) {
+					t.Errorf("GetLatestBuild() error = %v, want error containing %v", err, tt.expectedErrContain)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("GetLatestBuild() unexpected error = %v", err)
+				return
+			}
+
+			if buildInfo == nil {
+				t.Fatal("GetLatestBuild() returned nil BuildInfo")
+			}
+
+			if buildInfo.Name != tt.expectedBuildName {
+				t.Errorf("BuildInfo.Name = %v, want %v", buildInfo.Name, tt.expectedBuildName)
+			}
+
+			if buildInfo.Status != tt.expectedStatus {
+				t.Errorf("BuildInfo.Status = %v, want %v", buildInfo.Status, tt.expectedStatus)
+			}
+		})
+	}
+}
+
+// contains checks if a string contains a substring
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
