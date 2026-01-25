@@ -390,6 +390,12 @@ install_olm() {
     if kubectl wait --for=condition=Available \
         --timeout=300s -n olm deployment/catalog-operator deployment/olm-operator 2>&1; then
         log_success "OLM installed successfully"
+        
+        # Delete operatorhubio-catalog to avoid resolution conflicts
+        # This catalog can interfere with bundle installation
+        log_info "Removing operatorhubio-catalog to avoid resolution conflicts..."
+        kubectl delete catalogsource operatorhubio-catalog -n olm 2>/dev/null || true
+        
         return 0
     else
         log_error "OLM failed to become ready"
