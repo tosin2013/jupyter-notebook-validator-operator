@@ -1,10 +1,59 @@
 # ADR-020: Model-Aware Validation Strategy
 
-**Status:** Proposed  
+**Status:** Implemented  
 **Date:** 2025-11-08  
+**Implemented:** 2026-01-25  
 **Decision Makers:** Architecture Team, Platform Team  
 **Priority:** High  
 **Category:** Validation Strategy, Platform Integration  
+
+---
+
+## Implementation Summary
+
+This ADR was fully implemented with the following components:
+
+### Core Implementation (2026-01-25)
+
+1. **CRD Types** (`api/v1alpha1/notebookvalidationjob_types.go`):
+   - Added `ModelValidationSpec` with platform, phase, targetModels, timeout, and customPlatform fields
+   - Added `PredictionValidationSpec` for prediction consistency testing
+   - Added `CustomPlatformSpec` for community platform extension
+   - Added status types for tracking validation results
+
+2. **Platform Detection** (`pkg/platform/detector.go`):
+   - Implemented platform detection for KServe, OpenShift AI, vLLM, TorchServe, TensorFlow Serving, Triton, Ray Serve, Seldon, and BentoML
+   - Added namespace-aware `CheckModelAvailability()` and `CheckModelHealth()` methods
+   - Implemented CRD-based auto-detection via Kubernetes API discovery
+
+3. **Model Resolver** (`pkg/platform/model_resolver.go`):
+   - Implemented `ModelResolver` for parsing model references
+   - Supports local (`modelName`) and cross-namespace (`namespace/modelName`) formats
+   - Validates cross-namespace access against allowed namespaces list
+
+4. **Controller Integration** (`internal/controller/model_validation_helper.go`):
+   - Integrated model validation into reconciliation loop
+   - Added namespace-aware model health checks
+   - Built environment variable injection for validation pods
+
+5. **RBAC** (`config/rbac/`):
+   - Added `inferenceservices/status` permissions to manager role
+   - Created `model_validator_role.yaml` template for namespace-scoped deployments
+
+6. **Documentation**:
+   - `docs/MODEL_VALIDATION_MULTI_USER.md` - Multi-user setup guide
+   - `docs/COMMUNITY_PLATFORMS.md` - Community platform contribution guide
+   - `docs/CONTRIBUTING_MODEL_PLATFORMS.md` - Technical contributor guide
+
+7. **Samples** (`config/samples/`):
+   - `model-validation-cross-namespace.yaml` - Cross-namespace example
+   - `model-validation-multi-user.yaml` - Multi-user scenario example
+
+### Backporting
+All changes backported to:
+- `release-4.18`
+- `release-4.19`
+- `release-4.20`
 
 ---
 
