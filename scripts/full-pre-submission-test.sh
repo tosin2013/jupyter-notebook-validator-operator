@@ -33,7 +33,7 @@ OPM_VERSION="${OPM_VERSION:-v1.43.0}"
 OLM_VERSION="${OLM_VERSION:-v0.28.0}"
 
 # Bundle versions to test
-BUNDLE_VERSIONS=("1.0.4")
+BUNDLE_VERSIONS=("1.0.5")
 
 # K8s versions for matrix testing (maps to OpenShift versions)
 K8S_VERSIONS=("v1.29.0" "v1.30.0" "v1.31.0" "v1.33.0")
