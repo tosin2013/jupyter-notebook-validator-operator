@@ -106,8 +106,8 @@ func SetCondition(job *mlopsv1alpha1.NotebookValidationJob, conditionType string
 // ADR-030: Integration between SmartError and Status Conditions
 func SetConditionFromSmartError(job *mlopsv1alpha1.NotebookValidationJob, smartErr *smarterrors.SmartError) {
 	// Determine condition type based on error category
-	conditionType := ConditionTypeProgressing
-	reason := string(smartErr.Category) + "Error"
+	var conditionType string
+	var reason string
 
 	switch smartErr.Category {
 	case smarterrors.CategoryRBAC:
@@ -221,14 +221,14 @@ func ConvertPodFailureToSmartError(analysis *PodFailureAnalysis) *smarterrors.Sm
 
 	// Extract actions from SuggestedAction
 	if analysis.SuggestedAction != "" {
-		smartErr.WithActions(analysis.SuggestedAction)
+		smartErr = smartErr.WithActions(analysis.SuggestedAction)
 	}
 
 	// Set severity based on transient nature
 	if analysis.IsTransient {
-		smartErr.WithSeverity(smarterrors.SeverityWarning)
+		smartErr = smartErr.WithSeverity(smarterrors.SeverityWarning)
 	} else {
-		smartErr.WithSeverity(smarterrors.SeverityError)
+		smartErr = smartErr.WithSeverity(smarterrors.SeverityError)
 	}
 
 	return smartErr
