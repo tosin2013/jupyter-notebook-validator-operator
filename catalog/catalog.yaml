@@ -21,25 +21,19 @@ schema: olm.channel
 package: jupyter-notebook-validator-operator
 name: stable
 entries:
-  - name: jupyter-notebook-validator-operator.v1.0.7
-    skipRange: ">=1.0.0 <1.0.7"
-  - name: jupyter-notebook-validator-operator.v1.0.8
-    replaces: jupyter-notebook-validator-operator.v1.0.7
-    skipRange: ">=1.0.0 <1.0.8"
-  - name: jupyter-notebook-validator-operator.v1.0.9
-    replaces: jupyter-notebook-validator-operator.v1.0.8
-    skipRange: ">=1.0.0 <1.0.9"
+  - name: jupyter-notebook-validator-operator.v1.0.4
+    replaces: jupyter-notebook-validator-operator.v1.0.3-ocp4.19
 
 ---
 schema: olm.bundle
-name: jupyter-notebook-validator-operator.v1.0.7
+name: jupyter-notebook-validator-operator.v1.0.4
 package: jupyter-notebook-validator-operator
-image: quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.7
+image: quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.4
 properties:
   - type: olm.package
     value:
       packageName: jupyter-notebook-validator-operator
-      version: 1.0.7
+      version: 1.0.4
   - type: olm.gvk
     value:
       group: mlops.mlops.dev
@@ -55,76 +49,10 @@ properties:
         capabilities: Seamless Upgrades
         categories: Developer Tools, AI/Machine Learning
         certified: "false"
-        containerImage: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.7-ocp4.18
-        createdAt: "2025-12-03T00:00:00Z"
+        containerImage: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.4
+        createdAt: "2026-01-25T00:00:00Z"
         description: Automates Jupyter Notebook validation in MLOps workflows
         repository: https://github.com/tosin2013/jupyter-notebook-validator-operator
         support: Community
-        com.redhat.openshift.versions: "v4.18"
-        operatorframework.io/suggested-namespace: jupyter-notebook-validator-operator-system
-
----
-schema: olm.bundle
-name: jupyter-notebook-validator-operator.v1.0.8
-package: jupyter-notebook-validator-operator
-image: quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.8
-properties:
-  - type: olm.package
-    value:
-      packageName: jupyter-notebook-validator-operator
-      version: 1.0.8
-  - type: olm.gvk
-    value:
-      group: mlops.mlops.dev
-      kind: NotebookValidationJob
-      version: v1alpha1
-  - type: olm.package.required
-    value:
-      packageName: jupyter-notebook-validator-operator
-      versionRange: ">=1.0.7"
-  - type: olm.csv.metadata
-    value:
-      annotations:
-        capabilities: Seamless Upgrades
-        categories: Developer Tools, AI/Machine Learning
-        certified: "false"
-        containerImage: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.8-ocp4.19
-        createdAt: "2025-12-03T00:00:00Z"
-        description: Automates Jupyter Notebook validation in MLOps workflows
-        repository: https://github.com/tosin2013/jupyter-notebook-validator-operator
-        support: Community
-        com.redhat.openshift.versions: "v4.19"
-        operatorframework.io/suggested-namespace: jupyter-notebook-validator-operator-system
-
----
-schema: olm.bundle
-name: jupyter-notebook-validator-operator.v1.0.9
-package: jupyter-notebook-validator-operator
-image: quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.9
-properties:
-  - type: olm.package
-    value:
-      packageName: jupyter-notebook-validator-operator
-      version: 1.0.9
-  - type: olm.gvk
-    value:
-      group: mlops.mlops.dev
-      kind: NotebookValidationJob
-      version: v1alpha1
-  - type: olm.package.required
-    value:
-      packageName: jupyter-notebook-validator-operator
-      versionRange: ">=1.0.8"
-  - type: olm.csv.metadata
-    value:
-      annotations:
-        capabilities: Seamless Upgrades
-        categories: Developer Tools, AI/Machine Learning
-        certified: "false"
-        containerImage: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.9-ocp4.20
-        createdAt: "2025-12-03T00:00:00Z"
-        description: Automates Jupyter Notebook validation in MLOps workflows with Tekton v1 API support
-        repository: https://github.com/tosin2013/jupyter-notebook-validator-operator
-        support: Community
-        com.redhat.openshift.versions: "v4.20"
+        com.redhat.openshift.versions: "v4.18-v4.20"
         operatorframework.io/suggested-namespace: jupyter-notebook-validator-operator-system

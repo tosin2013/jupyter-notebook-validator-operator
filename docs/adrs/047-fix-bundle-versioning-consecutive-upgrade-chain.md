@@ -1,9 +1,14 @@
 # ADR-047: Fix Bundle Versioning for Consecutive Upgrade Chain
 
-**Status**: Accepted  
+**Status**: Superseded by ADR-048  
 **Date**: 2025-12-03  
+**Superseded Date**: 2026-01-25  
 **Deciders**: Tosin Akinosho, Community Operators Maintainer Feedback  
 **Context**: Operator Hub Bundle Submission
+
+> **Note**: This ADR is superseded by ADR-048. The upgrade chain proposed here 
+> (`replaces: v1.0.3`) does not connect to the actual published version on 
+> OperatorHub.io which is `v1.0.3-ocp4.19`. See ADR-048 for the corrected approach.
 
 ## Context and Problem Statement
 
