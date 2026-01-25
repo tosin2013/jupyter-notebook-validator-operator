@@ -14,7 +14,6 @@ The following ADRs have "Proposed" status and need implementation:
 | ADR-030 | Smart Error Messages and User Feedback | [#9](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/9) |
 | ADR-038 | Requirements.txt Auto-Detection | [#10](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/10) |
 | ADR-041 | Exit Code Validation Framework | [#11](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/11) |
-| ADR-050 | Fix S2I Build Status Monitoring | [#12](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/12) |
 
 ## ADR Compliance Tasks
 
@@ -58,6 +57,7 @@ The following ADRs had their status updated during the compliance review:
 | 051-git-init-image-compatibility | Accepted | Implemented | Configurable git images in production |
 | 052-resource-conflict-error-handling | Accepted | Implemented | Conflict handling in reconciliation loop |
 | 053-volume-and-pvc-support | unknown | Implemented | PVC support in CRD verified |
+| 050-fix-s2i-build-status-monitoring | Proposed | Implemented | Controller uses GetLatestBuild for S2I builds |
 
 ## References
 

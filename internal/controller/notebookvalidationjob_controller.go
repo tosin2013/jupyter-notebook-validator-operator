@@ -371,7 +371,7 @@ func (r *NotebookValidationJobReconciler) reconcileBuildingS2I(ctx context.Conte
 	// S2I: BuildConfig creates Builds with -1, -2 suffixes
 	// Use GetLatestBuild to find by buildconfig label
 	buildName := fmt.Sprintf("%s-build", job.Name)
-	// ADR-042: Use GetLatestBuild for S2I build discovery
+	// ADR-050: Use GetLatestBuild for S2I build discovery
 	// This finds Builds with -1, -2 suffixes by buildconfig label
 	buildInfo, err := strategy.GetLatestBuild(ctx, buildName)
 
