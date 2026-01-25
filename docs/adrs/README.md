@@ -45,7 +45,7 @@ Architectural Decision Records document important architectural decisions made d
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
-| [020](020-model-aware-validation-strategy.md) | Model-Aware Validation Strategy | Proposed | 2025-11-08 |
+| [020](020-model-aware-validation-strategy.md) | Model-Aware Validation Strategy | Implemented | 2025-11-08 |
 
 ### Observability Enhancement ADRs (NEW - 2025-11-08)
 
@@ -63,19 +63,24 @@ Architectural Decision Records document important architectural decisions made d
 | [025](025-community-build-methods-extension-framework.md) | Community Build Methods Extension Framework | Accepted | 2025-11-08 |
 | [026](026-smart-validation-pod-recovery.md) | Smart Validation Pod Recovery and Build Strategy Selection | Implemented | 2025-11-09 |
 | [027](027-s2i-build-strategy-for-git-integration.md) | S2I Build Strategy for Git Integration | Superseded | 2025-11-09 |
-| [028](028-tekton-task-strategy-custom-vs-cluster-tasks.md) | Tekton Task Strategy - Custom vs Cluster Tasks | Accepted | 2025-11-09 |
+| [028](028-tekton-task-strategy-custom-vs-cluster-tasks.md) | Tekton Task Strategy - Custom vs Cluster Tasks | Implemented | 2025-11-09 |
 | [031](031-tekton-build-dockerfile-vs-base-image.md) | Tekton Build Strategy - Dockerfile vs Base Image | Implemented | 2025-11-09 |
 | [037](037-build-validation-sequencing-and-state-machine.md) | Build-Validation Sequencing and State Machine | Implemented | 2025-11-10 |
 | [039](039-automatic-scc-management-for-tekton-builds.md) | Automatic SCC Management for Tekton Builds | Implemented | 2025-11-21 |
 | [040](040-unique-build-pvcs-for-concurrent-tekton-builds.md) | Unique Build PVCs for Concurrent Tekton Builds | Implemented | 2025-11-24 |
+| [042](042-automatic-tekton-git-credentials-conversion.md) | Automatic Tekton Git Credentials Conversion | Implemented | 2025-11-21 |
+| [050](050-fix-s2i-build-status-monitoring.md) | Fix S2I Build Status Monitoring | Proposed | 2025-11-24 |
+| [051](051-git-init-image-compatibility.md) | Git Init Container Image Compatibility | Implemented | 2025-11-21 |
+| [052](052-resource-conflict-error-handling.md) | Resource Conflict Error Handling | Implemented | 2025-11-24 |
+| [053](053-volume-and-pvc-support-for-validation-pods.md) | Volume and PVC Support for Validation Pods | Implemented | 2025-11-29 |
 
 ### Testing & Validation ADRs (NEW - 2025-11-12)
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
-| [032](032-github-actions-ci-testing-kubernetes-version.md) | GitHub Actions CI Testing Against Kubernetes 1.31.10 | Proposed | 2025-11-09 |
+| [032](032-github-actions-ci-testing-kubernetes-version.md) | GitHub Actions CI Testing Against Kubernetes 1.31.10 | Implemented | 2025-11-09 |
 | [033](033-e2e-testing-live-openshift-cluster.md) | End-to-End Testing Against Live OpenShift Cluster | Accepted | 2025-11-09 |
-| [034](034-dual-testing-strategy-kind-openshift.md) | Dual Testing Strategy with Kind and OpenShift | Accepted | 2025-11-11 |
+| [034](034-dual-testing-strategy-kind-openshift.md) | Dual Testing Strategy with Kind and OpenShift | Implemented | 2025-11-11 |
 | [048](048-pre-submission-validation-test-rig-strategy.md) | Pre-Submission Validation Test Rig Strategy | Accepted | 2025-11-12 |
 
 ### ArgoCD Integration ADRs (NEW - 2026-01-24)
@@ -186,6 +191,22 @@ For questions about ADRs or architectural decisions, please:
 - Open an issue in the GitHub repository
 - Discuss in team meetings
 - Contact the platform team
+
+## ADR Renumbering History
+
+### 2026-01-24: Resolved Duplicate Numbering Conflicts
+
+The following ADRs were renumbered to resolve duplicate numbering:
+
+| Original | New | Description |
+|----------|-----|-------------|
+| 042-fix-s2i-build-status-monitoring | 050-fix-s2i-build-status-monitoring | Fix S2I Build Status Monitoring |
+| 042-git-init-image-compatibility | 051-git-init-image-compatibility | Git Init Container Image Compatibility |
+| 042-resource-conflict-error-handling | 052-resource-conflict-error-handling | Resource Conflict Error Handling |
+| 045-volume-and-pvc-support | 053-volume-and-pvc-support | Volume and PVC Support for Validation Pods |
+
+**Note**: ADR-042 (Automatic Tekton Git Credentials Conversion) remains the canonical ADR-042.
+ADR-045 (Long-Term Strategic Deployment Plan) remains the canonical ADR-045.
 
 ## References
 

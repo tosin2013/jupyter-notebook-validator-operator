@@ -1,8 +1,8 @@
 # ADR-028: Tekton Task Strategy - Custom Tasks vs Cluster Tasks
 
-**Status**: Accepted
+**Status**: Implemented
 **Date**: 2025-11-09
-**Updated**: 2025-11-10
+**Updated**: 2026-01-24
 **Authors**: Sophia (AI Assistant), Tosin Akinosho
 **Related ADRs**: ADR-027 (S2I Build Strategy - Superseded), ADR-031 (Tekton Build - Primary)
 
