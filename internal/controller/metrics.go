@@ -21,6 +21,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
+// Boolean string constants for metrics labels
+const (
+	boolTrue  = "true"
+	boolFalse = "false"
+)
+
 var (
 	// Reconciliation duration histogram
 	// Tracks how long reconciliation loops take
@@ -186,9 +192,9 @@ func recordPredictionValidation(namespace, platform, result string) {
 
 // recordPlatformDetection records the duration of a platform detection operation
 func recordPlatformDetection(namespace, platform string, detected bool, duration float64) {
-	detectedStr := "false"
+	detectedStr := boolFalse
 	if detected {
-		detectedStr = "true"
+		detectedStr = boolTrue
 	}
 	platformDetectionDuration.WithLabelValues(namespace, platform, detectedStr).Observe(duration)
 }
