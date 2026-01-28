@@ -255,6 +255,676 @@ spec:
                 description: PodConfig specifies the pod configuration for validation
                   execution
                 properties:
+                  affinity:
+                    description: |-
+                      Affinity specifies advanced scheduling rules including node affinity,
+                      pod affinity, and pod anti-affinity
+                      GitHub Issue #13: Pod Scheduling Support
+                      Use this for complex scheduling requirements in multi-tenant clusters
+                    properties:
+                      nodeAffinity:
+                        description: NodeAffinity describes node affinity scheduling
+                          rules for the pod
+                        properties:
+                          preferredDuringSchedulingIgnoredDuringExecution:
+                            description: PreferredDuringSchedulingIgnoredDuringExecution
+                              specifies soft node preferences
+                            items:
+                              description: PreferredSchedulingTerm defines a preferred
+                                scheduling term with a weight
+                              properties:
+                                preference:
+                                  description: Preference is the node selector term
+                                    associated with the weight
+                                  properties:
+                                    matchExpressions:
+                                      description: MatchExpressions is a list of node
+                                        selector requirements by label
+                                      items:
+                                        description: NodeSelectorRequirement contains
+                                          values, a key, and an operator for node
+                                          selection
+                                        properties:
+                                          key:
+                                            description: Key is the label key that
+                                              the selector applies to
+                                            type: string
+                                          operator:
+                                            description: Operator represents a key's
+                                              relationship to a set of values
+                                            enum:
+                                            - In
+                                            - NotIn
+                                            - Exists
+                                            - DoesNotExist
+                                            - Gt
+                                            - Lt
+                                            type: string
+                                          values:
+                                            description: |-
+                                              Values is an array of string values
+                                              If the operator is In or NotIn, the values array must be non-empty
+                                              If the operator is Exists or DoesNotExist, the values array must be empty
+                                            items:
+                                              type: string
+                                            type: array
+                                        required:
+                                        - key
+                                        - operator
+                                        type: object
+                                      type: array
+                                    matchFields:
+                                      description: MatchFields is a list of node selector
+                                        requirements by field
+                                      items:
+                                        description: NodeSelectorRequirement contains
+                                          values, a key, and an operator for node
+                                          selection
+                                        properties:
+                                          key:
+                                            description: Key is the label key that
+                                              the selector applies to
+                                            type: string
+                                          operator:
+                                            description: Operator represents a key's
+                                              relationship to a set of values
+                                            enum:
+                                            - In
+                                            - NotIn
+                                            - Exists
+                                            - DoesNotExist
+                                            - Gt
+                                            - Lt
+                                            type: string
+                                          values:
+                                            description: |-
+                                              Values is an array of string values
+                                              If the operator is In or NotIn, the values array must be non-empty
+                                              If the operator is Exists or DoesNotExist, the values array must be empty
+                                            items:
+                                              type: string
+                                            type: array
+                                        required:
+                                        - key
+                                        - operator
+                                        type: object
+                                      type: array
+                                  type: object
+                                weight:
+                                  description: Weight is the weight associated with
+                                    this preference (1-100)
+                                  format: int32
+                                  maximum: 100
+                                  minimum: 1
+                                  type: integer
+                              required:
+                              - preference
+                              - weight
+                              type: object
+                            type: array
+                          requiredDuringSchedulingIgnoredDuringExecution:
+                            description: RequiredDuringSchedulingIgnoredDuringExecution
+                              specifies hard node constraints
+                            properties:
+                              nodeSelectorTerms:
+                                description: NodeSelectorTerms is a list of node selector
+                                  terms (ORed together)
+                                items:
+                                  description: NodeSelectorTerm matches nodes by label
+                                    and/or field expressions
+                                  properties:
+                                    matchExpressions:
+                                      description: MatchExpressions is a list of node
+                                        selector requirements by label
+                                      items:
+                                        description: NodeSelectorRequirement contains
+                                          values, a key, and an operator for node
+                                          selection
+                                        properties:
+                                          key:
+                                            description: Key is the label key that
+                                              the selector applies to
+                                            type: string
+                                          operator:
+                                            description: Operator represents a key's
+                                              relationship to a set of values
+                                            enum:
+                                            - In
+                                            - NotIn
+                                            - Exists
+                                            - DoesNotExist
+                                            - Gt
+                                            - Lt
+                                            type: string
+                                          values:
+                                            description: |-
+                                              Values is an array of string values
+                                              If the operator is In or NotIn, the values array must be non-empty
+                                              If the operator is Exists or DoesNotExist, the values array must be empty
+                                            items:
+                                              type: string
+                                            type: array
+                                        required:
+                                        - key
+                                        - operator
+                                        type: object
+                                      type: array
+                                    matchFields:
+                                      description: MatchFields is a list of node selector
+                                        requirements by field
+                                      items:
+                                        description: NodeSelectorRequirement contains
+                                          values, a key, and an operator for node
+                                          selection
+                                        properties:
+                                          key:
+                                            description: Key is the label key that
+                                              the selector applies to
+                                            type: string
+                                          operator:
+                                            description: Operator represents a key's
+                                              relationship to a set of values
+                                            enum:
+                                            - In
+                                            - NotIn
+                                            - Exists
+                                            - DoesNotExist
+                                            - Gt
+                                            - Lt
+                                            type: string
+                                          values:
+                                            description: |-
+                                              Values is an array of string values
+                                              If the operator is In or NotIn, the values array must be non-empty
+                                              If the operator is Exists or DoesNotExist, the values array must be empty
+                                            items:
+                                              type: string
+                                            type: array
+                                        required:
+                                        - key
+                                        - operator
+                                        type: object
+                                      type: array
+                                  type: object
+                                minItems: 1
+                                type: array
+                            required:
+                            - nodeSelectorTerms
+                            type: object
+                        type: object
+                      podAffinity:
+                        description: PodAffinity describes pod affinity scheduling
+                          rules
+                        properties:
+                          preferredDuringSchedulingIgnoredDuringExecution:
+                            description: PreferredDuringSchedulingIgnoredDuringExecution
+                              specifies soft pod affinity preferences
+                            items:
+                              description: WeightedPodAffinityTerm defines a weighted
+                                pod affinity term
+                              properties:
+                                podAffinityTerm:
+                                  description: PodAffinityTerm is the affinity term
+                                    associated with the weight
+                                  properties:
+                                    labelSelector:
+                                      description: LabelSelector is a label query
+                                        over pods
+                                      properties:
+                                        matchExpressions:
+                                          description: MatchExpressions is a list
+                                            of label selector requirements (ANDed
+                                            together)
+                                          items:
+                                            description: LabelSelectorRequirement
+                                              contains values, a key, and an operator
+                                              for label selection
+                                            properties:
+                                              key:
+                                                description: Key is the label key
+                                                  that the selector applies to
+                                                type: string
+                                              operator:
+                                                description: Operator represents a
+                                                  key's relationship to a set of values
+                                                enum:
+                                                - In
+                                                - NotIn
+                                                - Exists
+                                                - DoesNotExist
+                                                type: string
+                                              values:
+                                                description: Values is an array of
+                                                  string values
+                                                items:
+                                                  type: string
+                                                type: array
+                                            required:
+                                            - key
+                                            - operator
+                                            type: object
+                                          type: array
+                                        matchLabels:
+                                          additionalProperties:
+                                            type: string
+                                          description: MatchLabels is a map of {key,value}
+                                            pairs for exact matching
+                                          type: object
+                                      type: object
+                                    namespaceSelector:
+                                      description: NamespaceSelector is a label query
+                                        over namespaces
+                                      properties:
+                                        matchExpressions:
+                                          description: MatchExpressions is a list
+                                            of label selector requirements (ANDed
+                                            together)
+                                          items:
+                                            description: LabelSelectorRequirement
+                                              contains values, a key, and an operator
+                                              for label selection
+                                            properties:
+                                              key:
+                                                description: Key is the label key
+                                                  that the selector applies to
+                                                type: string
+                                              operator:
+                                                description: Operator represents a
+                                                  key's relationship to a set of values
+                                                enum:
+                                                - In
+                                                - NotIn
+                                                - Exists
+                                                - DoesNotExist
+                                                type: string
+                                              values:
+                                                description: Values is an array of
+                                                  string values
+                                                items:
+                                                  type: string
+                                                type: array
+                                            required:
+                                            - key
+                                            - operator
+                                            type: object
+                                          type: array
+                                        matchLabels:
+                                          additionalProperties:
+                                            type: string
+                                          description: MatchLabels is a map of {key,value}
+                                            pairs for exact matching
+                                          type: object
+                                      type: object
+                                    namespaces:
+                                      description: Namespaces specifies which namespaces
+                                        the pods should be matched in
+                                      items:
+                                        type: string
+                                      type: array
+                                    topologyKey:
+                                      description: TopologyKey is the key of node
+                                        labels used to define topology domains
+                                      type: string
+                                  required:
+                                  - topologyKey
+                                  type: object
+                                weight:
+                                  description: Weight is the weight associated with
+                                    this affinity term (1-100)
+                                  format: int32
+                                  maximum: 100
+                                  minimum: 1
+                                  type: integer
+                              required:
+                              - podAffinityTerm
+                              - weight
+                              type: object
+                            type: array
+                          requiredDuringSchedulingIgnoredDuringExecution:
+                            description: RequiredDuringSchedulingIgnoredDuringExecution
+                              specifies hard pod affinity constraints
+                            items:
+                              description: PodAffinityTerm defines a pod affinity/anti-affinity
+                                term
+                              properties:
+                                labelSelector:
+                                  description: LabelSelector is a label query over
+                                    pods
+                                  properties:
+                                    matchExpressions:
+                                      description: MatchExpressions is a list of label
+                                        selector requirements (ANDed together)
+                                      items:
+                                        description: LabelSelectorRequirement contains
+                                          values, a key, and an operator for label
+                                          selection
+                                        properties:
+                                          key:
+                                            description: Key is the label key that
+                                              the selector applies to
+                                            type: string
+                                          operator:
+                                            description: Operator represents a key's
+                                              relationship to a set of values
+                                            enum:
+                                            - In
+                                            - NotIn
+                                            - Exists
+                                            - DoesNotExist
+                                            type: string
+                                          values:
+                                            description: Values is an array of string
+                                              values
+                                            items:
+                                              type: string
+                                            type: array
+                                        required:
+                                        - key
+                                        - operator
+                                        type: object
+                                      type: array
+                                    matchLabels:
+                                      additionalProperties:
+                                        type: string
+                                      description: MatchLabels is a map of {key,value}
+                                        pairs for exact matching
+                                      type: object
+                                  type: object
+                                namespaceSelector:
+                                  description: NamespaceSelector is a label query
+                                    over namespaces
+                                  properties:
+                                    matchExpressions:
+                                      description: MatchExpressions is a list of label
+                                        selector requirements (ANDed together)
+                                      items:
+                                        description: LabelSelectorRequirement contains
+                                          values, a key, and an operator for label
+                                          selection
+                                        properties:
+                                          key:
+                                            description: Key is the label key that
+                                              the selector applies to
+                                            type: string
+                                          operator:
+                                            description: Operator represents a key's
+                                              relationship to a set of values
+                                            enum:
+                                            - In
+                                            - NotIn
+                                            - Exists
+                                            - DoesNotExist
+                                            type: string
+                                          values:
+                                            description: Values is an array of string
+                                              values
+                                            items:
+                                              type: string
+                                            type: array
+                                        required:
+                                        - key
+                                        - operator
+                                        type: object
+                                      type: array
+                                    matchLabels:
+                                      additionalProperties:
+                                        type: string
+                                      description: MatchLabels is a map of {key,value}
+                                        pairs for exact matching
+                                      type: object
+                                  type: object
+                                namespaces:
+                                  description: Namespaces specifies which namespaces
+                                    the pods should be matched in
+                                  items:
+                                    type: string
+                                  type: array
+                                topologyKey:
+                                  description: TopologyKey is the key of node labels
+                                    used to define topology domains
+                                  type: string
+                              required:
+                              - topologyKey
+                              type: object
+                            type: array
+                        type: object
+                      podAntiAffinity:
+                        description: PodAntiAffinity describes pod anti-affinity scheduling
+                          rules
+                        properties:
+                          preferredDuringSchedulingIgnoredDuringExecution:
+                            description: PreferredDuringSchedulingIgnoredDuringExecution
+                              specifies soft pod anti-affinity preferences
+                            items:
+                              description: WeightedPodAffinityTerm defines a weighted
+                                pod affinity term
+                              properties:
+                                podAffinityTerm:
+                                  description: PodAffinityTerm is the affinity term
+                                    associated with the weight
+                                  properties:
+                                    labelSelector:
+                                      description: LabelSelector is a label query
+                                        over pods
+                                      properties:
+                                        matchExpressions:
+                                          description: MatchExpressions is a list
+                                            of label selector requirements (ANDed
+                                            together)
+                                          items:
+                                            description: LabelSelectorRequirement
+                                              contains values, a key, and an operator
+                                              for label selection
+                                            properties:
+                                              key:
+                                                description: Key is the label key
+                                                  that the selector applies to
+                                                type: string
+                                              operator:
+                                                description: Operator represents a
+                                                  key's relationship to a set of values
+                                                enum:
+                                                - In
+                                                - NotIn
+                                                - Exists
+                                                - DoesNotExist
+                                                type: string
+                                              values:
+                                                description: Values is an array of
+                                                  string values
+                                                items:
+                                                  type: string
+                                                type: array
+                                            required:
+                                            - key
+                                            - operator
+                                            type: object
+                                          type: array
+                                        matchLabels:
+                                          additionalProperties:
+                                            type: string
+                                          description: MatchLabels is a map of {key,value}
+                                            pairs for exact matching
+                                          type: object
+                                      type: object
+                                    namespaceSelector:
+                                      description: NamespaceSelector is a label query
+                                        over namespaces
+                                      properties:
+                                        matchExpressions:
+                                          description: MatchExpressions is a list
+                                            of label selector requirements (ANDed
+                                            together)
+                                          items:
+                                            description: LabelSelectorRequirement
+                                              contains values, a key, and an operator
+                                              for label selection
+                                            properties:
+                                              key:
+                                                description: Key is the label key
+                                                  that the selector applies to
+                                                type: string
+                                              operator:
+                                                description: Operator represents a
+                                                  key's relationship to a set of values
+                                                enum:
+                                                - In
+                                                - NotIn
+                                                - Exists
+                                                - DoesNotExist
+                                                type: string
+                                              values:
+                                                description: Values is an array of
+                                                  string values
+                                                items:
+                                                  type: string
+                                                type: array
+                                            required:
+                                            - key
+                                            - operator
+                                            type: object
+                                          type: array
+                                        matchLabels:
+                                          additionalProperties:
+                                            type: string
+                                          description: MatchLabels is a map of {key,value}
+                                            pairs for exact matching
+                                          type: object
+                                      type: object
+                                    namespaces:
+                                      description: Namespaces specifies which namespaces
+                                        the pods should be matched in
+                                      items:
+                                        type: string
+                                      type: array
+                                    topologyKey:
+                                      description: TopologyKey is the key of node
+                                        labels used to define topology domains
+                                      type: string
+                                  required:
+                                  - topologyKey
+                                  type: object
+                                weight:
+                                  description: Weight is the weight associated with
+                                    this affinity term (1-100)
+                                  format: int32
+                                  maximum: 100
+                                  minimum: 1
+                                  type: integer
+                              required:
+                              - podAffinityTerm
+                              - weight
+                              type: object
+                            type: array
+                          requiredDuringSchedulingIgnoredDuringExecution:
+                            description: RequiredDuringSchedulingIgnoredDuringExecution
+                              specifies hard pod anti-affinity constraints
+                            items:
+                              description: PodAffinityTerm defines a pod affinity/anti-affinity
+                                term
+                              properties:
+                                labelSelector:
+                                  description: LabelSelector is a label query over
+                                    pods
+                                  properties:
+                                    matchExpressions:
+                                      description: MatchExpressions is a list of label
+                                        selector requirements (ANDed together)
+                                      items:
+                                        description: LabelSelectorRequirement contains
+                                          values, a key, and an operator for label
+                                          selection
+                                        properties:
+                                          key:
+                                            description: Key is the label key that
+                                              the selector applies to
+                                            type: string
+                                          operator:
+                                            description: Operator represents a key's
+                                              relationship to a set of values
+                                            enum:
+                                            - In
+                                            - NotIn
+                                            - Exists
+                                            - DoesNotExist
+                                            type: string
+                                          values:
+                                            description: Values is an array of string
+                                              values
+                                            items:
+                                              type: string
+                                            type: array
+                                        required:
+                                        - key
+                                        - operator
+                                        type: object
+                                      type: array
+                                    matchLabels:
+                                      additionalProperties:
+                                        type: string
+                                      description: MatchLabels is a map of {key,value}
+                                        pairs for exact matching
+                                      type: object
+                                  type: object
+                                namespaceSelector:
+                                  description: NamespaceSelector is a label query
+                                    over namespaces
+                                  properties:
+                                    matchExpressions:
+                                      description: MatchExpressions is a list of label
+                                        selector requirements (ANDed together)
+                                      items:
+                                        description: LabelSelectorRequirement contains
+                                          values, a key, and an operator for label
+                                          selection
+                                        properties:
+                                          key:
+                                            description: Key is the label key that
+                                              the selector applies to
+                                            type: string
+                                          operator:
+                                            description: Operator represents a key's
+                                              relationship to a set of values
+                                            enum:
+                                            - In
+                                            - NotIn
+                                            - Exists
+                                            - DoesNotExist
+                                            type: string
+                                          values:
+                                            description: Values is an array of string
+                                              values
+                                            items:
+                                              type: string
+                                            type: array
+                                        required:
+                                        - key
+                                        - operator
+                                        type: object
+                                      type: array
+                                    matchLabels:
+                                      additionalProperties:
+                                        type: string
+                                      description: MatchLabels is a map of {key,value}
+                                        pairs for exact matching
+                                      type: object
+                                  type: object
+                                namespaces:
+                                  description: Namespaces specifies which namespaces
+                                    the pods should be matched in
+                                  items:
+                                    type: string
+                                  type: array
+                                topologyKey:
+                                  description: TopologyKey is the key of node labels
+                                    used to define topology domains
+                                  type: string
+                              required:
+                              - topologyKey
+                              type: object
+                            type: array
+                        type: object
+                    type: object
                   buildConfig:
                     description: |-
                       BuildConfig specifies optional container image build configuration
@@ -429,6 +1099,15 @@ spec:
                           type: object
                       type: object
                     type: array
+                  nodeSelector:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      NodeSelector is a map of {key,value} pairs for selecting nodes
+                      GitHub Issue #13: Pod Scheduling Support
+                      The pod will only be scheduled on nodes with all these labels
+                      Example: {"nvidia.com/gpu.present": "true"} to target GPU nodes
+                    type: object
                   resources:
                     description: Resources specifies the compute resources for the
                       validation pod
@@ -453,6 +1132,55 @@ spec:
                       Defaults to "default" which exists in all namespaces
                       The mutating webhook will inject this default if not specified
                     type: string
+                  tolerations:
+                    description: |-
+                      Tolerations allow the validation pod to be scheduled onto nodes with matching taints
+                      GitHub Issue #13: Pod Scheduling Support
+                      Use this to schedule on GPU nodes, high-memory nodes, or spot instances
+                      Example: tolerate nvidia.com/gpu=true:NoSchedule to run on GPU nodes
+                    items:
+                      description: |-
+                        Toleration allows the pod to be scheduled onto nodes with matching taints
+                        GitHub Issue #13: Pod Scheduling Support
+                      properties:
+                        effect:
+                          description: |-
+                            Effect indicates the taint effect to match
+                            Empty means match all taint effects
+                          enum:
+                          - ""
+                          - NoSchedule
+                          - PreferNoSchedule
+                          - NoExecute
+                          type: string
+                        key:
+                          description: |-
+                            Key is the taint key that the toleration applies to
+                            Empty key matches all taint keys with the specified effect
+                          type: string
+                        operator:
+                          default: Equal
+                          description: |-
+                            Operator represents a key's relationship to the value
+                            Valid operators are Exists and Equal. Defaults to Equal.
+                          enum:
+                          - Exists
+                          - Equal
+                          type: string
+                        tolerationSeconds:
+                          description: |-
+                            TolerationSeconds represents the period of time the toleration tolerates the taint
+                            By default, it is not set, which means tolerate forever
+                            Only valid when Effect is NoExecute
+                          format: int64
+                          type: integer
+                        value:
+                          description: |-
+                            Value is the taint value the toleration matches to
+                            If the operator is Exists, the value should be empty
+                          type: string
+                      type: object
+                    type: array
                   volumeMounts:
                     description: |-
                       VolumeMounts defines where to mount volumes in the validation container
