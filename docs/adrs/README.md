@@ -73,6 +73,7 @@ Architectural Decision Records document important architectural decisions made d
 | [051](051-git-init-image-compatibility.md) | Git Init Container Image Compatibility | Implemented | 2025-11-21 |
 | [052](052-resource-conflict-error-handling.md) | Resource Conflict Error Handling | Implemented | 2025-11-24 |
 | [053](053-volume-and-pvc-support-for-validation-pods.md) | Volume and PVC Support for Validation Pods | Implemented | 2025-11-29 |
+| [054](054-pod-scheduling-support-tolerations-nodeselector-affinity.md) | Pod Scheduling Support (Tolerations, NodeSelector, Affinity) | Implemented | 2026-01-28 |
 
 ### Testing & Validation ADRs (NEW - 2025-11-12)
 
