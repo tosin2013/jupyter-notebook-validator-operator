@@ -73,6 +73,53 @@ spec:
     containerImage: quay.io/jupyter/scipy-notebook:latest
 ```
 
+### GPU and Specialized Node Scheduling
+
+Schedule validation pods on GPU nodes, high-memory nodes, or spot instances using Kubernetes-native scheduling features:
+
+```yaml
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: gpu-training-validation
+spec:
+  notebook:
+    git:
+      url: https://github.com/example/ml-notebooks.git
+      ref: main
+    path: notebooks/gpu-training.ipynb
+  podConfig:
+    containerImage: quay.io/jupyter/pytorch-notebook:cuda-latest
+    resources:
+      limits:
+        nvidia.com/gpu: "1"
+        memory: "16Gi"
+    # Tolerate GPU node taints
+    tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+    # Target GPU nodes
+    nodeSelector:
+      nvidia.com/gpu.present: "true"
+    # Advanced affinity rules
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: nvidia.com/gpu.present
+                  operator: In
+                  values: ["true"]
+  timeout: "2h"
+```
+
+See [config/samples/mlops_v1alpha1_notebookvalidationjob_gpu_scheduling.yaml](config/samples/mlops_v1alpha1_notebookvalidationjob_gpu_scheduling.yaml) for more examples including:
+- GPU node scheduling with NVIDIA tolerations
+- High-memory node scheduling
+- Spot/preemptible instance scheduling
+- Multi-tenant cluster node pools with pod anti-affinity
+
 ## Documentation
 
 - **[Architecture Overview](docs/ARCHITECTURE_OVERVIEW.md)** - System design

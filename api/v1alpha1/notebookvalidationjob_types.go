@@ -136,6 +136,27 @@ type PodConfigSpec struct {
 	// Each mount must reference a volume defined in the volumes field
 	// +optional
 	VolumeMounts []VolumeMount `json:"volumeMounts,omitempty"`
+
+	// Tolerations allow the validation pod to be scheduled onto nodes with matching taints
+	// GitHub Issue #13: Pod Scheduling Support
+	// Use this to schedule on GPU nodes, high-memory nodes, or spot instances
+	// Example: tolerate nvidia.com/gpu=true:NoSchedule to run on GPU nodes
+	// +optional
+	Tolerations []Toleration `json:"tolerations,omitempty"`
+
+	// NodeSelector is a map of {key,value} pairs for selecting nodes
+	// GitHub Issue #13: Pod Scheduling Support
+	// The pod will only be scheduled on nodes with all these labels
+	// Example: {"nvidia.com/gpu.present": "true"} to target GPU nodes
+	// +optional
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+
+	// Affinity specifies advanced scheduling rules including node affinity,
+	// pod affinity, and pod anti-affinity
+	// GitHub Issue #13: Pod Scheduling Support
+	// Use this for complex scheduling requirements in multi-tenant clusters
+	// +optional
+	Affinity *Affinity `json:"affinity,omitempty"`
 }
 
 // ResourceRequirements defines compute resource requirements
@@ -381,6 +402,197 @@ type VolumeMount struct {
 	// Use this for input data that should not be modified
 	// +optional
 	ReadOnly bool `json:"readOnly,omitempty"`
+}
+
+// Toleration allows the pod to be scheduled onto nodes with matching taints
+// GitHub Issue #13: Pod Scheduling Support
+type Toleration struct {
+	// Key is the taint key that the toleration applies to
+	// Empty key matches all taint keys with the specified effect
+	// +optional
+	Key string `json:"key,omitempty"`
+
+	// Operator represents a key's relationship to the value
+	// Valid operators are Exists and Equal. Defaults to Equal.
+	// +kubebuilder:validation:Enum=Exists;Equal
+	// +kubebuilder:default="Equal"
+	// +optional
+	Operator string `json:"operator,omitempty"`
+
+	// Value is the taint value the toleration matches to
+	// If the operator is Exists, the value should be empty
+	// +optional
+	Value string `json:"value,omitempty"`
+
+	// Effect indicates the taint effect to match
+	// Empty means match all taint effects
+	// +kubebuilder:validation:Enum="";NoSchedule;PreferNoSchedule;NoExecute
+	// +optional
+	Effect string `json:"effect,omitempty"`
+
+	// TolerationSeconds represents the period of time the toleration tolerates the taint
+	// By default, it is not set, which means tolerate forever
+	// Only valid when Effect is NoExecute
+	// +optional
+	TolerationSeconds *int64 `json:"tolerationSeconds,omitempty"`
+}
+
+// Affinity is a group of affinity scheduling rules for pod placement
+// GitHub Issue #13: Pod Scheduling Support
+type Affinity struct {
+	// NodeAffinity describes node affinity scheduling rules for the pod
+	// +optional
+	NodeAffinity *NodeAffinity `json:"nodeAffinity,omitempty"`
+
+	// PodAffinity describes pod affinity scheduling rules
+	// +optional
+	PodAffinity *PodAffinity `json:"podAffinity,omitempty"`
+
+	// PodAntiAffinity describes pod anti-affinity scheduling rules
+	// +optional
+	PodAntiAffinity *PodAntiAffinity `json:"podAntiAffinity,omitempty"`
+}
+
+// NodeAffinity defines node affinity scheduling rules
+type NodeAffinity struct {
+	// RequiredDuringSchedulingIgnoredDuringExecution specifies hard node constraints
+	// +optional
+	RequiredDuringSchedulingIgnoredDuringExecution *NodeSelector `json:"requiredDuringSchedulingIgnoredDuringExecution,omitempty"`
+
+	// PreferredDuringSchedulingIgnoredDuringExecution specifies soft node preferences
+	// +optional
+	PreferredDuringSchedulingIgnoredDuringExecution []PreferredSchedulingTerm `json:"preferredDuringSchedulingIgnoredDuringExecution,omitempty"`
+}
+
+// NodeSelector represents the union of the results of one or more label queries over nodes
+type NodeSelector struct {
+	// NodeSelectorTerms is a list of node selector terms (ORed together)
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinItems=1
+	NodeSelectorTerms []NodeSelectorTerm `json:"nodeSelectorTerms"`
+}
+
+// NodeSelectorTerm matches nodes by label and/or field expressions
+type NodeSelectorTerm struct {
+	// MatchExpressions is a list of node selector requirements by label
+	// +optional
+	MatchExpressions []NodeSelectorRequirement `json:"matchExpressions,omitempty"`
+
+	// MatchFields is a list of node selector requirements by field
+	// +optional
+	MatchFields []NodeSelectorRequirement `json:"matchFields,omitempty"`
+}
+
+// NodeSelectorRequirement contains values, a key, and an operator for node selection
+type NodeSelectorRequirement struct {
+	// Key is the label key that the selector applies to
+	// +kubebuilder:validation:Required
+	Key string `json:"key"`
+
+	// Operator represents a key's relationship to a set of values
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=In;NotIn;Exists;DoesNotExist;Gt;Lt
+	Operator string `json:"operator"`
+
+	// Values is an array of string values
+	// If the operator is In or NotIn, the values array must be non-empty
+	// If the operator is Exists or DoesNotExist, the values array must be empty
+	// +optional
+	Values []string `json:"values,omitempty"`
+}
+
+// PreferredSchedulingTerm defines a preferred scheduling term with a weight
+type PreferredSchedulingTerm struct {
+	// Weight is the weight associated with this preference (1-100)
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=100
+	Weight int32 `json:"weight"`
+
+	// Preference is the node selector term associated with the weight
+	// +kubebuilder:validation:Required
+	Preference NodeSelectorTerm `json:"preference"`
+}
+
+// PodAffinity defines pod affinity scheduling rules
+type PodAffinity struct {
+	// RequiredDuringSchedulingIgnoredDuringExecution specifies hard pod affinity constraints
+	// +optional
+	RequiredDuringSchedulingIgnoredDuringExecution []PodAffinityTerm `json:"requiredDuringSchedulingIgnoredDuringExecution,omitempty"`
+
+	// PreferredDuringSchedulingIgnoredDuringExecution specifies soft pod affinity preferences
+	// +optional
+	PreferredDuringSchedulingIgnoredDuringExecution []WeightedPodAffinityTerm `json:"preferredDuringSchedulingIgnoredDuringExecution,omitempty"`
+}
+
+// PodAntiAffinity defines pod anti-affinity scheduling rules
+type PodAntiAffinity struct {
+	// RequiredDuringSchedulingIgnoredDuringExecution specifies hard pod anti-affinity constraints
+	// +optional
+	RequiredDuringSchedulingIgnoredDuringExecution []PodAffinityTerm `json:"requiredDuringSchedulingIgnoredDuringExecution,omitempty"`
+
+	// PreferredDuringSchedulingIgnoredDuringExecution specifies soft pod anti-affinity preferences
+	// +optional
+	PreferredDuringSchedulingIgnoredDuringExecution []WeightedPodAffinityTerm `json:"preferredDuringSchedulingIgnoredDuringExecution,omitempty"`
+}
+
+// PodAffinityTerm defines a pod affinity/anti-affinity term
+type PodAffinityTerm struct {
+	// LabelSelector is a label query over pods
+	// +optional
+	LabelSelector *LabelSelector `json:"labelSelector,omitempty"`
+
+	// Namespaces specifies which namespaces the pods should be matched in
+	// +optional
+	Namespaces []string `json:"namespaces,omitempty"`
+
+	// TopologyKey is the key of node labels used to define topology domains
+	// +kubebuilder:validation:Required
+	TopologyKey string `json:"topologyKey"`
+
+	// NamespaceSelector is a label query over namespaces
+	// +optional
+	NamespaceSelector *LabelSelector `json:"namespaceSelector,omitempty"`
+}
+
+// WeightedPodAffinityTerm defines a weighted pod affinity term
+type WeightedPodAffinityTerm struct {
+	// Weight is the weight associated with this affinity term (1-100)
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=100
+	Weight int32 `json:"weight"`
+
+	// PodAffinityTerm is the affinity term associated with the weight
+	// +kubebuilder:validation:Required
+	PodAffinityTerm PodAffinityTerm `json:"podAffinityTerm"`
+}
+
+// LabelSelector defines a label query for resources
+type LabelSelector struct {
+	// MatchLabels is a map of {key,value} pairs for exact matching
+	// +optional
+	MatchLabels map[string]string `json:"matchLabels,omitempty"`
+
+	// MatchExpressions is a list of label selector requirements (ANDed together)
+	// +optional
+	MatchExpressions []LabelSelectorRequirement `json:"matchExpressions,omitempty"`
+}
+
+// LabelSelectorRequirement contains values, a key, and an operator for label selection
+type LabelSelectorRequirement struct {
+	// Key is the label key that the selector applies to
+	// +kubebuilder:validation:Required
+	Key string `json:"key"`
+
+	// Operator represents a key's relationship to a set of values
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=In;NotIn;Exists;DoesNotExist
+	Operator string `json:"operator"`
+
+	// Values is an array of string values
+	// +optional
+	Values []string `json:"values,omitempty"`
 }
 
 // BuildConfigSpec defines container image build configuration

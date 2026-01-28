@@ -936,6 +936,27 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, userMounts...)
 	}
 
+	// GitHub Issue #13: Pod Scheduling Support
+	// Add tolerations for scheduling on nodes with taints (e.g., GPU nodes)
+	if len(job.Spec.PodConfig.Tolerations) > 0 {
+		logger.Info("Adding tolerations", "tolerationCount", len(job.Spec.PodConfig.Tolerations))
+		pod.Spec.Tolerations = convertTolerations(job.Spec.PodConfig.Tolerations)
+	}
+
+	// GitHub Issue #13: Pod Scheduling Support
+	// Add nodeSelector for targeting specific node labels
+	if len(job.Spec.PodConfig.NodeSelector) > 0 {
+		logger.Info("Adding nodeSelector", "nodeSelector", job.Spec.PodConfig.NodeSelector)
+		pod.Spec.NodeSelector = job.Spec.PodConfig.NodeSelector
+	}
+
+	// GitHub Issue #13: Pod Scheduling Support
+	// Add affinity for advanced scheduling requirements
+	if job.Spec.PodConfig.Affinity != nil {
+		logger.Info("Adding affinity rules")
+		pod.Spec.Affinity = convertAffinity(job.Spec.PodConfig.Affinity)
+	}
+
 	// Add resource requirements if specified
 	if job.Spec.PodConfig.Resources != nil {
 		resources := corev1.ResourceRequirements{}

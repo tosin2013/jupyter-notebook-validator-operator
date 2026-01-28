@@ -572,3 +572,432 @@ func TestConvertVolumeMounts(t *testing.T) {
 		})
 	}
 }
+
+// TestConvertTolerations tests the toleration conversion function (GitHub Issue #13)
+func TestConvertTolerations(t *testing.T) {
+	int64Ptr := func(i int64) *int64 { return &i }
+
+	tests := []struct {
+		name     string
+		input    []mlopsv1alpha1.Toleration
+		expected int
+		checks   func(t *testing.T, tolerations []corev1.Toleration)
+	}{
+		{
+			name:     "nil input",
+			input:    nil,
+			expected: 0,
+			checks: func(t *testing.T, tolerations []corev1.Toleration) {
+				if tolerations != nil {
+					t.Error("Expected nil output for nil input")
+				}
+			},
+		},
+		{
+			name:     "empty input",
+			input:    []mlopsv1alpha1.Toleration{},
+			expected: 0,
+			checks:   nil,
+		},
+		{
+			name: "GPU node toleration with Exists operator",
+			input: []mlopsv1alpha1.Toleration{
+				{
+					Key:      "nvidia.com/gpu",
+					Operator: "Exists",
+					Effect:   "NoSchedule",
+				},
+			},
+			expected: 1,
+			checks: func(t *testing.T, tolerations []corev1.Toleration) {
+				if tolerations[0].Key != "nvidia.com/gpu" {
+					t.Errorf("Key = %s, want nvidia.com/gpu", tolerations[0].Key)
+				}
+				if tolerations[0].Operator != corev1.TolerationOpExists {
+					t.Errorf("Operator = %v, want Exists", tolerations[0].Operator)
+				}
+				if tolerations[0].Effect != corev1.TaintEffectNoSchedule {
+					t.Errorf("Effect = %v, want NoSchedule", tolerations[0].Effect)
+				}
+			},
+		},
+		{
+			name: "toleration with Equal operator",
+			input: []mlopsv1alpha1.Toleration{
+				{
+					Key:      "gpu",
+					Operator: "Equal",
+					Value:    "true",
+					Effect:   "NoSchedule",
+				},
+			},
+			expected: 1,
+			checks: func(t *testing.T, tolerations []corev1.Toleration) {
+				if tolerations[0].Key != "gpu" {
+					t.Errorf("Key = %s, want gpu", tolerations[0].Key)
+				}
+				if tolerations[0].Operator != corev1.TolerationOpEqual {
+					t.Errorf("Operator = %v, want Equal", tolerations[0].Operator)
+				}
+				if tolerations[0].Value != "true" {
+					t.Errorf("Value = %s, want true", tolerations[0].Value)
+				}
+			},
+		},
+		{
+			name: "toleration with NoExecute and TolerationSeconds",
+			input: []mlopsv1alpha1.Toleration{
+				{
+					Key:               "node.kubernetes.io/not-ready",
+					Operator:          "Exists",
+					Effect:            "NoExecute",
+					TolerationSeconds: int64Ptr(300),
+				},
+			},
+			expected: 1,
+			checks: func(t *testing.T, tolerations []corev1.Toleration) {
+				if tolerations[0].Effect != corev1.TaintEffectNoExecute {
+					t.Errorf("Effect = %v, want NoExecute", tolerations[0].Effect)
+				}
+				if tolerations[0].TolerationSeconds == nil {
+					t.Error("TolerationSeconds should not be nil")
+					return
+				}
+				if *tolerations[0].TolerationSeconds != 300 {
+					t.Errorf("TolerationSeconds = %d, want 300", *tolerations[0].TolerationSeconds)
+				}
+			},
+		},
+		{
+			name: "multiple tolerations",
+			input: []mlopsv1alpha1.Toleration{
+				{
+					Key:      "nvidia.com/gpu",
+					Operator: "Exists",
+					Effect:   "NoSchedule",
+				},
+				{
+					Key:      "kubernetes.io/spot",
+					Operator: "Exists",
+					Effect:   "NoSchedule",
+				},
+				{
+					Key:      "team",
+					Operator: "Equal",
+					Value:    "ml",
+					Effect:   "NoSchedule",
+				},
+			},
+			expected: 3,
+			checks: func(t *testing.T, tolerations []corev1.Toleration) {
+				keys := []string{"nvidia.com/gpu", "kubernetes.io/spot", "team"}
+				for i, tol := range tolerations {
+					if tol.Key != keys[i] {
+						t.Errorf("Toleration %d key = %s, want %s", i, tol.Key, keys[i])
+					}
+				}
+			},
+		},
+		{
+			name: "toleration with PreferNoSchedule effect",
+			input: []mlopsv1alpha1.Toleration{
+				{
+					Key:      "high-memory",
+					Operator: "Exists",
+					Effect:   "PreferNoSchedule",
+				},
+			},
+			expected: 1,
+			checks: func(t *testing.T, tolerations []corev1.Toleration) {
+				if tolerations[0].Effect != corev1.TaintEffectPreferNoSchedule {
+					t.Errorf("Effect = %v, want PreferNoSchedule", tolerations[0].Effect)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := convertTolerations(tt.input)
+
+			if tt.input == nil {
+				if result != nil {
+					t.Error("Expected nil result for nil input")
+				}
+				if tt.checks != nil {
+					tt.checks(t, result)
+				}
+				return
+			}
+
+			if len(result) != tt.expected {
+				t.Errorf("convertTolerations() returned %d tolerations, want %d", len(result), tt.expected)
+			}
+
+			if tt.checks != nil {
+				tt.checks(t, result)
+			}
+		})
+	}
+}
+
+// TestConvertAffinity tests the affinity conversion function (GitHub Issue #13)
+func TestConvertAffinity(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  *mlopsv1alpha1.Affinity
+		checks func(t *testing.T, affinity *corev1.Affinity)
+	}{
+		{
+			name:  "nil input",
+			input: nil,
+			checks: func(t *testing.T, affinity *corev1.Affinity) {
+				if affinity != nil {
+					t.Error("Expected nil output for nil input")
+				}
+			},
+		},
+		{
+			name: "node affinity with required terms",
+			input: &mlopsv1alpha1.Affinity{
+				NodeAffinity: &mlopsv1alpha1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &mlopsv1alpha1.NodeSelector{
+						NodeSelectorTerms: []mlopsv1alpha1.NodeSelectorTerm{
+							{
+								MatchExpressions: []mlopsv1alpha1.NodeSelectorRequirement{
+									{
+										Key:      "nvidia.com/gpu.present",
+										Operator: "In",
+										Values:   []string{"true"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			checks: func(t *testing.T, affinity *corev1.Affinity) {
+				if affinity == nil {
+					t.Error("Affinity should not be nil")
+					return
+				}
+				if affinity.NodeAffinity == nil {
+					t.Error("NodeAffinity should not be nil")
+					return
+				}
+				required := affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+				if required == nil {
+					t.Error("RequiredDuringSchedulingIgnoredDuringExecution should not be nil")
+					return
+				}
+				if len(required.NodeSelectorTerms) != 1 {
+					t.Errorf("NodeSelectorTerms length = %d, want 1", len(required.NodeSelectorTerms))
+					return
+				}
+				if len(required.NodeSelectorTerms[0].MatchExpressions) != 1 {
+					t.Errorf("MatchExpressions length = %d, want 1", len(required.NodeSelectorTerms[0].MatchExpressions))
+					return
+				}
+				expr := required.NodeSelectorTerms[0].MatchExpressions[0]
+				if expr.Key != "nvidia.com/gpu.present" {
+					t.Errorf("Key = %s, want nvidia.com/gpu.present", expr.Key)
+				}
+				if expr.Operator != corev1.NodeSelectorOpIn {
+					t.Errorf("Operator = %v, want In", expr.Operator)
+				}
+				if len(expr.Values) != 1 || expr.Values[0] != "true" {
+					t.Errorf("Values = %v, want [true]", expr.Values)
+				}
+			},
+		},
+		{
+			name: "node affinity with preferred terms",
+			input: &mlopsv1alpha1.Affinity{
+				NodeAffinity: &mlopsv1alpha1.NodeAffinity{
+					PreferredDuringSchedulingIgnoredDuringExecution: []mlopsv1alpha1.PreferredSchedulingTerm{
+						{
+							Weight: 100,
+							Preference: mlopsv1alpha1.NodeSelectorTerm{
+								MatchExpressions: []mlopsv1alpha1.NodeSelectorRequirement{
+									{
+										Key:      "nvidia.com/gpu.memory",
+										Operator: "Gt",
+										Values:   []string{"16000"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			checks: func(t *testing.T, affinity *corev1.Affinity) {
+				if affinity == nil || affinity.NodeAffinity == nil {
+					t.Error("Affinity and NodeAffinity should not be nil")
+					return
+				}
+				preferred := affinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution
+				if len(preferred) != 1 {
+					t.Errorf("PreferredDuringSchedulingIgnoredDuringExecution length = %d, want 1", len(preferred))
+					return
+				}
+				if preferred[0].Weight != 100 {
+					t.Errorf("Weight = %d, want 100", preferred[0].Weight)
+				}
+				expr := preferred[0].Preference.MatchExpressions[0]
+				if expr.Operator != corev1.NodeSelectorOpGt {
+					t.Errorf("Operator = %v, want Gt", expr.Operator)
+				}
+			},
+		},
+		{
+			name: "pod anti-affinity",
+			input: &mlopsv1alpha1.Affinity{
+				PodAntiAffinity: &mlopsv1alpha1.PodAntiAffinity{
+					PreferredDuringSchedulingIgnoredDuringExecution: []mlopsv1alpha1.WeightedPodAffinityTerm{
+						{
+							Weight: 100,
+							PodAffinityTerm: mlopsv1alpha1.PodAffinityTerm{
+								LabelSelector: &mlopsv1alpha1.LabelSelector{
+									MatchLabels: map[string]string{
+										"app": "jupyter-notebook-validator",
+									},
+								},
+								TopologyKey: "kubernetes.io/hostname",
+							},
+						},
+					},
+				},
+			},
+			checks: func(t *testing.T, affinity *corev1.Affinity) {
+				if affinity == nil || affinity.PodAntiAffinity == nil {
+					t.Error("Affinity and PodAntiAffinity should not be nil")
+					return
+				}
+				preferred := affinity.PodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution
+				if len(preferred) != 1 {
+					t.Errorf("PreferredDuringSchedulingIgnoredDuringExecution length = %d, want 1", len(preferred))
+					return
+				}
+				if preferred[0].Weight != 100 {
+					t.Errorf("Weight = %d, want 100", preferred[0].Weight)
+				}
+				if preferred[0].PodAffinityTerm.TopologyKey != "kubernetes.io/hostname" {
+					t.Errorf("TopologyKey = %s, want kubernetes.io/hostname", preferred[0].PodAffinityTerm.TopologyKey)
+				}
+				if preferred[0].PodAffinityTerm.LabelSelector == nil {
+					t.Error("LabelSelector should not be nil")
+					return
+				}
+				if preferred[0].PodAffinityTerm.LabelSelector.MatchLabels["app"] != "jupyter-notebook-validator" {
+					t.Error("MatchLabels app should be jupyter-notebook-validator")
+				}
+			},
+		},
+		{
+			name: "pod affinity with required terms",
+			input: &mlopsv1alpha1.Affinity{
+				PodAffinity: &mlopsv1alpha1.PodAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []mlopsv1alpha1.PodAffinityTerm{
+						{
+							LabelSelector: &mlopsv1alpha1.LabelSelector{
+								MatchExpressions: []mlopsv1alpha1.LabelSelectorRequirement{
+									{
+										Key:      "team",
+										Operator: "In",
+										Values:   []string{"ml", "data-science"},
+									},
+								},
+							},
+							TopologyKey: "topology.kubernetes.io/zone",
+							Namespaces:  []string{"team-ml", "team-ds"},
+						},
+					},
+				},
+			},
+			checks: func(t *testing.T, affinity *corev1.Affinity) {
+				if affinity == nil || affinity.PodAffinity == nil {
+					t.Error("Affinity and PodAffinity should not be nil")
+					return
+				}
+				required := affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+				if len(required) != 1 {
+					t.Errorf("RequiredDuringSchedulingIgnoredDuringExecution length = %d, want 1", len(required))
+					return
+				}
+				if required[0].TopologyKey != "topology.kubernetes.io/zone" {
+					t.Errorf("TopologyKey = %s, want topology.kubernetes.io/zone", required[0].TopologyKey)
+				}
+				if len(required[0].Namespaces) != 2 {
+					t.Errorf("Namespaces length = %d, want 2", len(required[0].Namespaces))
+				}
+				if required[0].LabelSelector == nil || len(required[0].LabelSelector.MatchExpressions) != 1 {
+					t.Error("LabelSelector.MatchExpressions should have 1 entry")
+					return
+				}
+				expr := required[0].LabelSelector.MatchExpressions[0]
+				if expr.Operator != metav1.LabelSelectorOpIn {
+					t.Errorf("Operator = %v, want In", expr.Operator)
+				}
+			},
+		},
+		{
+			name: "combined node and pod affinity",
+			input: &mlopsv1alpha1.Affinity{
+				NodeAffinity: &mlopsv1alpha1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &mlopsv1alpha1.NodeSelector{
+						NodeSelectorTerms: []mlopsv1alpha1.NodeSelectorTerm{
+							{
+								MatchExpressions: []mlopsv1alpha1.NodeSelectorRequirement{
+									{
+										Key:      "node-type",
+										Operator: "In",
+										Values:   []string{"gpu"},
+									},
+								},
+							},
+						},
+					},
+				},
+				PodAntiAffinity: &mlopsv1alpha1.PodAntiAffinity{
+					PreferredDuringSchedulingIgnoredDuringExecution: []mlopsv1alpha1.WeightedPodAffinityTerm{
+						{
+							Weight: 50,
+							PodAffinityTerm: mlopsv1alpha1.PodAffinityTerm{
+								LabelSelector: &mlopsv1alpha1.LabelSelector{
+									MatchLabels: map[string]string{
+										"app": "gpu-workload",
+									},
+								},
+								TopologyKey: "kubernetes.io/hostname",
+							},
+						},
+					},
+				},
+			},
+			checks: func(t *testing.T, affinity *corev1.Affinity) {
+				if affinity == nil {
+					t.Error("Affinity should not be nil")
+					return
+				}
+				if affinity.NodeAffinity == nil {
+					t.Error("NodeAffinity should not be nil")
+				}
+				if affinity.PodAntiAffinity == nil {
+					t.Error("PodAntiAffinity should not be nil")
+				}
+				if affinity.PodAffinity != nil {
+					t.Error("PodAffinity should be nil (not specified)")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := convertAffinity(tt.input)
+			if tt.checks != nil {
+				tt.checks(t, result)
+			}
+		})
+	}
+}
