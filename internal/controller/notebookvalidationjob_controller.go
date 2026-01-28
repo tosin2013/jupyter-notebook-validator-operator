@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -839,102 +840,14 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 		},
 	}
 
-	// Build environment variables list
-	envVars := make([]corev1.EnvVar, 0)
-
-	// Add model validation environment variables if enabled (Phase 4.4: Model-Aware Validation)
-	if isModelValidationEnabled(job) {
-		logger.Info("Adding model validation environment variables")
-		modelValidationEnvVars := r.buildModelValidationEnvVars(ctx, job)
-		envVars = append(envVars, modelValidationEnvVars...)
-	}
-
-	// Add user-specified environment variables
-	if len(job.Spec.PodConfig.Env) > 0 {
-		for _, env := range job.Spec.PodConfig.Env {
-			envVar := corev1.EnvVar{
-				Name:  env.Name,
-				Value: env.Value,
-			}
-
-			// Handle valueFrom
-			if env.ValueFrom != nil {
-				envVar.ValueFrom = &corev1.EnvVarSource{}
-				if env.ValueFrom.SecretKeyRef != nil {
-					envVar.ValueFrom.SecretKeyRef = &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: env.ValueFrom.SecretKeyRef.Name,
-						},
-						Key: env.ValueFrom.SecretKeyRef.Key,
-					}
-				}
-				if env.ValueFrom.ConfigMapKeyRef != nil {
-					envVar.ValueFrom.ConfigMapKeyRef = &corev1.ConfigMapKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: env.ValueFrom.ConfigMapKeyRef.Name,
-						},
-						Key: env.ValueFrom.ConfigMapKeyRef.Key,
-					}
-				}
-			}
-
-			envVars = append(envVars, envVar)
-		}
-	}
-
-	// Set environment variables on container
+	// Build and apply environment variables (extracted to reduce cyclomatic complexity)
+	envVars := r.buildPodEnvVars(ctx, job)
 	if len(envVars) > 0 {
 		pod.Spec.Containers[0].Env = envVars
 	}
 
-	// Add envFrom if specified (Phase 4: Credential Management)
-	envFromSources := make([]corev1.EnvFromSource, 0)
-
-	// First, add explicit envFrom entries
-	if len(job.Spec.PodConfig.EnvFrom) > 0 {
-		for _, envFrom := range job.Spec.PodConfig.EnvFrom {
-			envFromSource := corev1.EnvFromSource{}
-
-			// Handle secretRef
-			if envFrom.SecretRef != nil {
-				envFromSource.SecretRef = &corev1.SecretEnvSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: envFrom.SecretRef.Name,
-					},
-				}
-			}
-
-			// Handle configMapRef
-			if envFrom.ConfigMapRef != nil {
-				envFromSource.ConfigMapRef = &corev1.ConfigMapEnvSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: envFrom.ConfigMapRef.Name,
-					},
-				}
-			}
-
-			envFromSources = append(envFromSources, envFromSource)
-		}
-	}
-
-	// Then, add credentials as secretRef entries (syntactic sugar)
-	// This allows users to simply specify: credentials: ["aws-credentials", "database-credentials"]
-	// instead of the more verbose envFrom syntax
-	if len(job.Spec.PodConfig.Credentials) > 0 {
-		logger.Info("Converting credentials to envFrom", "credentials", job.Spec.PodConfig.Credentials)
-		for _, credentialName := range job.Spec.PodConfig.Credentials {
-			envFromSource := corev1.EnvFromSource{
-				SecretRef: &corev1.SecretEnvSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: credentialName,
-					},
-				},
-			}
-			envFromSources = append(envFromSources, envFromSource)
-		}
-	}
-
-	// Apply all envFrom sources to the pod
+	// Build and apply envFrom sources (extracted to reduce cyclomatic complexity)
+	envFromSources := buildEnvFromSources(job, logger)
 	if len(envFromSources) > 0 {
 		pod.Spec.Containers[0].EnvFrom = envFromSources
 	}
@@ -1011,6 +924,112 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 
 	logger.Info("Pod created successfully", "podName", pod.Name)
 	return pod, nil
+}
+
+// buildPodEnvVars builds environment variables for the validation pod
+// Extracted from createValidationPod to reduce cyclomatic complexity
+func (r *NotebookValidationJobReconciler) buildPodEnvVars(ctx context.Context, job *mlopsv1alpha1.NotebookValidationJob) []corev1.EnvVar {
+	logger := log.FromContext(ctx)
+	envVars := make([]corev1.EnvVar, 0)
+
+	// Add model validation environment variables if enabled (Phase 4.4: Model-Aware Validation)
+	if isModelValidationEnabled(job) {
+		logger.Info("Adding model validation environment variables")
+		modelValidationEnvVars := r.buildModelValidationEnvVars(ctx, job)
+		envVars = append(envVars, modelValidationEnvVars...)
+	}
+
+	// Add user-specified environment variables
+	for _, env := range job.Spec.PodConfig.Env {
+		envVar := convertEnvVar(env)
+		envVars = append(envVars, envVar)
+	}
+
+	return envVars
+}
+
+// convertEnvVar converts a custom EnvVar to a Kubernetes EnvVar
+func convertEnvVar(env mlopsv1alpha1.EnvVar) corev1.EnvVar {
+	envVar := corev1.EnvVar{
+		Name:  env.Name,
+		Value: env.Value,
+	}
+
+	if env.ValueFrom == nil {
+		return envVar
+	}
+
+	envVar.ValueFrom = &corev1.EnvVarSource{}
+	if env.ValueFrom.SecretKeyRef != nil {
+		envVar.ValueFrom.SecretKeyRef = &corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: env.ValueFrom.SecretKeyRef.Name,
+			},
+			Key: env.ValueFrom.SecretKeyRef.Key,
+		}
+	}
+	if env.ValueFrom.ConfigMapKeyRef != nil {
+		envVar.ValueFrom.ConfigMapKeyRef = &corev1.ConfigMapKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: env.ValueFrom.ConfigMapKeyRef.Name,
+			},
+			Key: env.ValueFrom.ConfigMapKeyRef.Key,
+		}
+	}
+
+	return envVar
+}
+
+// buildEnvFromSources builds envFrom sources for the validation pod
+// Extracted from createValidationPod to reduce cyclomatic complexity
+func buildEnvFromSources(job *mlopsv1alpha1.NotebookValidationJob, logger logr.Logger) []corev1.EnvFromSource {
+	envFromSources := make([]corev1.EnvFromSource, 0)
+
+	// Add explicit envFrom entries
+	for _, envFrom := range job.Spec.PodConfig.EnvFrom {
+		envFromSource := convertEnvFromSource(envFrom)
+		envFromSources = append(envFromSources, envFromSource)
+	}
+
+	// Add credentials as secretRef entries (syntactic sugar)
+	if len(job.Spec.PodConfig.Credentials) > 0 {
+		logger.Info("Converting credentials to envFrom", "credentials", job.Spec.PodConfig.Credentials)
+		for _, credentialName := range job.Spec.PodConfig.Credentials {
+			envFromSource := corev1.EnvFromSource{
+				SecretRef: &corev1.SecretEnvSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: credentialName,
+					},
+				},
+			}
+			envFromSources = append(envFromSources, envFromSource)
+		}
+	}
+
+	return envFromSources
+}
+
+// convertEnvFromSource converts a custom EnvFromSource to a Kubernetes EnvFromSource
+func convertEnvFromSource(envFrom mlopsv1alpha1.EnvFromSource) corev1.EnvFromSource {
+	envFromSource := corev1.EnvFromSource{}
+
+	if envFrom.SecretRef != nil {
+		envFromSource.SecretRef = &corev1.SecretEnvSource{
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: envFrom.SecretRef.Name,
+			},
+		}
+	}
+
+	if envFrom.ConfigMapRef != nil {
+		envFromSource.ConfigMapRef = &corev1.ConfigMapEnvSource{
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: envFrom.ConfigMapRef.Name,
+			},
+		}
+	}
+
+	return envFromSource
 }
 
 // updateJobPhase updates the job phase and completion time
