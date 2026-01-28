@@ -54,7 +54,7 @@ if [ $# -eq 0 ]; then
     echo ""
     echo "Examples:"
     echo "  $0 bundle/manifests/jupyter-notebook-validator-operator.clusterserviceversion.yaml"
-    echo "  $0 /path/to/community-operators-prod/operators/jupyter-notebook-validator-operator/1.0.2/manifests/*.clusterserviceversion.yaml"
+    echo "  $0 /path/to/community-operators-prod/operators/jupyter-notebook-validator-operator/1.0.6/manifests/*.clusterserviceversion.yaml"
     exit 0
 fi
 

@@ -17,7 +17,7 @@ set -e
 #   ./scripts/full-pre-submission-test.sh                    # Run full test suite
 #   ./scripts/full-pre-submission-test.sh --skip-install     # Skip dependency installation
 #   ./scripts/full-pre-submission-test.sh --skip-cleanup     # Keep clusters for debugging
-#   ./scripts/full-pre-submission-test.sh --version 1.0.9    # Test specific version only
+#   ./scripts/full-pre-submission-test.sh --version 1.0.6    # Test specific version only
 #   ./scripts/full-pre-submission-test.sh --quick            # Quick test (single K8s version)
 
 # Configuration
@@ -33,7 +33,7 @@ OPM_VERSION="${OPM_VERSION:-v1.43.0}"
 OLM_VERSION="${OLM_VERSION:-v0.28.0}"
 
 # Bundle versions to test
-BUNDLE_VERSIONS=("1.0.5")
+BUNDLE_VERSIONS=("1.0.5" "1.0.6")
 
 # K8s versions for matrix testing (maps to OpenShift versions)
 K8S_VERSIONS=("v1.29.0" "v1.30.0" "v1.31.0" "v1.33.0")
@@ -101,7 +101,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --skip-install    Skip installing prerequisites"
             echo "  --skip-cleanup    Keep Kind clusters after tests (for debugging)"
             echo "  --quick           Quick mode: test only k8s v1.31.0"
-            echo "  --version VER     Test specific version only (1.0.7, 1.0.8, or 1.0.9)"
+            echo "  --version VER     Test specific version only (e.g., 1.0.5, 1.0.6)"
             echo "  --help, -h        Show this help message"
             echo ""
             echo "Environment Variables:"
@@ -253,6 +253,8 @@ validate_bundles_from_branches() {
     for version in "${BUNDLE_VERSIONS[@]}"; do
         local branch=""
         case $version in
+            "1.0.5") branch="main" ;;
+            "1.0.6") branch="main" ;;
             "1.0.7") branch="release-4.18" ;;
             "1.0.8") branch="release-4.19" ;;
             "1.0.9") branch="release-4.20" ;;

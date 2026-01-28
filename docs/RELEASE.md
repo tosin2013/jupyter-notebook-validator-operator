@@ -145,6 +145,7 @@ grep "containerImage:" bundle/manifests/*.clusterserviceversion.yaml
 | 1.0.3-ocp4.19 | 4.19 | OCP 4.19 specific |
 | 1.0.4 | 4.18+ | Feature updates |
 | 1.0.5 | 4.18, 4.19, 4.20 | Universal release |
+| 1.0.6 | 4.18, 4.19, 4.20 | Universal release |
 
 ---
 
@@ -167,7 +168,7 @@ Ensure the `containerImage` annotation in the CSV matches the actual operator im
 ```yaml
 metadata:
   annotations:
-    containerImage: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.5
+    containerImage: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.6
 ```
 
 ### Multiple Bundles in community-operators-prod
