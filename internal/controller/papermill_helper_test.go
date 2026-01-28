@@ -742,262 +742,228 @@ func TestConvertTolerations(t *testing.T) {
 }
 
 // TestConvertAffinity tests the affinity conversion function (GitHub Issue #13)
+// Tests are split into sub-tests to reduce cyclomatic complexity
 func TestConvertAffinity(t *testing.T) {
-	tests := []struct {
-		name   string
-		input  *mlopsv1alpha1.Affinity
-		checks func(t *testing.T, affinity *corev1.Affinity)
-	}{
-		{
-			name:  "nil input",
-			input: nil,
-			checks: func(t *testing.T, affinity *corev1.Affinity) {
-				if affinity != nil {
-					t.Error("Expected nil output for nil input")
-				}
-			},
-		},
-		{
-			name: "node affinity with required terms",
-			input: &mlopsv1alpha1.Affinity{
-				NodeAffinity: &mlopsv1alpha1.NodeAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: &mlopsv1alpha1.NodeSelector{
-						NodeSelectorTerms: []mlopsv1alpha1.NodeSelectorTerm{
-							{
-								MatchExpressions: []mlopsv1alpha1.NodeSelectorRequirement{
-									{
-										Key:      "nvidia.com/gpu.present",
-										Operator: "In",
-										Values:   []string{"true"},
-									},
-								},
-							},
+	t.Run("nil input", testConvertAffinityNil)
+	t.Run("node affinity with required terms", testConvertAffinityNodeRequired)
+	t.Run("node affinity with preferred terms", testConvertAffinityNodePreferred)
+	t.Run("pod anti-affinity", testConvertAffinityPodAnti)
+	t.Run("pod affinity with required terms", testConvertAffinityPodRequired)
+	t.Run("combined node and pod affinity", testConvertAffinityCombined)
+}
+
+func testConvertAffinityNil(t *testing.T) {
+	result := convertAffinity(nil)
+	if result != nil {
+		t.Error("Expected nil output for nil input")
+	}
+}
+
+func testConvertAffinityNodeRequired(t *testing.T) {
+	input := &mlopsv1alpha1.Affinity{
+		NodeAffinity: &mlopsv1alpha1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: &mlopsv1alpha1.NodeSelector{
+				NodeSelectorTerms: []mlopsv1alpha1.NodeSelectorTerm{
+					{
+						MatchExpressions: []mlopsv1alpha1.NodeSelectorRequirement{
+							{Key: "nvidia.com/gpu.present", Operator: "In", Values: []string{"true"}},
 						},
 					},
 				},
-			},
-			checks: func(t *testing.T, affinity *corev1.Affinity) {
-				if affinity == nil {
-					t.Error("Affinity should not be nil")
-					return
-				}
-				if affinity.NodeAffinity == nil {
-					t.Error("NodeAffinity should not be nil")
-					return
-				}
-				required := affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
-				if required == nil {
-					t.Error("RequiredDuringSchedulingIgnoredDuringExecution should not be nil")
-					return
-				}
-				if len(required.NodeSelectorTerms) != 1 {
-					t.Errorf("NodeSelectorTerms length = %d, want 1", len(required.NodeSelectorTerms))
-					return
-				}
-				if len(required.NodeSelectorTerms[0].MatchExpressions) != 1 {
-					t.Errorf("MatchExpressions length = %d, want 1", len(required.NodeSelectorTerms[0].MatchExpressions))
-					return
-				}
-				expr := required.NodeSelectorTerms[0].MatchExpressions[0]
-				if expr.Key != "nvidia.com/gpu.present" {
-					t.Errorf("Key = %s, want nvidia.com/gpu.present", expr.Key)
-				}
-				if expr.Operator != corev1.NodeSelectorOpIn {
-					t.Errorf("Operator = %v, want In", expr.Operator)
-				}
-				if len(expr.Values) != 1 || expr.Values[0] != "true" {
-					t.Errorf("Values = %v, want [true]", expr.Values)
-				}
-			},
-		},
-		{
-			name: "node affinity with preferred terms",
-			input: &mlopsv1alpha1.Affinity{
-				NodeAffinity: &mlopsv1alpha1.NodeAffinity{
-					PreferredDuringSchedulingIgnoredDuringExecution: []mlopsv1alpha1.PreferredSchedulingTerm{
-						{
-							Weight: 100,
-							Preference: mlopsv1alpha1.NodeSelectorTerm{
-								MatchExpressions: []mlopsv1alpha1.NodeSelectorRequirement{
-									{
-										Key:      "nvidia.com/gpu.memory",
-										Operator: "Gt",
-										Values:   []string{"16000"},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			checks: func(t *testing.T, affinity *corev1.Affinity) {
-				if affinity == nil || affinity.NodeAffinity == nil {
-					t.Error("Affinity and NodeAffinity should not be nil")
-					return
-				}
-				preferred := affinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution
-				if len(preferred) != 1 {
-					t.Errorf("PreferredDuringSchedulingIgnoredDuringExecution length = %d, want 1", len(preferred))
-					return
-				}
-				if preferred[0].Weight != 100 {
-					t.Errorf("Weight = %d, want 100", preferred[0].Weight)
-				}
-				expr := preferred[0].Preference.MatchExpressions[0]
-				if expr.Operator != corev1.NodeSelectorOpGt {
-					t.Errorf("Operator = %v, want Gt", expr.Operator)
-				}
-			},
-		},
-		{
-			name: "pod anti-affinity",
-			input: &mlopsv1alpha1.Affinity{
-				PodAntiAffinity: &mlopsv1alpha1.PodAntiAffinity{
-					PreferredDuringSchedulingIgnoredDuringExecution: []mlopsv1alpha1.WeightedPodAffinityTerm{
-						{
-							Weight: 100,
-							PodAffinityTerm: mlopsv1alpha1.PodAffinityTerm{
-								LabelSelector: &mlopsv1alpha1.LabelSelector{
-									MatchLabels: map[string]string{
-										"app": "jupyter-notebook-validator",
-									},
-								},
-								TopologyKey: "kubernetes.io/hostname",
-							},
-						},
-					},
-				},
-			},
-			checks: func(t *testing.T, affinity *corev1.Affinity) {
-				if affinity == nil || affinity.PodAntiAffinity == nil {
-					t.Error("Affinity and PodAntiAffinity should not be nil")
-					return
-				}
-				preferred := affinity.PodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution
-				if len(preferred) != 1 {
-					t.Errorf("PreferredDuringSchedulingIgnoredDuringExecution length = %d, want 1", len(preferred))
-					return
-				}
-				if preferred[0].Weight != 100 {
-					t.Errorf("Weight = %d, want 100", preferred[0].Weight)
-				}
-				if preferred[0].PodAffinityTerm.TopologyKey != "kubernetes.io/hostname" {
-					t.Errorf("TopologyKey = %s, want kubernetes.io/hostname", preferred[0].PodAffinityTerm.TopologyKey)
-				}
-				if preferred[0].PodAffinityTerm.LabelSelector == nil {
-					t.Error("LabelSelector should not be nil")
-					return
-				}
-				if preferred[0].PodAffinityTerm.LabelSelector.MatchLabels["app"] != "jupyter-notebook-validator" {
-					t.Error("MatchLabels app should be jupyter-notebook-validator")
-				}
-			},
-		},
-		{
-			name: "pod affinity with required terms",
-			input: &mlopsv1alpha1.Affinity{
-				PodAffinity: &mlopsv1alpha1.PodAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: []mlopsv1alpha1.PodAffinityTerm{
-						{
-							LabelSelector: &mlopsv1alpha1.LabelSelector{
-								MatchExpressions: []mlopsv1alpha1.LabelSelectorRequirement{
-									{
-										Key:      "team",
-										Operator: "In",
-										Values:   []string{"ml", "data-science"},
-									},
-								},
-							},
-							TopologyKey: "topology.kubernetes.io/zone",
-							Namespaces:  []string{"team-ml", "team-ds"},
-						},
-					},
-				},
-			},
-			checks: func(t *testing.T, affinity *corev1.Affinity) {
-				if affinity == nil || affinity.PodAffinity == nil {
-					t.Error("Affinity and PodAffinity should not be nil")
-					return
-				}
-				required := affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution
-				if len(required) != 1 {
-					t.Errorf("RequiredDuringSchedulingIgnoredDuringExecution length = %d, want 1", len(required))
-					return
-				}
-				if required[0].TopologyKey != "topology.kubernetes.io/zone" {
-					t.Errorf("TopologyKey = %s, want topology.kubernetes.io/zone", required[0].TopologyKey)
-				}
-				if len(required[0].Namespaces) != 2 {
-					t.Errorf("Namespaces length = %d, want 2", len(required[0].Namespaces))
-				}
-				if required[0].LabelSelector == nil || len(required[0].LabelSelector.MatchExpressions) != 1 {
-					t.Error("LabelSelector.MatchExpressions should have 1 entry")
-					return
-				}
-				expr := required[0].LabelSelector.MatchExpressions[0]
-				if expr.Operator != metav1.LabelSelectorOpIn {
-					t.Errorf("Operator = %v, want In", expr.Operator)
-				}
-			},
-		},
-		{
-			name: "combined node and pod affinity",
-			input: &mlopsv1alpha1.Affinity{
-				NodeAffinity: &mlopsv1alpha1.NodeAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: &mlopsv1alpha1.NodeSelector{
-						NodeSelectorTerms: []mlopsv1alpha1.NodeSelectorTerm{
-							{
-								MatchExpressions: []mlopsv1alpha1.NodeSelectorRequirement{
-									{
-										Key:      "node-type",
-										Operator: "In",
-										Values:   []string{"gpu"},
-									},
-								},
-							},
-						},
-					},
-				},
-				PodAntiAffinity: &mlopsv1alpha1.PodAntiAffinity{
-					PreferredDuringSchedulingIgnoredDuringExecution: []mlopsv1alpha1.WeightedPodAffinityTerm{
-						{
-							Weight: 50,
-							PodAffinityTerm: mlopsv1alpha1.PodAffinityTerm{
-								LabelSelector: &mlopsv1alpha1.LabelSelector{
-									MatchLabels: map[string]string{
-										"app": "gpu-workload",
-									},
-								},
-								TopologyKey: "kubernetes.io/hostname",
-							},
-						},
-					},
-				},
-			},
-			checks: func(t *testing.T, affinity *corev1.Affinity) {
-				if affinity == nil {
-					t.Error("Affinity should not be nil")
-					return
-				}
-				if affinity.NodeAffinity == nil {
-					t.Error("NodeAffinity should not be nil")
-				}
-				if affinity.PodAntiAffinity == nil {
-					t.Error("PodAntiAffinity should not be nil")
-				}
-				if affinity.PodAffinity != nil {
-					t.Error("PodAffinity should be nil (not specified)")
-				}
 			},
 		},
 	}
+	result := convertAffinity(input)
+	assertAffinityNotNil(t, result)
+	assertNodeAffinityNotNil(t, result)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := convertAffinity(tt.input)
-			if tt.checks != nil {
-				tt.checks(t, result)
-			}
-		})
+	required := result.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+	if required == nil {
+		t.Fatal("RequiredDuringSchedulingIgnoredDuringExecution should not be nil")
+	}
+	if len(required.NodeSelectorTerms) != 1 {
+		t.Fatalf("NodeSelectorTerms length = %d, want 1", len(required.NodeSelectorTerms))
+	}
+	assertNodeSelectorExpression(t, required.NodeSelectorTerms[0].MatchExpressions,
+		"nvidia.com/gpu.present", corev1.NodeSelectorOpIn, []string{"true"})
+}
+
+func testConvertAffinityNodePreferred(t *testing.T) {
+	input := &mlopsv1alpha1.Affinity{
+		NodeAffinity: &mlopsv1alpha1.NodeAffinity{
+			PreferredDuringSchedulingIgnoredDuringExecution: []mlopsv1alpha1.PreferredSchedulingTerm{
+				{
+					Weight: 100,
+					Preference: mlopsv1alpha1.NodeSelectorTerm{
+						MatchExpressions: []mlopsv1alpha1.NodeSelectorRequirement{
+							{Key: "nvidia.com/gpu.memory", Operator: "Gt", Values: []string{"16000"}},
+						},
+					},
+				},
+			},
+		},
+	}
+	result := convertAffinity(input)
+	assertAffinityNotNil(t, result)
+	assertNodeAffinityNotNil(t, result)
+
+	preferred := result.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution
+	if len(preferred) != 1 {
+		t.Fatalf("PreferredDuringSchedulingIgnoredDuringExecution length = %d, want 1", len(preferred))
+	}
+	if preferred[0].Weight != 100 {
+		t.Errorf("Weight = %d, want 100", preferred[0].Weight)
+	}
+	if preferred[0].Preference.MatchExpressions[0].Operator != corev1.NodeSelectorOpGt {
+		t.Errorf("Operator = %v, want Gt", preferred[0].Preference.MatchExpressions[0].Operator)
+	}
+}
+
+func testConvertAffinityPodAnti(t *testing.T) {
+	input := &mlopsv1alpha1.Affinity{
+		PodAntiAffinity: &mlopsv1alpha1.PodAntiAffinity{
+			PreferredDuringSchedulingIgnoredDuringExecution: []mlopsv1alpha1.WeightedPodAffinityTerm{
+				{
+					Weight: 100,
+					PodAffinityTerm: mlopsv1alpha1.PodAffinityTerm{
+						LabelSelector: &mlopsv1alpha1.LabelSelector{
+							MatchLabels: map[string]string{"app": "jupyter-notebook-validator"},
+						},
+						TopologyKey: "kubernetes.io/hostname",
+					},
+				},
+			},
+		},
+	}
+	result := convertAffinity(input)
+	assertAffinityNotNil(t, result)
+	if result.PodAntiAffinity == nil {
+		t.Fatal("PodAntiAffinity should not be nil")
+	}
+
+	preferred := result.PodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution
+	if len(preferred) != 1 {
+		t.Fatalf("PreferredDuringSchedulingIgnoredDuringExecution length = %d, want 1", len(preferred))
+	}
+	assertWeightedPodAffinityTerm(t, preferred[0], 100, "kubernetes.io/hostname", "jupyter-notebook-validator")
+}
+
+func testConvertAffinityPodRequired(t *testing.T) {
+	input := &mlopsv1alpha1.Affinity{
+		PodAffinity: &mlopsv1alpha1.PodAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: []mlopsv1alpha1.PodAffinityTerm{
+				{
+					LabelSelector: &mlopsv1alpha1.LabelSelector{
+						MatchExpressions: []mlopsv1alpha1.LabelSelectorRequirement{
+							{Key: "team", Operator: "In", Values: []string{"ml", "data-science"}},
+						},
+					},
+					TopologyKey: "topology.kubernetes.io/zone",
+					Namespaces:  []string{"team-ml", "team-ds"},
+				},
+			},
+		},
+	}
+	result := convertAffinity(input)
+	assertAffinityNotNil(t, result)
+	if result.PodAffinity == nil {
+		t.Fatal("PodAffinity should not be nil")
+	}
+
+	required := result.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+	if len(required) != 1 {
+		t.Fatalf("RequiredDuringSchedulingIgnoredDuringExecution length = %d, want 1", len(required))
+	}
+	if required[0].TopologyKey != "topology.kubernetes.io/zone" {
+		t.Errorf("TopologyKey = %s, want topology.kubernetes.io/zone", required[0].TopologyKey)
+	}
+	if len(required[0].Namespaces) != 2 {
+		t.Errorf("Namespaces length = %d, want 2", len(required[0].Namespaces))
+	}
+}
+
+func testConvertAffinityCombined(t *testing.T) {
+	input := &mlopsv1alpha1.Affinity{
+		NodeAffinity: &mlopsv1alpha1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: &mlopsv1alpha1.NodeSelector{
+				NodeSelectorTerms: []mlopsv1alpha1.NodeSelectorTerm{
+					{
+						MatchExpressions: []mlopsv1alpha1.NodeSelectorRequirement{
+							{Key: "node-type", Operator: "In", Values: []string{"gpu"}},
+						},
+					},
+				},
+			},
+		},
+		PodAntiAffinity: &mlopsv1alpha1.PodAntiAffinity{
+			PreferredDuringSchedulingIgnoredDuringExecution: []mlopsv1alpha1.WeightedPodAffinityTerm{
+				{
+					Weight: 50,
+					PodAffinityTerm: mlopsv1alpha1.PodAffinityTerm{
+						LabelSelector: &mlopsv1alpha1.LabelSelector{
+							MatchLabels: map[string]string{"app": "gpu-workload"},
+						},
+						TopologyKey: "kubernetes.io/hostname",
+					},
+				},
+			},
+		},
+	}
+	result := convertAffinity(input)
+	assertAffinityNotNil(t, result)
+	assertNodeAffinityNotNil(t, result)
+	if result.PodAntiAffinity == nil {
+		t.Error("PodAntiAffinity should not be nil")
+	}
+	if result.PodAffinity != nil {
+		t.Error("PodAffinity should be nil (not specified)")
+	}
+}
+
+// Helper functions for affinity test assertions
+func assertAffinityNotNil(t *testing.T, affinity *corev1.Affinity) {
+	t.Helper()
+	if affinity == nil {
+		t.Fatal("Affinity should not be nil")
+	}
+}
+
+func assertNodeAffinityNotNil(t *testing.T, affinity *corev1.Affinity) {
+	t.Helper()
+	if affinity.NodeAffinity == nil {
+		t.Fatal("NodeAffinity should not be nil")
+	}
+}
+
+func assertNodeSelectorExpression(t *testing.T, exprs []corev1.NodeSelectorRequirement, key string, op corev1.NodeSelectorOperator, values []string) {
+	t.Helper()
+	if len(exprs) != 1 {
+		t.Fatalf("MatchExpressions length = %d, want 1", len(exprs))
+	}
+	expr := exprs[0]
+	if expr.Key != key {
+		t.Errorf("Key = %s, want %s", expr.Key, key)
+	}
+	if expr.Operator != op {
+		t.Errorf("Operator = %v, want %v", expr.Operator, op)
+	}
+	if len(expr.Values) != len(values) {
+		t.Errorf("Values length = %d, want %d", len(expr.Values), len(values))
+	}
+}
+
+func assertWeightedPodAffinityTerm(t *testing.T, term corev1.WeightedPodAffinityTerm, weight int32, topologyKey, appLabel string) {
+	t.Helper()
+	if term.Weight != weight {
+		t.Errorf("Weight = %d, want %d", term.Weight, weight)
+	}
+	if term.PodAffinityTerm.TopologyKey != topologyKey {
+		t.Errorf("TopologyKey = %s, want %s", term.PodAffinityTerm.TopologyKey, topologyKey)
+	}
+	if term.PodAffinityTerm.LabelSelector == nil {
+		t.Fatal("LabelSelector should not be nil")
+	}
+	if term.PodAffinityTerm.LabelSelector.MatchLabels["app"] != appLabel {
+		t.Errorf("MatchLabels app = %s, want %s", term.PodAffinityTerm.LabelSelector.MatchLabels["app"], appLabel)
 	}
 }
