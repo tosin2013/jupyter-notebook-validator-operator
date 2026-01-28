@@ -22,6 +22,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	mlopsv1alpha1 "github.com/tosin2013/jupyter-notebook-validator-operator/api/v1alpha1"
@@ -825,4 +826,262 @@ func convertVolumeMounts(customMounts []mlopsv1alpha1.VolumeMount) []corev1.Volu
 	}
 
 	return k8sMounts
+}
+
+// convertTolerations converts custom Toleration slice to Kubernetes Toleration slice
+// GitHub Issue #13: Pod Scheduling Support
+func convertTolerations(customTolerations []mlopsv1alpha1.Toleration) []corev1.Toleration {
+	if customTolerations == nil {
+		return nil
+	}
+
+	k8sTolerations := make([]corev1.Toleration, 0, len(customTolerations))
+
+	for _, customTol := range customTolerations {
+		k8sTol := corev1.Toleration{
+			Key:   customTol.Key,
+			Value: customTol.Value,
+		}
+
+		// Convert Operator
+		if customTol.Operator != "" {
+			k8sTol.Operator = corev1.TolerationOperator(customTol.Operator)
+		}
+
+		// Convert Effect
+		if customTol.Effect != "" {
+			k8sTol.Effect = corev1.TaintEffect(customTol.Effect)
+		}
+
+		// Convert TolerationSeconds
+		if customTol.TolerationSeconds != nil {
+			k8sTol.TolerationSeconds = customTol.TolerationSeconds
+		}
+
+		k8sTolerations = append(k8sTolerations, k8sTol)
+	}
+
+	return k8sTolerations
+}
+
+// convertAffinity converts custom Affinity to Kubernetes Affinity
+// GitHub Issue #13: Pod Scheduling Support
+func convertAffinity(customAffinity *mlopsv1alpha1.Affinity) *corev1.Affinity {
+	if customAffinity == nil {
+		return nil
+	}
+
+	k8sAffinity := &corev1.Affinity{}
+
+	// Convert NodeAffinity
+	if customAffinity.NodeAffinity != nil {
+		k8sAffinity.NodeAffinity = convertNodeAffinity(customAffinity.NodeAffinity)
+	}
+
+	// Convert PodAffinity
+	if customAffinity.PodAffinity != nil {
+		k8sAffinity.PodAffinity = convertPodAffinity(customAffinity.PodAffinity)
+	}
+
+	// Convert PodAntiAffinity
+	if customAffinity.PodAntiAffinity != nil {
+		k8sAffinity.PodAntiAffinity = convertPodAntiAffinity(customAffinity.PodAntiAffinity)
+	}
+
+	return k8sAffinity
+}
+
+// convertNodeAffinity converts custom NodeAffinity to Kubernetes NodeAffinity
+func convertNodeAffinity(customNodeAffinity *mlopsv1alpha1.NodeAffinity) *corev1.NodeAffinity {
+	if customNodeAffinity == nil {
+		return nil
+	}
+
+	k8sNodeAffinity := &corev1.NodeAffinity{}
+
+	// Convert RequiredDuringSchedulingIgnoredDuringExecution
+	if customNodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+		k8sNodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution = convertNodeSelector(
+			customNodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution,
+		)
+	}
+
+	// Convert PreferredDuringSchedulingIgnoredDuringExecution
+	if len(customNodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution) > 0 {
+		k8sPreferred := make([]corev1.PreferredSchedulingTerm, 0, len(customNodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution))
+		for _, customPref := range customNodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution {
+			k8sPref := corev1.PreferredSchedulingTerm{
+				Weight:     customPref.Weight,
+				Preference: convertNodeSelectorTerm(customPref.Preference),
+			}
+			k8sPreferred = append(k8sPreferred, k8sPref)
+		}
+		k8sNodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution = k8sPreferred
+	}
+
+	return k8sNodeAffinity
+}
+
+// convertNodeSelector converts custom NodeSelector to Kubernetes NodeSelector
+func convertNodeSelector(customNodeSelector *mlopsv1alpha1.NodeSelector) *corev1.NodeSelector {
+	if customNodeSelector == nil {
+		return nil
+	}
+
+	k8sTerms := make([]corev1.NodeSelectorTerm, 0, len(customNodeSelector.NodeSelectorTerms))
+	for _, customTerm := range customNodeSelector.NodeSelectorTerms {
+		k8sTerms = append(k8sTerms, convertNodeSelectorTerm(customTerm))
+	}
+
+	return &corev1.NodeSelector{
+		NodeSelectorTerms: k8sTerms,
+	}
+}
+
+// convertNodeSelectorTerm converts custom NodeSelectorTerm to Kubernetes NodeSelectorTerm
+func convertNodeSelectorTerm(customTerm mlopsv1alpha1.NodeSelectorTerm) corev1.NodeSelectorTerm {
+	k8sTerm := corev1.NodeSelectorTerm{}
+
+	// Convert MatchExpressions
+	if len(customTerm.MatchExpressions) > 0 {
+		k8sExprs := make([]corev1.NodeSelectorRequirement, 0, len(customTerm.MatchExpressions))
+		for _, customExpr := range customTerm.MatchExpressions {
+			k8sExpr := corev1.NodeSelectorRequirement{
+				Key:      customExpr.Key,
+				Operator: corev1.NodeSelectorOperator(customExpr.Operator),
+				Values:   customExpr.Values,
+			}
+			k8sExprs = append(k8sExprs, k8sExpr)
+		}
+		k8sTerm.MatchExpressions = k8sExprs
+	}
+
+	// Convert MatchFields
+	if len(customTerm.MatchFields) > 0 {
+		k8sFields := make([]corev1.NodeSelectorRequirement, 0, len(customTerm.MatchFields))
+		for _, customField := range customTerm.MatchFields {
+			k8sField := corev1.NodeSelectorRequirement{
+				Key:      customField.Key,
+				Operator: corev1.NodeSelectorOperator(customField.Operator),
+				Values:   customField.Values,
+			}
+			k8sFields = append(k8sFields, k8sField)
+		}
+		k8sTerm.MatchFields = k8sFields
+	}
+
+	return k8sTerm
+}
+
+// convertPodAffinity converts custom PodAffinity to Kubernetes PodAffinity
+func convertPodAffinity(customPodAffinity *mlopsv1alpha1.PodAffinity) *corev1.PodAffinity {
+	if customPodAffinity == nil {
+		return nil
+	}
+
+	k8sPodAffinity := &corev1.PodAffinity{}
+
+	// Convert RequiredDuringSchedulingIgnoredDuringExecution
+	if len(customPodAffinity.RequiredDuringSchedulingIgnoredDuringExecution) > 0 {
+		k8sRequired := make([]corev1.PodAffinityTerm, 0, len(customPodAffinity.RequiredDuringSchedulingIgnoredDuringExecution))
+		for _, customTerm := range customPodAffinity.RequiredDuringSchedulingIgnoredDuringExecution {
+			k8sRequired = append(k8sRequired, convertPodAffinityTerm(customTerm))
+		}
+		k8sPodAffinity.RequiredDuringSchedulingIgnoredDuringExecution = k8sRequired
+	}
+
+	// Convert PreferredDuringSchedulingIgnoredDuringExecution
+	if len(customPodAffinity.PreferredDuringSchedulingIgnoredDuringExecution) > 0 {
+		k8sPreferred := make([]corev1.WeightedPodAffinityTerm, 0, len(customPodAffinity.PreferredDuringSchedulingIgnoredDuringExecution))
+		for _, customPref := range customPodAffinity.PreferredDuringSchedulingIgnoredDuringExecution {
+			k8sPref := corev1.WeightedPodAffinityTerm{
+				Weight:          customPref.Weight,
+				PodAffinityTerm: convertPodAffinityTerm(customPref.PodAffinityTerm),
+			}
+			k8sPreferred = append(k8sPreferred, k8sPref)
+		}
+		k8sPodAffinity.PreferredDuringSchedulingIgnoredDuringExecution = k8sPreferred
+	}
+
+	return k8sPodAffinity
+}
+
+// convertPodAntiAffinity converts custom PodAntiAffinity to Kubernetes PodAntiAffinity
+func convertPodAntiAffinity(customPodAntiAffinity *mlopsv1alpha1.PodAntiAffinity) *corev1.PodAntiAffinity {
+	if customPodAntiAffinity == nil {
+		return nil
+	}
+
+	k8sPodAntiAffinity := &corev1.PodAntiAffinity{}
+
+	// Convert RequiredDuringSchedulingIgnoredDuringExecution
+	if len(customPodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution) > 0 {
+		k8sRequired := make([]corev1.PodAffinityTerm, 0, len(customPodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution))
+		for _, customTerm := range customPodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution {
+			k8sRequired = append(k8sRequired, convertPodAffinityTerm(customTerm))
+		}
+		k8sPodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution = k8sRequired
+	}
+
+	// Convert PreferredDuringSchedulingIgnoredDuringExecution
+	if len(customPodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution) > 0 {
+		k8sPreferred := make([]corev1.WeightedPodAffinityTerm, 0, len(customPodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution))
+		for _, customPref := range customPodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution {
+			k8sPref := corev1.WeightedPodAffinityTerm{
+				Weight:          customPref.Weight,
+				PodAffinityTerm: convertPodAffinityTerm(customPref.PodAffinityTerm),
+			}
+			k8sPreferred = append(k8sPreferred, k8sPref)
+		}
+		k8sPodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution = k8sPreferred
+	}
+
+	return k8sPodAntiAffinity
+}
+
+// convertPodAffinityTerm converts custom PodAffinityTerm to Kubernetes PodAffinityTerm
+func convertPodAffinityTerm(customTerm mlopsv1alpha1.PodAffinityTerm) corev1.PodAffinityTerm {
+	k8sTerm := corev1.PodAffinityTerm{
+		TopologyKey: customTerm.TopologyKey,
+		Namespaces:  customTerm.Namespaces,
+	}
+
+	// Convert LabelSelector
+	if customTerm.LabelSelector != nil {
+		k8sTerm.LabelSelector = convertLabelSelector(customTerm.LabelSelector)
+	}
+
+	// Convert NamespaceSelector
+	if customTerm.NamespaceSelector != nil {
+		k8sTerm.NamespaceSelector = convertLabelSelector(customTerm.NamespaceSelector)
+	}
+
+	return k8sTerm
+}
+
+// convertLabelSelector converts custom LabelSelector to Kubernetes LabelSelector
+func convertLabelSelector(customSelector *mlopsv1alpha1.LabelSelector) *metav1.LabelSelector {
+	if customSelector == nil {
+		return nil
+	}
+
+	k8sSelector := &metav1.LabelSelector{
+		MatchLabels: customSelector.MatchLabels,
+	}
+
+	// Convert MatchExpressions
+	if len(customSelector.MatchExpressions) > 0 {
+		k8sExprs := make([]metav1.LabelSelectorRequirement, 0, len(customSelector.MatchExpressions))
+		for _, customExpr := range customSelector.MatchExpressions {
+			k8sExpr := metav1.LabelSelectorRequirement{
+				Key:      customExpr.Key,
+				Operator: metav1.LabelSelectorOperator(customExpr.Operator),
+				Values:   customExpr.Values,
+			}
+			k8sExprs = append(k8sExprs, k8sExpr)
+		}
+		k8sSelector.MatchExpressions = k8sExprs
+	}
+
+	return k8sSelector
 }

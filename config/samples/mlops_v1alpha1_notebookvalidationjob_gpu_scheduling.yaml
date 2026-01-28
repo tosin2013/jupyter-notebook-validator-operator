@@ -1,0 +1,229 @@
+# Example: GPU Node Scheduling for ML Notebook Validation
+# GitHub Issue #13: Add pod scheduling support (tolerations, nodeSelector, affinity)
+#
+# This example demonstrates how to schedule notebook validation pods on GPU nodes
+# that have taints like nvidia.com/gpu=true:NoSchedule
+#
+# Use Cases:
+# - ML training notebooks requiring GPU resources
+# - Deep learning model validation with CUDA
+# - High-memory workloads on specialized nodes
+# - Spot/preemptible node scheduling
+
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: gpu-training-validation
+  labels:
+    app.kubernetes.io/name: jupyter-notebook-validator
+    app.kubernetes.io/component: validation-job
+    workload-type: gpu-training
+spec:
+  notebook:
+    git:
+      url: https://github.com/example/ml-notebooks.git
+      ref: main
+    path: notebooks/gpu-training.ipynb
+
+  podConfig:
+    # Use PyTorch notebook image with CUDA support
+    containerImage: quay.io/jupyter/pytorch-notebook:cuda-latest
+
+    # Resource requirements including GPU
+    resources:
+      limits:
+        nvidia.com/gpu: "1"
+        memory: "16Gi"
+        cpu: "4"
+      requests:
+        nvidia.com/gpu: "1"
+        memory: "8Gi"
+        cpu: "2"
+
+    # Tolerations: Allow scheduling on GPU nodes with NoSchedule taints
+    # Common GPU taints include:
+    # - nvidia.com/gpu=true:NoSchedule (NVIDIA GPU Operator)
+    # - gpu=true:NoSchedule (custom)
+    # - kubernetes.azure.com/scalesetpriority=spot:NoSchedule (Azure Spot)
+    tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      - key: gpu
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+
+    # NodeSelector: Target nodes with GPU present
+    # Labels are set by GPU device plugins (e.g., NVIDIA GPU Operator)
+    nodeSelector:
+      nvidia.com/gpu.present: "true"
+
+    # Affinity: Advanced scheduling with node affinity
+    # This example prefers nodes with high GPU memory but doesn't require it
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: nvidia.com/gpu.present
+                  operator: In
+                  values:
+                    - "true"
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: nvidia.com/gpu.memory
+                  operator: Gt
+                  values:
+                    - "16000"  # Prefer GPUs with >16GB memory
+
+    # Environment variables for CUDA
+    env:
+      - name: CUDA_VISIBLE_DEVICES
+        value: "0"
+      - name: TF_FORCE_GPU_ALLOW_GROWTH
+        value: "true"
+
+  timeout: "2h"  # GPU training may take longer
+
+---
+# Example: High-Memory Node Scheduling
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: high-memory-validation
+spec:
+  notebook:
+    git:
+      url: https://github.com/example/data-notebooks.git
+      ref: main
+    path: notebooks/large-dataset-processing.ipynb
+
+  podConfig:
+    containerImage: quay.io/jupyter/datascience-notebook:latest
+
+    resources:
+      limits:
+        memory: "64Gi"
+        cpu: "8"
+      requests:
+        memory: "32Gi"
+        cpu: "4"
+
+    # Tolerate high-memory node taints
+    tolerations:
+      - key: node-type
+        operator: Equal
+        value: "high-memory"
+        effect: NoSchedule
+
+    # Target high-memory nodes
+    nodeSelector:
+      node.kubernetes.io/instance-type: m5.8xlarge
+
+  timeout: "1h"
+
+---
+# Example: Spot/Preemptible Instance Scheduling
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: spot-instance-validation
+spec:
+  notebook:
+    git:
+      url: https://github.com/example/batch-notebooks.git
+      ref: main
+    path: notebooks/batch-processing.ipynb
+
+  podConfig:
+    containerImage: quay.io/jupyter/minimal-notebook:latest
+
+    resources:
+      limits:
+        memory: "4Gi"
+        cpu: "2"
+      requests:
+        memory: "2Gi"
+        cpu: "1"
+
+    # Tolerate spot instance taints (works on AWS, Azure, GCP)
+    tolerations:
+      # AWS Spot
+      - key: kubernetes.io/spot
+        operator: Exists
+        effect: NoSchedule
+      # Azure Spot
+      - key: kubernetes.azure.com/scalesetpriority
+        operator: Equal
+        value: "spot"
+        effect: NoSchedule
+      # GCP Preemptible
+      - key: cloud.google.com/gke-preemptible
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+
+    # Prefer spot nodes for cost savings
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: kubernetes.io/lifecycle
+                  operator: In
+                  values:
+                    - spot
+                    - preemptible
+
+  timeout: "30m"
+
+---
+# Example: Multi-Tenant Cluster with Team-Specific Node Pools
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: team-ml-validation
+  namespace: team-ml
+spec:
+  notebook:
+    git:
+      url: https://github.com/team-ml/notebooks.git
+      ref: main
+    path: notebooks/model-evaluation.ipynb
+
+  podConfig:
+    containerImage: quay.io/jupyter/scipy-notebook:latest
+
+    resources:
+      limits:
+        memory: "8Gi"
+        cpu: "4"
+
+    # Tolerate team-specific node taints
+    tolerations:
+      - key: team
+        operator: Equal
+        value: "ml"
+        effect: NoSchedule
+
+    # Target team-specific node pool
+    nodeSelector:
+      team: ml
+      environment: production
+
+    # Pod anti-affinity to spread validation jobs across nodes
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: jupyter-notebook-validator
+              topologyKey: kubernetes.io/hostname
+
+  timeout: "45m"
