@@ -1,0 +1,968 @@
+# Deployment Guide
+
+## Overview
+
+The Jupyter Notebook Validator Operator is a Kubernetes-native operator that automates
+Jupyter Notebook validation in MLOps workflows. Built with Go 1.22, Operator SDK v1.37.0,
+and controller-runtime, it orchestrates notebook execution in isolated pods, performs golden
+notebook comparisons, integrates with Git repositories, and validates against deployed ML
+models (KServe, OpenShift AI, vLLM, TorchServe, TensorFlow Serving, Triton, Ray Serve,
+Seldon, BentoML).
+
+The operator targets OpenShift 4.18+ and Kubernetes 1.31+. It supports four deployment
+methods (Kustomize, Helm, OLM, raw manifests) and publishes to OperatorHub.io and
+OpenShift/OKD OperatorHub via community-operators repositories.
+
+Repository: https://github.com/tosin2013/jupyter-notebook-validator-operator
+Provider: Decision Crafters (https://www.decisioncrafters.com/)
+Maintainer: Tosin Akinosho <takinosh@redhat.com>
+
+## Prerequisites
+
+Required tools for building and deploying the operator:
+
+- Go 1.22+ (toolchain 1.24.10 in go.mod)
+- Docker or Podman (set CONTAINER_TOOL=podman if using Podman)
+- kubectl or oc CLI
+- make
+- kustomize v5.3.0 (auto-downloaded by Makefile)
+- controller-gen v0.14.0 (auto-downloaded by Makefile)
+
+For Helm deployment:
+- Helm 3.13+
+- cert-manager (required for webhooks)
+
+For OLM bundle/catalog workflows:
+- operator-sdk v1.37.0 (auto-downloaded by Makefile)
+- opm v1.43.0 (auto-downloaded by Makefile)
+
+For local testing:
+- Kind v0.23.0+ (for local Kubernetes clusters)
+- Ginkgo v2.19.0 (Go test framework, in go.mod)
+- setup-envtest (auto-downloaded by Makefile, uses K8s 1.29.0 assets)
+
+For CI/CD:
+- GitHub Actions (workflows in .github/workflows/)
+- Quay.io account (for image registry)
+- Codecov account (for coverage reports)
+
+## Deployment Steps
+
+### Method 1: Kustomize (recommended for development)
+
+1. Install CRDs into the cluster:
+   make install
+
+2. Build and push the operator image:
+   make docker-build docker-push IMG=quay.io/takinosh/jupyter-notebook-validator-operator:latest
+
+3. Deploy the operator:
+   make deploy IMG=quay.io/takinosh/jupyter-notebook-validator-operator:latest
+
+4. Verify the deployment:
+   kubectl get pods -n jupyter-notebook-validator-operator-system
+
+5. Apply a sample validation job:
+   kubectl apply -f config/samples/mlops_v1alpha1_notebookvalidationjob.yaml
+
+To undeploy:
+   make undeploy
+
+### Method 2: Helm Chart
+
+1. Sync CRDs to the Helm chart:
+   make helm-sync-crds
+
+2. Install the Helm chart:
+   helm install jupyter-validator helm/jupyter-notebook-validator-operator \
+     --namespace jupyter-validator-system \
+     --create-namespace \
+     --set openshift.enabled=true \
+     --set prometheus.enabled=true \
+     --wait --timeout 10m
+
+   Or use the Makefile shortcut:
+   make helm-install
+
+3. Verify:
+   kubectl get pods -n jupyter-validator-system
+
+To upgrade:
+   make helm-upgrade
+
+To uninstall:
+   make helm-uninstall
+
+### Method 3: OLM Bundle (for OperatorHub)
+
+1. Generate the OLM bundle:
+   make bundle IMG=quay.io/takinosh/jupyter-notebook-validator-operator:1.0.6
+
+2. Build and push the bundle image:
+   make bundle-build bundle-push BUNDLE_IMG=quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.6
+
+3. Test the bundle locally with operator-sdk:
+   operator-sdk run bundle quay.io/takinosh/jupyter-notebook-validator-operator-bundle:1.0.6
+
+4. Build and push the FBC catalog image (optional):
+   make catalog-build catalog-push CATALOG_IMG=quay.io/takinosh/jupyter-notebook-validator-operator-catalog:v1.0.6
+
+### Method 4: Raw Manifests
+
+1. Generate consolidated install YAML:
+   make build-installer IMG=quay.io/takinosh/jupyter-notebook-validator-operator:latest
+
+2. Apply the generated manifest:
+   kubectl apply -f dist/install.yaml
+
+### Running Locally (development)
+
+Run the operator on your host machine against a cluster:
+   make run
+
+This requires a valid kubeconfig and CRDs installed via `make install`.
+
+## OperatorHub Catalog Submission and PR Approval
+
+The operator is published to two community-operators repositories to appear in
+OperatorHub.io (Kubernetes) and OpenShift/OKD OperatorHub.
+
+### Target Repositories
+
+1. k8s-operatorhub/community-operators (OperatorHub.io / Kubernetes catalog)
+   - Fork: https://github.com/tosin2013/community-operators
+   - Multiple bundle versions may be submitted in a single PR
+   - Merged PR #7235 added versions 1.0.7, 1.0.8, 1.0.9
+   - Makes operator visible on https://operatorhub.io
+
+2. redhat-openshift-ecosystem/community-operators-prod (OpenShift/OKD catalog)
+   - Fork: https://github.com/tosin2013/community-operators-prod
+   - ONE bundle per PR (strict requirement; submitting multiple versions fails CI)
+   - Makes operator visible in the OpenShift/OKD OperatorHub built-in console
+   - Currently only v1.0.2 exists here; newer versions needed for OKD visibility
+
+### Bundle Submission Workflow
+
+Step-by-step process for submitting to either community-operators repository:
+
+1. Generate and validate the OLM bundle:
+   make bundle IMG=quay.io/takinosh/jupyter-notebook-validator-operator:{VERSION}
+   operator-sdk bundle validate ./bundle
+   operator-sdk bundle validate ./bundle --select-optional suite=operatorframework
+
+2. Build and push the bundle image:
+   make bundle-build bundle-push \
+     BUNDLE_IMG=quay.io/takinosh/jupyter-notebook-validator-operator-bundle:{VERSION}
+
+3. Run pre-submission tests locally:
+   ./scripts/full-pre-submission-test.sh --version {VERSION}
+   ./scripts/pre-submission-validate.sh ./bundle {VERSION}
+
+4. Fork the target community-operators repository (if not already forked).
+
+5. Clone the fork and create a branch:
+   git clone https://github.com/tosin2013/community-operators.git
+   cd community-operators
+   git checkout -b add-jupyter-validator-{VERSION}
+
+6. Copy bundle contents into the operator directory:
+   mkdir -p operators/jupyter-notebook-validator-operator/{VERSION}
+   cp -r /path/to/bundle/* operators/jupyter-notebook-validator-operator/{VERSION}/
+
+7. Ensure ci.yaml exists in the operator root directory:
+   cp bundle/ci.yaml operators/jupyter-notebook-validator-operator/ci.yaml
+   The ci.yaml configures updateGraph: replaces-mode for the upgrade chain.
+
+8. Commit with DCO sign-off (required):
+   git config user.email "takinosh@redhat.com"
+   git config user.name "Tosin Akinosho"
+   git add operators/jupyter-notebook-validator-operator/{VERSION}/
+   git commit -s -m "operator jupyter-notebook-validator-operator ({VERSION})"
+
+9. Push and create the PR:
+   git push origin add-jupyter-validator-{VERSION}
+   PR title must be: operator jupyter-notebook-validator-operator ({VERSION})
+
+### PR Approval Process
+
+- PRs trigger automated CI pipelines in both community-operators repositories.
+- CI validates bundle structure, runs operator-sdk bundle validate, and checks the
+  OperatorHub validation suite.
+- For community-operators-prod: CI is stricter and enforces one bundle per PR.
+- DCO (Developer Certificate of Origin) sign-off is required on all commits.
+  If missing, amend with: git rebase HEAD~1 --signoff && git push --force-with-lease
+- Community maintainers review the PR after CI passes.
+- The CSV must include a replaces field pointing to the previous version
+  (e.g., replaces: jupyter-notebook-validator-operator.v1.0.5).
+- The containerImage annotation must match the actual pushed operator image tag.
+
+### Pre-Submission Checklist
+
+Before submitting to community-operators repositories, verify:
+
+- Provider name is "Decision Crafters" with URL https://www.decisioncrafters.com/
+- Maintainer is "Tosin Akinosho" with email takinosh@redhat.com
+- containerImage annotation matches the actual operator image
+- replaces field in CSV points to previous version
+- Commits are signed with DCO (git commit -s)
+- Standard operator icon is used (Decision Crafters branded, not personal avatar)
+- Bundle validates: operator-sdk bundle validate ./bundle
+- OLM install tested: operator-sdk run bundle {BUNDLE_IMG}
+- com.redhat.openshift.versions annotation is set (e.g., "v4.18-v4.22")
+
+Verification commands:
+   grep -A2 "provider:" bundle/manifests/*.clusterserviceversion.yaml
+   grep -A2 "maintainers:" bundle/manifests/*.clusterserviceversion.yaml
+   grep "containerImage:" bundle/manifests/*.clusterserviceversion.yaml
+   grep "replaces:" bundle/manifests/*.clusterserviceversion.yaml
+
+### FBC (File-Based Catalog)
+
+The operator maintains a File-Based Catalog for custom catalog images:
+
+- catalog/catalog.yaml defines olm.package, olm.channel (stable), and olm.bundle entries
+- Upgrade chain: v1.0.7 replaces v1.0.6
+- catalog.Dockerfile builds the catalog image from quay.io/operator-framework/opm:v1.43.1
+- Build: make catalog-build CATALOG_IMG=quay.io/takinosh/jupyter-notebook-validator-operator-catalog:v1.0.7
+- Push: make catalog-push CATALOG_IMG=quay.io/takinosh/jupyter-notebook-validator-operator-catalog:v1.0.7
+
+### Current Catalog Visibility Status
+
+- OperatorHub.io (Kubernetes): v1.0.7, v1.0.8, v1.0.9 available (via merged PR #7235
+  to k8s-operatorhub/community-operators)
+- OpenShift/OKD OperatorHub: only v1.0.2 exists in community-operators-prod
+- To appear in OKD OperatorHub with newer versions, submit PRs to
+  redhat-openshift-ecosystem/community-operators-prod (one version per PR)
+- See docs/CATALOG-VISIBILITY-INVESTIGATION.md for full details
+
+## Scripts Reference
+
+### Makefile Targets
+
+- **Script Name**: all
+  **Location**: Makefile
+  **Description**: Default target; builds the manager binary.
+  **Usage**: make all
+  **Dependencies**: manifests, generate, fmt, vet
+  **Notes**: Alias for the build target.
+
+- **Script Name**: build
+  **Location**: Makefile
+  **Description**: Build the operator manager binary.
+  **Usage**: make build
+  **Dependencies**: manifests, generate, fmt, vet
+  **Notes**: Outputs binary to bin/manager.
+
+- **Script Name**: build-installer
+  **Location**: Makefile
+  **Description**: Generate a consolidated YAML with CRDs and deployment.
+  **Usage**: make build-installer IMG=<image>
+  **Dependencies**: manifests, generate, kustomize
+  **Notes**: Outputs to dist/install.yaml.
+
+- **Script Name**: bundle
+  **Location**: Makefile
+  **Description**: Generate OLM bundle manifests and metadata, then validate.
+  **Usage**: make bundle IMG=<image> VERSION=<version>
+  **Dependencies**: manifests, kustomize, operator-sdk
+  **Notes**: Outputs to bundle/ directory.
+
+- **Script Name**: bundle-build
+  **Location**: Makefile
+  **Description**: Build the OLM bundle container image.
+  **Usage**: make bundle-build BUNDLE_IMG=<image>
+  **Dependencies**: bundle.Dockerfile
+  **Notes**: Uses docker by default; set CONTAINER_TOOL=podman for Podman.
+
+- **Script Name**: bundle-push
+  **Location**: Makefile
+  **Description**: Push the OLM bundle container image to registry.
+  **Usage**: make bundle-push BUNDLE_IMG=<image>
+  **Dependencies**: Bundle image must be built first.
+  **Notes**: None.
+
+- **Script Name**: catalog-build
+  **Location**: Makefile
+  **Description**: Build a catalog image using opm.
+  **Usage**: make catalog-build CATALOG_IMG=<image>
+  **Dependencies**: opm
+  **Notes**: Uses semver bundle add mode.
+
+- **Script Name**: catalog-push
+  **Location**: Makefile
+  **Description**: Push the catalog image to registry.
+  **Usage**: make catalog-push CATALOG_IMG=<image>
+  **Dependencies**: Catalog image must be built first.
+  **Notes**: None.
+
+- **Script Name**: controller-gen
+  **Location**: Makefile
+  **Description**: Download controller-gen locally if not present.
+  **Usage**: make controller-gen
+  **Dependencies**: Go
+  **Notes**: Installs controller-gen v0.14.0 to bin/.
+
+- **Script Name**: deploy
+  **Location**: Makefile
+  **Description**: Deploy the operator to the cluster specified in kubeconfig.
+  **Usage**: make deploy IMG=<image>
+  **Dependencies**: manifests, kustomize
+  **Notes**: Uses kustomize build config/default.
+
+- **Script Name**: docker-build
+  **Location**: Makefile
+  **Description**: Build the operator container image.
+  **Usage**: make docker-build IMG=<image>
+  **Dependencies**: Dockerfile
+  **Notes**: Set CONTAINER_TOOL=podman for Podman.
+
+- **Script Name**: docker-buildx
+  **Location**: Makefile
+  **Description**: Build and push multi-architecture operator image.
+  **Usage**: make docker-buildx IMG=<image>
+  **Dependencies**: Docker Buildx, BuildKit
+  **Notes**: Platforms: linux/arm64, linux/amd64, linux/s390x, linux/ppc64le.
+
+- **Script Name**: docker-push
+  **Location**: Makefile
+  **Description**: Push the operator container image to registry.
+  **Usage**: make docker-push IMG=<image>
+  **Dependencies**: Image must be built first.
+  **Notes**: None.
+
+- **Script Name**: envtest
+  **Location**: Makefile
+  **Description**: Download setup-envtest locally if not present.
+  **Usage**: make envtest
+  **Dependencies**: Go
+  **Notes**: Installs envtest release-0.17 to bin/.
+
+- **Script Name**: fmt
+  **Location**: Makefile
+  **Description**: Run go fmt against all code.
+  **Usage**: make fmt
+  **Dependencies**: Go
+  **Notes**: None.
+
+- **Script Name**: generate
+  **Location**: Makefile
+  **Description**: Generate DeepCopy, DeepCopyInto, and DeepCopyObject methods.
+  **Usage**: make generate
+  **Dependencies**: controller-gen
+  **Notes**: Uses hack/boilerplate.go.txt as header.
+
+- **Script Name**: git-push-rebuild
+  **Location**: Makefile
+  **Description**: Commit changes and push to GitHub to trigger automated rebuild.
+  **Usage**: make git-push-rebuild MSG="your commit message"
+  **Dependencies**: Git, changes to commit, MSG variable
+  **Notes**: Pushes to current branch; triggers GitHub Actions build-push workflow.
+
+- **Script Name**: git-status
+  **Location**: Makefile
+  **Description**: Show git status and current branch.
+  **Usage**: make git-status
+  **Dependencies**: Git
+  **Notes**: None.
+
+- **Script Name**: golangci-lint
+  **Location**: Makefile
+  **Description**: Download golangci-lint locally if not present.
+  **Usage**: make golangci-lint
+  **Dependencies**: Go
+  **Notes**: Installs golangci-lint v1.57.2 to bin/.
+
+- **Script Name**: helm-install
+  **Location**: Makefile
+  **Description**: Install Helm chart to current cluster.
+  **Usage**: make helm-install
+  **Dependencies**: Helm 3, helm-sync-crds, cert-manager in cluster
+  **Notes**: Installs to jupyter-validator-system namespace with OpenShift and Prometheus enabled.
+
+- **Script Name**: helm-install-dry-run
+  **Location**: Makefile
+  **Description**: Test Helm install with dry-run (no actual deployment).
+  **Usage**: make helm-install-dry-run
+  **Dependencies**: Helm 3
+  **Notes**: None.
+
+- **Script Name**: helm-lint
+  **Location**: Makefile
+  **Description**: Lint the Helm chart for errors.
+  **Usage**: make helm-lint
+  **Dependencies**: Helm 3
+  **Notes**: None.
+
+- **Script Name**: helm-package
+  **Location**: Makefile
+  **Description**: Package the Helm chart for distribution.
+  **Usage**: make helm-package
+  **Dependencies**: Helm 3, helm-sync-crds
+  **Notes**: Outputs .tgz to dist/.
+
+- **Script Name**: helm-sync
+  **Location**: Makefile
+  **Description**: Sync all resources from config/ to helm/.
+  **Usage**: make helm-sync
+  **Dependencies**: helm-sync-crds, helm-sync-observability
+  **Notes**: None.
+
+- **Script Name**: helm-sync-crds
+  **Location**: Makefile
+  **Description**: Sync CRDs from config/crd/bases to helm/crds.
+  **Usage**: make helm-sync-crds
+  **Dependencies**: CRDs generated via make manifests
+  **Notes**: None.
+
+- **Script Name**: helm-sync-observability
+  **Location**: Makefile
+  **Description**: Sync observability resources (dashboards) to Helm chart.
+  **Usage**: make helm-sync-observability
+  **Dependencies**: Dashboard files in config/monitoring/openshift-console/
+  **Notes**: None.
+
+- **Script Name**: helm-template
+  **Location**: Makefile
+  **Description**: Render Helm templates as dry-run for inspection.
+  **Usage**: make helm-template
+  **Dependencies**: Helm 3
+  **Notes**: Renders to jupyter-validator-system namespace.
+
+- **Script Name**: helm-template-openshift
+  **Location**: Makefile
+  **Description**: Render Helm templates with OpenShift-specific values.
+  **Usage**: make helm-template-openshift
+  **Dependencies**: Helm 3
+  **Notes**: Enables openshift and prometheus settings.
+
+- **Script Name**: helm-test
+  **Location**: Makefile
+  **Description**: Run all Helm tests (lint, template, dry-run install).
+  **Usage**: make helm-test
+  **Dependencies**: Helm 3
+  **Notes**: None.
+
+- **Script Name**: helm-uninstall
+  **Location**: Makefile
+  **Description**: Uninstall the Helm chart from the cluster.
+  **Usage**: make helm-uninstall
+  **Dependencies**: Helm 3
+  **Notes**: CRDs are kept by default.
+
+- **Script Name**: helm-upgrade
+  **Location**: Makefile
+  **Description**: Upgrade the Helm chart on the current cluster.
+  **Usage**: make helm-upgrade
+  **Dependencies**: Helm 3, helm-sync-crds
+  **Notes**: None.
+
+- **Script Name**: help
+  **Location**: Makefile
+  **Description**: Display help with all available targets.
+  **Usage**: make help
+  **Dependencies**: None
+  **Notes**: None.
+
+- **Script Name**: install
+  **Location**: Makefile
+  **Description**: Install CRDs into the cluster.
+  **Usage**: make install
+  **Dependencies**: manifests, kustomize
+  **Notes**: Uses kustomize build config/crd.
+
+- **Script Name**: kustomize
+  **Location**: Makefile
+  **Description**: Download kustomize locally if not present.
+  **Usage**: make kustomize
+  **Dependencies**: Go
+  **Notes**: Installs kustomize v5.3.0 to bin/.
+
+- **Script Name**: lint
+  **Location**: Makefile
+  **Description**: Run golangci-lint linter.
+  **Usage**: make lint
+  **Dependencies**: golangci-lint
+  **Notes**: None.
+
+- **Script Name**: lint-fix
+  **Location**: Makefile
+  **Description**: Run golangci-lint linter and auto-fix issues.
+  **Usage**: make lint-fix
+  **Dependencies**: golangci-lint
+  **Notes**: None.
+
+- **Script Name**: manifests
+  **Location**: Makefile
+  **Description**: Generate WebhookConfiguration, ClusterRole, and CRD objects.
+  **Usage**: make manifests
+  **Dependencies**: controller-gen
+  **Notes**: Outputs CRDs to config/crd/bases/.
+
+- **Script Name**: operator-sdk
+  **Location**: Makefile
+  **Description**: Download operator-sdk locally if not present.
+  **Usage**: make operator-sdk
+  **Dependencies**: curl
+  **Notes**: Installs operator-sdk v1.37.0 to bin/.
+
+- **Script Name**: opm
+  **Location**: Makefile
+  **Description**: Download opm locally if not present.
+  **Usage**: make opm
+  **Dependencies**: curl
+  **Notes**: Installs opm v1.23.0 to bin/.
+
+- **Script Name**: run
+  **Location**: Makefile
+  **Description**: Run the operator controller from your host machine.
+  **Usage**: make run
+  **Dependencies**: manifests, generate, fmt, vet, valid kubeconfig
+  **Notes**: CRDs must be installed first via make install.
+
+- **Script Name**: test
+  **Location**: Makefile
+  **Description**: Run unit and integration tests (excludes e2e).
+  **Usage**: make test
+  **Dependencies**: manifests, generate, fmt, vet, envtest
+  **Notes**: Generates cover.out coverage report.
+
+- **Script Name**: test-e2e
+  **Location**: Makefile
+  **Description**: Run e2e tests against a Kind or real cluster.
+  **Usage**: make test-e2e
+  **Dependencies**: Running cluster, operator deployed
+  **Notes**: Uses Ginkgo test framework.
+
+- **Script Name**: undeploy
+  **Location**: Makefile
+  **Description**: Undeploy the operator from the cluster.
+  **Usage**: make undeploy
+  **Dependencies**: kustomize
+  **Notes**: Set ignore-not-found=true to suppress errors for missing resources.
+
+- **Script Name**: uninstall
+  **Location**: Makefile
+  **Description**: Uninstall CRDs from the cluster.
+  **Usage**: make uninstall
+  **Dependencies**: manifests, kustomize
+  **Notes**: Set ignore-not-found=true to suppress errors.
+
+- **Script Name**: vet
+  **Location**: Makefile
+  **Description**: Run go vet against all code.
+  **Usage**: make vet
+  **Dependencies**: Go
+  **Notes**: None.
+
+### Shell Scripts
+
+- **Script Name**: cleanup-quay-images.sh
+  **Location**: scripts/cleanup-quay-images.sh
+  **Description**: Delete old images from Quay.io registry.
+  **Usage**: ./scripts/cleanup-quay-images.sh [--dry-run]
+  **Dependencies**: Logged in to Quay.io (podman login quay.io)
+  **Notes**: Use --dry-run to preview deletions without executing them.
+
+- **Script Name**: eso-integration-test.sh
+  **Location**: test/eso-integration-test.sh
+  **Description**: Test External Secrets Operator integration with the operator.
+  **Usage**: ./test/eso-integration-test.sh
+  **Dependencies**: ESO installed, mlops namespace, NotebookValidationJob CRD
+  **Notes**: None.
+
+- **Script Name**: full-pre-submission-test.sh
+  **Location**: scripts/full-pre-submission-test.sh
+  **Description**: Comprehensive local testing that simulates community-operators CI.
+  **Usage**: ./scripts/full-pre-submission-test.sh [--skip-install] [--skip-cleanup] [--quick] [--version VERSION]
+  **Dependencies**: Kind, operator-sdk, opm (auto-installed if missing)
+  **Notes**: Tests bundle validation, K8s version matrix (1.29-1.33), and OLM installation. Use --quick for single K8s version. Env vars: KIND_VERSION, OPERATOR_SDK_VERSION, OPM_VERSION, COMMUNITY_OPERATORS_DIR.
+
+- **Script Name**: integration-test-suite.sh
+  **Location**: test/integration-test-suite.sh
+  **Description**: Integration test suite covering ESO, KServe, and OpenShift AI.
+  **Usage**: ./test/integration-test-suite.sh
+  **Dependencies**: Running cluster with operator deployed, NAMESPACE env var
+  **Notes**: Tests ESO integration, model-aware validation with KServe and OpenShift AI.
+
+- **Script Name**: local-e2e-test.sh
+  **Location**: scripts/local-e2e-test.sh
+  **Description**: Local E2E testing replicating GitHub Actions workflow.
+  **Usage**: ./scripts/local-e2e-test.sh [tier1|tier2|tier3|tier4|model|metrics|webhook|all]
+  **Dependencies**: Running cluster, operator deployed, QUAY_USERNAME, QUAY_PASSWORD (for image push)
+  **Notes**: Supports all test tiers. Default runs all tiers.
+
+- **Script Name**: preflight-check.sh
+  **Location**: helm/jupyter-notebook-validator-operator/preflight-check.sh
+  **Description**: Verify all prerequisites before Helm chart installation.
+  **Usage**: ./helm/jupyter-notebook-validator-operator/preflight-check.sh
+  **Dependencies**: kubectl or oc, helm
+  **Notes**: Checks for cert-manager, RBAC permissions, and cluster connectivity.
+
+- **Script Name**: pre-submission-validate.sh
+  **Location**: scripts/pre-submission-validate.sh
+  **Description**: Pre-submission validation workflow for Community Operators.
+  **Usage**: ./scripts/pre-submission-validate.sh [BUNDLE_DIR] [VERSION]
+  **Dependencies**: kubectl, operator-sdk, Kind (unless SKIP_MATRIX=true)
+  **Notes**: Validates bundle structure, runs operator-sdk validation, and K8s version matrix testing. Env vars: BUNDLE_DIR, VERSION, SKIP_MATRIX, SKIP_CLEANUP.
+
+- **Script Name**: quick-olm-test.sh
+  **Location**: scripts/quick-olm-test.sh
+  **Description**: Quick OLM test using published bundle images from Quay.io.
+  **Usage**: ./scripts/quick-olm-test.sh [VERSION]
+  **Dependencies**: Kind, operator-sdk
+  **Notes**: Default version: 1.0.7. Uses quay.io/takinosh bundle images.
+
+- **Script Name**: run-e2e-tests.sh
+  **Location**: scripts/run-e2e-tests.sh
+  **Description**: End-to-end test runner for complete operator workflows.
+  **Usage**: ./scripts/run-e2e-tests.sh
+  **Dependencies**: Running cluster, operator deployed
+  **Notes**: Env vars: TEST_NAMESPACE, TEST_TIMEOUT, SKIP_CLEANUP.
+
+- **Script Name**: run-integration-tests.sh
+  **Location**: scripts/run-integration-tests.sh
+  **Description**: Run integration tests against a real cluster.
+  **Usage**: ./scripts/run-integration-tests.sh
+  **Dependencies**: Running cluster, operator deployed
+  **Notes**: Env vars: TEST_NAMESPACE, SKIP_S2I_BUILD_TEST, SKIP_TEKTON_BUILD_TEST, TEST_TIMEOUT.
+
+- **Script Name**: run-tier1-e2e-tests.sh
+  **Location**: scripts/run-tier1-e2e-tests.sh
+  **Description**: Run Tier 1 E2E tests (simple notebook validation).
+  **Usage**: ./scripts/run-tier1-e2e-tests.sh
+  **Dependencies**: Running cluster, operator deployed
+  **Notes**: Env vars: TEST_NAMESPACE, TEST_REPO_URL, TEST_REPO_BRANCH, TEST_CONTAINER_IMAGE, TIMEOUT_SECONDS.
+
+- **Script Name**: run-tier4-e2e-tests.sh
+  **Location**: scripts/run-tier4-e2e-tests.sh
+  **Description**: Run Tier 4 E2E tests (S2I/BuildConfig validation).
+  **Usage**: ./scripts/run-tier4-e2e-tests.sh
+  **Dependencies**: Running OpenShift cluster, operator deployed
+  **Notes**: Env vars: TEST_NAMESPACE, TEST_REPO_URL, TEST_REPO_BRANCH, TIMEOUT_SECONDS. 30-minute timeout for builds.
+
+- **Script Name**: setup-git-credentials.sh
+  **Location**: scripts/setup-git-credentials.sh
+  **Description**: Create Kubernetes secrets for Git private repository access.
+  **Usage**: ./scripts/setup-git-credentials.sh [NAMESPACE]
+  **Dependencies**: kubectl, GITHUB_USERNAME, GITHUB_TOKEN env vars
+  **Notes**: Creates git-credentials secret for HTTPS authentication.
+
+- **Script Name**: setup-git-push.sh
+  **Location**: scripts/setup-git-push.sh
+  **Description**: Configure git authentication for automated pushes.
+  **Usage**: ./scripts/setup-git-push.sh
+  **Dependencies**: Git
+  **Notes**: Interactive script to set up git credentials.
+
+- **Script Name**: setup-real-models.sh
+  **Location**: scripts/setup-real-models.sh
+  **Description**: Deploy real ML models to OpenShift for end-to-end testing.
+  **Usage**: ./scripts/setup-real-models.sh
+  **Dependencies**: Running OpenShift cluster with model serving capabilities
+  **Notes**: Env var: NAMESPACE (default: mlops).
+
+- **Script Name**: test-bundle-with-operator-sdk.sh
+  **Location**: scripts/test-bundle-with-operator-sdk.sh
+  **Description**: Test local bundles using operator-sdk run bundle (official approach).
+  **Usage**: ./scripts/test-bundle-with-operator-sdk.sh [VERSION]
+  **Dependencies**: Kind, operator-sdk, local community-operators clone
+  **Notes**: Default version: 1.0.7. Expects bundles at /home/lab-user/community-operators.
+
+- **Script Name**: test-k8s-matrix.sh
+  **Location**: scripts/test-k8s-matrix.sh
+  **Description**: Test operator bundles against multiple Kubernetes versions sequentially.
+  **Usage**: ./scripts/test-k8s-matrix.sh [BUNDLE_DIR] [VERSION]
+  **Dependencies**: Kind, operator-sdk
+  **Notes**: Tests K8s 1.29, 1.30, 1.31, 1.33 mapping to OpenShift 4.18-4.20. Env vars: BUNDLE_DIR, VERSION, SKIP_CLEANUP.
+
+- **Script Name**: test-local-bundle-simple.sh
+  **Location**: scripts/test-local-bundle-simple.sh
+  **Description**: Test local bundles using operator-sdk run bundle (simplified).
+  **Usage**: ./scripts/test-local-bundle-simple.sh [VERSION]
+  **Dependencies**: Kind, operator-sdk, local community-operators clone
+  **Notes**: Default version: 1.0.7.
+
+- **Script Name**: test-local-bundles.sh
+  **Location**: scripts/test-local-bundles.sh
+  **Description**: Build bundle images from local community-operators directory and test in Kind.
+  **Usage**: ./scripts/test-local-bundles.sh [VERSION]
+  **Dependencies**: Kind, Docker/Podman, operator-sdk
+  **Notes**: Default version: 1.0.7. Uses local registry at localhost:5000.
+
+- **Script Name**: test-local-kind.sh
+  **Location**: scripts/test-local-kind.sh
+  **Description**: Set up Kind cluster, deploy operator, run Tier 1 tests, cleanup.
+  **Usage**: ./scripts/test-local-kind.sh [--skip-cleanup] [--cleanup-only] [--install-kind]
+  **Dependencies**: Docker or Podman, Kind (auto-installed if missing)
+  **Notes**: Supports both Docker and Podman. Env vars: KIND_CLUSTER_NAME, KUBERNETES_VERSION, TEST_NAMESPACE, OPERATOR_NAMESPACE, TEST_REPO_URL, GITHUB_USERNAME, GITHUB_TOKEN.
+
+- **Script Name**: test-local-olm.sh
+  **Location**: scripts/test-local-olm.sh
+  **Description**: Local OLM testing for all bundle versions (1.0.7, 1.0.8, 1.0.9).
+  **Usage**: ./scripts/test-local-olm.sh [--version VERSION] [--skip-cleanup]
+  **Dependencies**: Kind, operator-sdk, OLM
+  **Notes**: Env vars: KIND_CLUSTER_NAME, KUBERNETES_VERSION, BUNDLE_REGISTRY.
+
+- **Script Name**: test-validation-cluster-volumes.sh
+  **Location**: scripts/test-validation-cluster-volumes.sh
+  **Description**: Test volume functionality on a validation cluster.
+  **Usage**: ./scripts/test-validation-cluster-volumes.sh
+  **Dependencies**: Running OpenShift cluster
+  **Notes**: Tests PVC, ConfigMap, Secret, and EmptyDir volume mounts.
+
+- **Script Name**: tier2-build-tests.sh
+  **Location**: scripts/tier2-build-tests.sh
+  **Description**: Tier 2 E2E tests for S2I and Tekton build integration.
+  **Usage**: ./scripts/tier2-build-tests.sh
+  **Dependencies**: Running OpenShift cluster, operator deployed
+  **Notes**: Tests complete build workflows. Env vars: TEST_NAMESPACE, OPERATOR_NAMESPACE, TEST_REPO, GITHUB_USERNAME, GITHUB_TOKEN, GIT_CREDENTIALS_SECRET, BASE_IMAGE, IMAGE_REGISTRY.
+
+- **Script Name**: update-icon.sh
+  **Location**: scripts/update-icon.sh
+  **Description**: Update the operator icon base64 data in CSV files.
+  **Usage**: ./scripts/update-icon.sh <csv-file-path>
+  **Dependencies**: Icon file at images/small-logo-base64.txt
+  **Notes**: Used when updating bundles for community-operators submission.
+
+- **Script Name**: update-test-notebooks-repo.sh
+  **Location**: scripts/update-test-notebooks-repo.sh
+  **Description**: Copy model discovery library and deployment manifests to test notebooks repo.
+  **Usage**: ./scripts/update-test-notebooks-repo.sh
+  **Dependencies**: Test repo cloned locally
+  **Notes**: Env var: TEST_REPO (default: /home/lab-user/jupyter-notebook-validator-test-notebooks).
+
+## CI/CD Workflows
+
+### build-push.yml
+  **Location**: .github/workflows/build-push.yml
+  **Description**: Build and push operator container image to Quay.io.
+  **Triggers**: Push to main or release-* branches, tags matching v*, manual dispatch.
+  **Jobs**: build-and-push (build image, push to quay.io, Trivy scan), verify-image, notify.
+  **Secrets Required**: QUAY_USERNAME, QUAY_PASSWORD.
+  **Notes**: Registry: quay.io/takinosh/jupyter-notebook-validator-operator. Tags include latest for default branch.
+
+### bundle-validation.yaml
+  **Location**: .github/workflows/bundle-validation.yaml
+  **Description**: Validate OLM bundle, FBC catalog, build bundle image, run scorecard tests.
+  **Triggers**: Push/PR on main and release-4.18/4.19/4.20 branches (paths: bundle/**, config/manifests/**, api/**).
+  **Jobs**: bundle-validate, catalog-validate, bundle-build, bundle-scorecard, summary.
+  **Notes**: Uses operator-sdk v1.37.0 and opm v1.43.0.
+
+### ci-unit-tests.yaml
+  **Location**: .github/workflows/ci-unit-tests.yaml
+  **Description**: Run unit and integration tests on a Kind cluster pinned to K8s v1.31.12.
+  **Triggers**: Push/PR on main, develop, release-* branches, manual dispatch.
+  **Jobs**: unit-tests, kind-integration-tests (build operator, deploy to Kind, run Tier 1 tests).
+  **Notes**: Uses Go 1.22, Kind v0.20.0, Tekton v0.65.0.
+
+### ci.yml
+  **Location**: .github/workflows/ci.yml
+  **Description**: Main CI pipeline with lint, test, build, manifests validation, and security scans.
+  **Triggers**: Push/PR on main, develop, release-* branches.
+  **Jobs**: lint (gofmt, go vet, golangci-lint), test (unit tests + coverage), build, manifests, security (Gosec, Trivy), status-check.
+  **Notes**: Uploads coverage to Codecov.
+
+### e2e-kind.yaml
+  **Location**: .github/workflows/e2e-kind.yaml
+  **Description**: Run Tier 1 E2E tests on Kind cluster for fast CI/CD feedback.
+  **Triggers**: Push/PR on main and release-* branches, manual dispatch.
+  **Jobs**: kind-e2e (create Kind cluster, build and load operator image, deploy, run tests).
+  **Notes**: Uses Kind v0.30.0, K8s v1.33.1.
+
+### e2e-openshift.yaml
+  **Location**: .github/workflows/e2e-openshift.yaml
+  **Description**: Run all-tier E2E tests on live OpenShift 4.18 cluster.
+  **Triggers**: Push/PR on main and release-* branches (PR requires 'run-e2e' label), manual dispatch with tier selection.
+  **Jobs**: Multiple jobs for Tier 1 through Tier 5, including Tekton builds, model validation, metrics, and webhooks.
+  **Notes**: Requires OpenShift cluster credentials as secrets.
+
+### helm-validation.yaml
+  **Location**: .github/workflows/helm-validation.yaml
+  **Description**: Validate Helm chart with sync check, lint, template rendering, install tests, and upgrade tests.
+  **Triggers**: Push/PR on release-4.18 and main branches (paths: helm/**, config/crd/**, config/monitoring/**).
+  **Jobs**: helm-sync-check, helm-lint, helm-template (4 scenarios: default, openshift, prometheus, minimal), helm-install-dry-run, helm-install-test, helm-upgrade-test, helm-package, summary.
+  **Notes**: Uses Helm 3.13.0, cert-manager v1.13.0. Package job only runs on release-4.18.
+
+### release.yml
+  **Location**: .github/workflows/release.yml
+  **Description**: Create GitHub release with multi-arch binaries, publish OLM bundle.
+  **Triggers**: Push of tags matching v*.
+  **Jobs**: create-release (build linux/darwin amd64/arm64 binaries, create GitHub release with checksums and install bundle), publish-olm-bundle (generate, validate, build, push bundle image), update-docs.
+  **Secrets Required**: GITHUB_TOKEN, QUAY_USERNAME, QUAY_PASSWORD.
+  **Notes**: Pre-releases auto-detected for alpha/beta/rc tags.
+
+## Dockerfiles
+
+### Dockerfile
+  **Location**: Dockerfile
+  **Description**: Multi-stage build for the operator manager binary.
+  **Base Images**: golang:1.22 (builder), gcr.io/distroless/static:nonroot (runtime).
+  **Build Args**: GO_VERSION (default 1.22), TARGETOS, TARGETARCH.
+  **Notes**: Runs as non-root user 65532:65532. CGO disabled. Final image is minimal distroless.
+
+### bundle.Dockerfile
+  **Location**: bundle.Dockerfile
+  **Description**: OLM bundle image containing manifests and metadata.
+  **Base Image**: scratch
+  **Notes**: Copies bundle/manifests/, bundle/metadata/, bundle/tests/scorecard/. Labeled for OLM registry+v1 format, alpha channel.
+
+### catalog.Dockerfile
+  **Location**: catalog.Dockerfile
+  **Description**: File-Based Catalog (FBC) image for custom operator catalogs.
+  **Base Image**: quay.io/operator-framework/opm:v1.43.1
+  **Notes**: Copies catalog/ directory to /configs. Pre-populates serve cache. Entry point: opm serve /configs.
+
+## Environment Variables
+
+### Build and Deployment Variables
+
+- **BUNDLE_CHANNELS**: OLM bundle channels (default: not set; example: "candidate,fast,stable").
+- **BUNDLE_IMG**: Bundle image URL (default: {IMAGE_TAG_BASE}-bundle:v{VERSION}).
+- **CATALOG_BASE_IMG**: Existing catalog image to extend.
+- **CATALOG_IMG**: Catalog image URL (default: {IMAGE_TAG_BASE}-catalog:v{VERSION}).
+- **CHANNELS**: Alias for BUNDLE_CHANNELS.
+- **CONTAINER_TOOL**: Container runtime (default: docker; set to podman for Podman).
+- **DEFAULT_CHANNEL**: Default OLM channel (example: "stable").
+- **ENVTEST_K8S_VERSION**: Kubernetes version for envtest assets (default: 1.29.0).
+- **IMG**: Operator image URL (default: controller:latest).
+- **OPERATOR_SDK_VERSION**: Operator SDK version (default: v1.37.0).
+- **PLATFORMS**: Target platforms for multi-arch builds (default: linux/arm64,linux/amd64,linux/s390x,linux/ppc64le).
+- **USE_IMAGE_DIGESTS**: Use SHA digests instead of tags (default: false).
+- **VERSION**: Project version for the bundle (default: 1.0.6).
+
+### Operator Runtime Variables
+
+- **ENABLE_WEBHOOKS**: Enable/disable admission webhooks (default: true; set to "false" to disable).
+- **GIT_INIT_IMAGE**: Override the Git init container image used for cloning.
+- **PLATFORM**: Target platform (set to "openshift" in default deployment).
+
+### Testing Variables
+
+- **BUNDLE_REGISTRY**: Registry for bundle images in tests (default: quay.io/takinosh).
+- **COMMUNITY_OPERATORS_DIR**: Path to local community-operators clone (default: /home/lab-user/community-operators).
+- **GIT_CREDENTIALS_SECRET**: Secret name for Git credentials in tests.
+- **GITHUB_TOKEN**: GitHub personal access token for CI/CD and tests.
+- **GITHUB_USERNAME**: GitHub username for CI/CD and tests.
+- **GIT_TOKEN**: Git token for private repo access in tests.
+- **GIT_USERNAME**: Git username for private repo access in tests.
+- **HOME**: Used as fallback for ~/.kube/config in integration tests.
+- **INTEGRATION_TESTS**: Set to "true" to enable platform integration tests.
+- **KIND_CLUSTER_NAME**: Name of the Kind cluster (default: jupyter-validator-test).
+- **KIND_EXPERIMENTAL_PROVIDER**: Set to "podman" to use Podman with Kind.
+- **KIND_VERSION**: Kind version for testing (default: v0.23.0).
+- **KUBECONFIG**: Path to kubeconfig file.
+- **KUBERNETES_VERSION**: Kubernetes version for Kind clusters (default: v1.33.1).
+- **OLM_VERSION**: OLM version for testing (default: v0.28.0).
+- **OPERATOR_NAMESPACE**: Namespace for operator deployment in tests (default: jupyter-notebook-validator-operator).
+- **OPM_VERSION**: opm version for testing (default: v1.43.0).
+- **QUAY_PASSWORD**: Quay.io password/token for image push.
+- **QUAY_USERNAME**: Quay.io username for image push.
+- **SKIP_CLEANUP**: Keep test clusters/resources after tests (default: false).
+- **SKIP_MATRIX**: Skip Kubernetes version matrix testing (default: false).
+- **SKIP_S2I_BUILD_TEST**: Skip S2I build integration tests (default: false).
+- **SKIP_TEKTON_BUILD_TEST**: Skip Tekton build integration tests (default: false).
+- **TEST_NAMESPACE**: Namespace for test resources (default: e2e-tests).
+- **TEST_REPO**: Test notebook repository URL.
+- **TEST_REPO_REF**: Git ref for test notebook repository (default: main).
+- **TEST_REPO_URL**: Full URL for test notebook repository.
+- **TEST_TIMEOUT**: Timeout for test execution (default: 15m).
+- **TIMEOUT_SECONDS**: Per-test timeout in seconds (default: 300).
+
+### CI/CD Variables (GitHub Actions)
+
+- **CERT_MANAGER_VERSION**: cert-manager version (default: v1.13.0).
+- **GO_VERSION**: Go version for CI (default: 1.22).
+- **HELM_VERSION**: Helm version for CI (default: 3.13.0).
+- **IMAGE_NAME**: Image name in registry (default: takinosh/jupyter-notebook-validator-operator).
+- **KIND_NODE_IMAGE**: Kind node image with digest for reproducible testing.
+- **KUBECTL_VERSION**: kubectl version for CI (default: v1.31.0).
+- **REGISTRY**: Container registry (default: quay.io).
+- **TEKTON_VERSION**: Tekton Pipelines version (default: v0.65.0).
+
+## Helm Chart Values Reference
+
+Key configuration values in helm/jupyter-notebook-validator-operator/values.yaml:
+
+- image.repository: quay.io/tosin2013/jupyter-notebook-validator-operator
+- image.pullPolicy: IfNotPresent
+- image.tag: "" (defaults to chart appVersion: 1.0.0-ocp4.18)
+- replicaCount: 1
+- crds.install: true
+- crds.keep: true
+- rbac.create: true
+- rbac.scope: cluster
+- operator.webhook.enabled: true
+- operator.webhook.port: 9443
+- certManager.enabled: true
+- prometheus.enabled: false
+- tekton.enabled: true
+- tekton.version: v0.65.0
+- openshift.enabled: false
+- validation.timeout: 30m
+- validation.baseImage: python:3.11-slim
+- resources.limits.cpu: 500m
+- resources.limits.memory: 512Mi
+- resources.requests.cpu: 100m
+- resources.requests.memory: 128Mi
+
+Chart requires Kubernetes >= 1.31.0 (set in Chart.yaml).
+
+## Troubleshooting
+
+### Git Clone Failures
+Check that the credentials secret exists and has correct keys (username/password for
+HTTPS or ssh-privatekey for SSH). Verify the secret is in the same namespace as the
+NotebookValidationJob.
+
+### Pod Stuck in Pending
+Check resource quotas and node capacity. Ensure the specified container image exists
+and is pullable. Check image pull secrets if using a private registry.
+
+### Build Failures (S2I/Tekton)
+Check requirements.txt syntax. Ensure the base image supports the required Python
+dependencies. For S2I, check BuildConfig and Build logs with oc commands. For Tekton,
+check PipelineRun status.
+
+### Model Validation Failures
+Verify the model exists and is ready in the target namespace. Check network policies
+allow access from the validation pod to the model endpoint. Ensure the platform
+(KServe, OpenShift AI, vLLM, etc.) is correctly detected.
+
+### Operator Not Appearing in OKD OperatorHub
+The operator only appears if submitted to redhat-openshift-ecosystem/community-operators-prod.
+Currently only v1.0.2 exists there. Submit newer versions following the OperatorHub
+Catalog Submission workflow above. See docs/CATALOG-VISIBILITY-INVESTIGATION.md.
+
+### kube-rbac-proxy Image Not Found
+gcr.io/kubebuilder/kube-rbac-proxy:v0.16.0 does not exist. Use
+quay.io/brancz/kube-rbac-proxy:v0.18.0 instead. This fix has been applied to all
+release branches (main, release-4.18, release-4.19, release-4.20).
+
+### Bundle Submission Failures
+
+DCO Check Failed:
+  git rebase HEAD~1 --signoff
+  git push --force-with-lease origin your-branch
+
+containerImage Annotation Mismatch:
+  Ensure the containerImage annotation in the CSV matches the actual pushed image tag.
+  grep "containerImage:" bundle/manifests/*.clusterserviceversion.yaml
+
+Multiple Bundles in community-operators-prod:
+  community-operators-prod requires ONE bundle per PR. Create separate PRs for each version.
+
+Channel Mismatch:
+  Ensure bundle/metadata/annotations.yaml channel matches the channel in catalog/catalog.yaml
+  (should both be "stable").
+
+### Webhook Issues
+If webhooks fail, ensure cert-manager is installed and the certificate is provisioned.
+For OperatorHub.io deployments, webhooks may be disabled via ENABLE_WEBHOOKS=false.
+
+### Watch Operator Logs
+  kubectl logs -n jupyter-notebook-validator-operator-system \
+    deployment/notebook-validator-controller-manager -f
+
+### Inspect CR Status
+  kubectl get notebookvalidationjob <name> -o yaml
+  kubectl describe notebookvalidationjob <name>
