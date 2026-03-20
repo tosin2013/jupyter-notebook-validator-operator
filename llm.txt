@@ -228,14 +228,14 @@ The operator maintains a File-Based Catalog for custom catalog images:
 
 ### Current Catalog Visibility Status
 
-- OperatorHub.io (Kubernetes): v1.0.7, v1.0.8, v1.0.9 available (via merged PR #7235
-  to k8s-operatorhub/community-operators on Dec 4, 2025)
+- OperatorHub.io (Kubernetes): v1.0.2, v1.0.3-ocp4.19, v1.0.4, v1.0.5, v1.0.6 available
+  - PR #7235 (v1.0.7, v1.0.8, v1.0.9) was merged then reverted in PR #7285
+  - Need to submit v1.0.7 to k8s-operatorhub/community-operators
 - OpenShift/OKD OperatorHub: v1.0.7 pending approval (PR #9177 submitted Mar 20, 2026
   to redhat-openshift-ecosystem/community-operators-prod)
-- Version differences between catalogs are intentional due to different submission rules:
+- Submission rules differ between repositories:
   - k8s-operatorhub/community-operators allows multiple bundles per PR
   - redhat-openshift-ecosystem/community-operators-prod requires ONE bundle per PR
-- Next version for new features should be v1.0.10 or v1.1.0
 - See docs/CATALOG-VISIBILITY-INVESTIGATION.md for full details
 
 ## Scripts Reference
