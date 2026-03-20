@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: GitHub Discussions
+    url: https://github.com/tosin2013/jupyter-notebook-validator-operator/discussions
+    about: Ask questions and share how you use the operator
+  - name: OperatorHub.io
+    url: https://operatorhub.io/operator/jupyter-notebook-validator-operator
+    about: Install via OLM from OperatorHub
+  - name: Artifact Hub
+    url: https://artifacthub.io/packages/search?ts_query=jupyter-notebook-validator-operator
+    about: Helm chart and packages on Artifact Hub

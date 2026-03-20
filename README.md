@@ -13,6 +13,24 @@ A Kubernetes-native operator that automates Jupyter Notebook validation in MLOps
 
 The Jupyter Notebook Validator Operator enables automated testing and validation of Jupyter notebooks in Kubernetes and OpenShift environments. It's designed for data science teams, ML engineers, and platform teams who need to ensure notebook reliability, reproducibility, and integration with deployed ML models.
 
+### Architecture
+
+High-level flow from a `NotebookValidationJob` to execution, comparison, and status:
+
+```mermaid
+flowchart LR
+    User["User / CI"] -->|"kubectl apply"| CR["NotebookValidationJob CR"]
+    CR --> Controller["Operator Controller"]
+    Controller -->|"clone"| Git["Git Repository"]
+    Controller -->|"create"| Pod["Validation Pod"]
+    Pod -->|"execute via Papermill"| Notebook["Jupyter Notebook"]
+    Controller -->|"compare"| Golden["Golden Notebook"]
+    Controller -->|"validate"| Model["ML Model Endpoint"]
+    Controller -->|"update"| Status["Job Status"]
+```
+
+For more detail, see [Architecture Overview](docs/ARCHITECTURE_OVERVIEW.md).
+
 ### Key Features
 
 - **🔄 Automated Notebook Execution** - Execute notebooks in isolated Kubernetes pods with Papermill
@@ -134,6 +152,20 @@ See [config/samples/mlops_v1alpha1_notebookvalidationjob_gpu_scheduling.yaml](co
 - **Model Serving:** KServe, OpenShift AI, vLLM, TorchServe, TensorFlow Serving, Triton, Ray Serve, Seldon, BentoML
 - **Credential Management:** Kubernetes Secrets, External Secrets Operator (ESO), HashiCorp Vault
 
+## Contributing
+
+We welcome contributions! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, coding standards, and the pull request process.
+
+## Code of Conduct
+
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). By participating, you agree to uphold this code.
+
+## Community
+
+- **Issues & feature requests:** Use [GitHub Issues](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues).
+- **Discussions:** [GitHub Discussions](https://github.com/tosin2013/jupyter-notebook-validator-operator/discussions) for Q&A and sharing usage patterns.
+- **Distribution:** [OperatorHub.io](https://operatorhub.io/operator/jupyter-notebook-validator-operator) (OLM) and [Artifact Hub](https://artifacthub.io/packages/search?ts_query=jupyter-notebook-validator-operator).
+
 ## License
 
-Copyright 2025 Tosin Akinosho. Licensed under the Apache License, Version 2.0.
+Copyright 2025 Tosin Akinosho. Licensed under the [Apache License, Version 2.0](LICENSE).
