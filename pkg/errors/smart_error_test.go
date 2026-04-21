@@ -325,13 +325,13 @@ func TestGetCategory(t *testing.T) {
 // and Level 3 (actionable guidance) are all present in a single SmartError instance.
 func TestADR030_AllThreeLevels(t *testing.T) {
 	tests := []struct {
-		name           string
-		err            error
-		wantCategory   ErrorCategory
-		wantCode       string
-		wantRootCause  bool // Level 2: must have root cause
-		wantActions    bool // Level 3: must have actionable guidance
-		wantRetryable  bool
+		name          string
+		err           error
+		wantCategory  ErrorCategory
+		wantCode      string
+		wantRootCause bool // Level 2: must have root cause
+		wantActions   bool // Level 3: must have actionable guidance
+		wantRetryable bool
 	}{
 		{
 			// RBAC pattern requires "forbidden" or "unauthorized" to be recognized
