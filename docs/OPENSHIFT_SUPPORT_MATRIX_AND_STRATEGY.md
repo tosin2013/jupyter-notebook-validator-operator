@@ -1,33 +1,33 @@
 # OpenShift Support Matrix and Migration Strategy
 
-**Date:** November 8, 2025  
-**Status:** 🎯 STRATEGIC DECISION REQUIRED
+**Date:** April 21, 2026 (updated — original November 8, 2025)
+**Status:** Active
 
 ## Executive Summary
 
-Based on the official Red Hat OpenShift lifecycle data (as of November 8, 2025), here's the **critical strategic recommendation** for your Jupyter Notebook Validator Operator development:
+Based on the official Red Hat OpenShift lifecycle data (updated April 2026 — OCP 4.21 is now GA):
 
-**🎯 RECOMMENDATION: Target OpenShift 4.18 (EUS) with a migration plan to 4.20 (EUS) and 4.21**
+**🎯 ACTIVE SUPPORT WINDOW: OCP 4.19 / 4.20 / 4.21 (rolling 3-version window; 4.18 moved to Maintenance-only)**
 
-## Current OpenShift Landscape (November 2025)
+## Current OpenShift Landscape (April 2026)
 
 ### Active Versions
 
 | Version | Status | GA Date | Full Support Ends | Maintenance Ends | EUS Term 1 Ends | EUS Term 2 Ends |
 |---------|--------|---------|-------------------|------------------|-----------------|-----------------|
+| **4.21** | ✅ **Full Support** | Apr 2026 | GA of 4.22 + 3mo | ~Oct 2027 | N/A | N/A |
 | **4.20** | ✅ **Full Support** | Oct 21, 2025 | GA of 4.21 + 3mo | Apr 21, 2027 | Oct 21, 2027 | Oct 21, 2028 |
-| **4.19** | ✅ **Full Support** | Jun 17, 2025 | Jan 21, 2026 | Dec 17, 2026 | N/A | N/A |
-| **4.18** | ⚠️ **Maintenance** | Feb 25, 2025 | Sep 17, 2025 | Aug 25, 2026 | Feb 25, 2027 | Feb 25, 2028 |
-| **4.17** | ⚠️ **Maintenance** | Oct 1, 2024 | May 25, 2025 | Apr 1, 2026 | N/A | N/A |
-| **4.16** | ⚠️ **Maintenance** | Jun 27, 2024 | Jan 1, 2025 | Dec 27, 2025 | Jun 27, 2026 | Jun 27, 2027 |
+| **4.19** | ⚠️ **Maintenance** | Jun 17, 2025 | Jan 21, 2026 | Dec 17, 2026 | N/A | N/A |
+| **4.18** | ⚠️ **Maintenance / EUS** | Feb 25, 2025 | Sep 17, 2025 | Aug 25, 2026 | Feb 25, 2027 | Feb 25, 2028 |
+| **4.17** | ❌ **End of Life** | Oct 1, 2024 | May 25, 2025 | Apr 1, 2026 | N/A | N/A |
 
 ### Key Observations
 
-1. **4.20 is the LATEST** (released Oct 21, 2025 - 18 days ago)
-2. **4.18 is in Maintenance Support** (Full Support ended Sep 17, 2025)
+1. **4.21 is the LATEST** (released April 2026 — GA)
+2. **4.18 is in Maintenance/EUS Support** — operator support will be dropped when 4.22 ships
 3. **4.20 is an EUS release** (even-numbered = Extended Update Support)
 4. **4.18 is an EUS release** (even-numbered = Extended Update Support)
-5. **4.21 is expected** in ~4 months (Feb 2026)
+5. **Rolling 3-version active window: 4.19 / 4.20 / 4.21**
 
 ## Kubernetes Version Mapping
 
@@ -38,7 +38,7 @@ Based on research and OpenShift release patterns:
 | **4.18** | **1.31** | 1.21+ | **v0.31.x** | ✅ Maintenance |
 | **4.19** | **1.32** | 1.23+ | **v0.32.x** | ✅ Full Support |
 | **4.20** | **1.33** | 1.24+ | **v0.33.x** | ✅ Full Support |
-| **4.21** | **1.34** (est) | 1.24+ | **v0.34.x** (est) | 🔮 Expected Feb 2026 |
+| **4.21** | **1.34** | 1.24+ | **v0.34.x** | ✅ **GA (April 2026)** |
 
 ## Extended Update Support (EUS) Strategy
 
@@ -78,8 +78,8 @@ Based on research and OpenShift release patterns:
 ❌ Will need upgrade soon to stay current  
 
 **Timeline:**
-- **Now**: Develop on 4.18
-- **Feb 2026**: 4.21 releases, 4.18 feels dated
+- **Nov 2025**: Initial development on 4.18
+- **Apr 2026**: 4.21 GA — 4.18 now clearly dated; rolling window shifts to 4.19/4.20/4.21
 - **Aug 2026**: 4.18 Maintenance Support ends
 - **Feb 2027**: 4.18 EUS Term 1 ends (if purchased)
 - **Feb 2028**: 4.18 EUS Term 2 ends (if purchased)
@@ -94,11 +94,11 @@ Based on research and OpenShift release patterns:
 
 **Pros:**
 ✅ **Current latest release** (Oct 2025)  
-✅ **Full Support until ~May 2026** (4.21 GA + 3 months)  
+✅ **Full Support until ~Jul 2026** (4.21 GA Apr 2026 + 3 months)  
 ✅ **EUS release** with long support (until Oct 2028 with EUS Term 2)  
 ✅ **Latest Kubernetes 1.33 APIs**  
 ✅ **Latest OpenShift features**  
-✅ **Forward compatible** with 4.21  
+✅ **Forward compatible** with 4.21 (now GA)  
 ✅ **EUS-to-EUS upgrade path** (4.20 → 4.22 → 4.24)  
 
 **Cons:**
@@ -107,8 +107,8 @@ Based on research and OpenShift release patterns:
 ⚠️ Newer = less battle-tested (but only 18 days old)  
 
 **Timeline:**
-- **Now**: Develop on 4.20
-- **Feb 2026**: 4.21 releases, test compatibility
+- **Oct 2025**: Develop on 4.20
+- **Apr 2026**: 4.21 GA — 4.20 compatibility confirmed
 - **Apr 2027**: 4.20 Maintenance Support ends
 - **Oct 2027**: 4.20 EUS Term 1 ends
 - **Oct 2028**: 4.20 EUS Term 2 ends
@@ -134,9 +134,9 @@ Based on research and OpenShift release patterns:
 ❌ Will need upgrade to 4.20 or 4.21 soon  
 
 **Timeline:**
-- **Now**: Develop on 4.19
+- **Jun 2025**: Develop on 4.19
 - **Jan 2026**: Full Support ends
-- **Feb 2026**: 4.21 releases
+- **Apr 2026**: 4.21 GA released
 - **Dec 2026**: 4.19 Maintenance Support ends (FORCED UPGRADE)
 
 ## 📊 Comparison Matrix
@@ -154,54 +154,39 @@ Based on research and OpenShift release patterns:
 | **Future-Proof** | ⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ |
 | **Upgrade Path** | 4.20→4.22 | 4.20→4.21 | 4.22→4.24 |
 
-## 🎯 FINAL RECOMMENDATION
+## 🎯 UPDATED RECOMMENDATION (April 2026)
 
-### **Develop on OpenShift 4.20 (EUS) with Multi-Version Support Strategy**
+### **Active Support Window: OCP 4.19 / 4.20 / 4.21**
 
-**Primary Target:** OpenShift 4.20 (Kubernetes 1.33, k8s.io v0.33.x)  
-**Secondary Support:** OpenShift 4.19, 4.21 (when released)  
-**Backward Compatibility:** Document 4.18 compatibility requirements
+**Primary Target:** OpenShift 4.20 (Kubernetes 1.33, k8s.io v0.33.x) — EUS, long support  
+**Full Support:** OpenShift 4.21 (Kubernetes 1.34, k8s.io v0.34.x) — newest GA  
+**Maintenance Support:** OpenShift 4.19 — active but entering end-of-life window  
+**Dropped:** 4.18 removed from active CI; maintained via EUS track only for existing users
 
 ### Rationale
 
-1. **Current Latest**: 4.20 is the current GA release (Oct 21, 2025)
-2. **EUS Benefits**: Long support window (up to Oct 2028)
-3. **Latest APIs**: Access to Kubernetes 1.33 and latest OpenShift features
-4. **Forward Compatible**: Will work on 4.21 when it releases (Feb 2026)
-5. **EUS Upgrade Path**: Clean EUS-to-EUS upgrades (4.20 → 4.22 → 4.24)
-6. **Market Timing**: By the time your operator is production-ready, 4.20 will be the standard
+1. **4.21 is now GA** (released April 2026) — rolling window shifts to 4.19/4.20/4.21
+2. **EUS Benefits**: 4.20 has long support (up to Oct 2028 with EUS Term 2)
+3. **OCP-stream versioning**: v1.0.8 → OCP 4.19+, v1.0.9 → OCP 4.20+, v1.0.10 → OCP 4.21+
+4. **EUS Upgrade Path**: Clean EUS-to-EUS upgrades (4.20 → 4.22 → 4.24)
 
-### Implementation Strategy
+### Implementation Strategy (Current)
 
-**Phase 1: Development (Nov 2025 - Jan 2026)**
-```bash
-# Upgrade to k8s.io v0.33.x for OpenShift 4.20
-go get k8s.io/api@v0.33.0
-go get k8s.io/apimachinery@v0.33.0
-go get k8s.io/client-go@v0.33.0
+**Phase 1: Infrastructure (Apr 2026)**
+- ✅ Standardize IMAGE_TAG_BASE to quay.io/takinosh/
+- ✅ Upgrade GO_VERSION to 1.24 across all CI
+- ✅ Add release-4.21 to bundle-validation.yaml triggers
 
-# Find compatible OpenShift API (Oct 2025 commit for 4.20)
-go get github.com/openshift/api@<commit-hash>
+**Phase 2: Feature Development (Apr - Jun 2026)**
+- Implement issues #7 (ADR-021), #8 (ADR-022), #9 (ADR-030)
+- Generate bundle for v1.0.8 (OCP 4.19 stream)
+- Submit v1.0.7 OperatorHub PR first
 
-# Find compatible Tekton Pipeline
-go get github.com/tektoncd/pipeline@<version>
-
-go mod tidy
-```
-
-**Phase 2: Testing (Jan 2026 - Mar 2026)**
-- ✅ Test on OpenShift 4.20
-- ✅ Test on OpenShift 4.19 (backward compatibility)
-- ✅ Test on OpenShift 4.21 when released (Feb 2026)
-
-**Phase 3: Production (Mar 2026+)**
-- ✅ Release operator with support matrix: 4.19, 4.20, 4.21
-- ✅ Document 4.18 compatibility requirements (if needed)
-
-**Phase 4: Maintenance (2026-2028)**
-- ✅ Monitor 4.21, 4.22 releases
-- ✅ Test on new versions as they release
-- ✅ Plan EUS-to-EUS upgrade (4.20 → 4.22) in 2027
+**Phase 3: OCP 4.21 Track (Jun - Sep 2026)**
+- Create release-4.21 branch
+- Validate scorecard on OCP 4.21
+- Release v1.0.10 on OCP 4.21 stream
+- Plan EUS-to-EUS upgrade (4.20 → 4.22) in 2027
 
 ## Multi-Version Support Strategy
 

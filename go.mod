@@ -1,6 +1,6 @@
 module github.com/tosin2013/jupyter-notebook-validator-operator
 
-go 1.22.3
+go 1.24
 
 toolchain go1.24.10
 

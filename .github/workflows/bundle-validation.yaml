@@ -2,7 +2,7 @@ name: OLM Bundle Validation
 
 on:
   push:
-    branches: [ main, 'release-4.18', 'release-4.19', 'release-4.20' ]
+    branches: [ main, 'release-4.18', 'release-4.19', 'release-4.20', 'release-4.21' ]
     paths:
       - 'bundle/**'
       - 'config/manifests/**'
@@ -11,7 +11,7 @@ on:
       - '.github/workflows/bundle-validation.yaml'
       - 'Makefile'
   pull_request:
-    branches: [ main, 'release-4.18', 'release-4.19', 'release-4.20' ]
+    branches: [ main, 'release-4.18', 'release-4.19', 'release-4.20', 'release-4.21' ]
     paths:
       - 'bundle/**'
       - 'config/manifests/**'
@@ -22,7 +22,7 @@ on:
   workflow_dispatch:
 
 env:
-  GO_VERSION: '1.22'
+  GO_VERSION: '1.24'
   OPERATOR_SDK_VERSION: 'v1.37.0'
   OPM_VERSION: 'v1.43.0'
 
@@ -206,7 +206,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Upgrade Chain (ADR-047):" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "v1.0.3 → v1.0.7 (OCP 4.18) → v1.0.8 (OCP 4.19) → v1.0.9 (OCP 4.20)" >> $GITHUB_STEP_SUMMARY
+          echo "v1.0.3 → v1.0.7 (OCP 4.18) → v1.0.8 (OCP 4.19) → v1.0.9 (OCP 4.20) → v1.0.10 (OCP 4.21)" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Version Mapping:" >> $GITHUB_STEP_SUMMARY
@@ -215,3 +215,4 @@ jobs:
           echo "| 1.0.7 | 4.18+ | release-4.18 |" >> $GITHUB_STEP_SUMMARY
           echo "| 1.0.8 | 4.19+ | release-4.19 |" >> $GITHUB_STEP_SUMMARY
           echo "| 1.0.9 | 4.20+ | release-4.20 |" >> $GITHUB_STEP_SUMMARY
+          echo "| 1.0.10 | 4.21+ | release-4.21 |" >> $GITHUB_STEP_SUMMARY

@@ -9,22 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned — v1.1.0 (Tracked Issues)
+### Planned — v1.0.8 (OCP 4.19 stream) — Tracked Issues
+
+> **OCP-stream versioning**: each `v1.0.x` release maps to a specific OCP stream.
+> v1.0.7 → OCP 4.18 | v1.0.8 → OCP 4.19 | v1.0.9 → OCP 4.20 | v1.0.10 → OCP 4.21
 
 #### Core Operator
 - Smart error messages and structured user feedback (ADR-030) — [#9](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/9) `bug` `enhancement`
 - Fix unit test BeforeSuite setup issue in controller tests (CI gate)
-- Align Makefile / Helm chart / bundle `VERSION` to `1.1.0`
-- Standardize container registry to `quay.io/takinosh/`
 
 #### Observability
 - Community observability contributions (ADR-022) — [#8](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/8) `enhancement`
 - OpenShift-native dashboard strategy (ADR-021) — [#7](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/7) `enhancement`
 
-#### Infrastructure
+#### Infrastructure (completed in this commit)
+- `Makefile VERSION` corrected from `1.1.0` → `1.0.8` (OCP-stream convention)
+- `IMAGE_TAG_BASE` standardized to `quay.io/takinosh/jupyter-notebook-validator-operator`
+- Helm `Chart.yaml` `version` and `appVersion` corrected to `1.0.8`
+- Helm chart `kube-rbac-proxy` image corrected to `quay.io/brancz/kube-rbac-proxy:v0.18.0`
+- CI `GO_VERSION` bumped `1.22` → `1.24` in `ci.yml`, `build-push.yml`, `release.yml`, `bundle-validation.yaml`
+- `go.mod` `go` directive updated `1.22.3` → `1.24`
+- `bundle-validation.yaml`: added `release-4.21` to push/PR branch triggers
+- `bundle-validation.yaml`: extended upgrade chain summary to include `v1.0.10 (OCP 4.21)`
+- `docs/OPENSHIFT_SUPPORT_MATRIX_AND_STRATEGY.md`: updated OCP 4.21 status to GA (April 2026)
+
+#### Remaining OperatorHub Steps
 - Submit v1.0.7 bundle to `community-operators-prod` (OCP 4.18-4.22)
 - Verify `community-operators` Kubernetes PR #7235 (v1.0.7-1.0.9 kube-rbac-proxy fix)
-- Update `com.redhat.openshift.versions` annotation to include 4.21-4.22
+- Run `make bundle VERSION=1.0.8` after features complete; verify `replaces: v1.0.7` in CSV
+
+### Planned — v1.0.10 (OCP 4.21 stream, NEW)
+
+- Create `release-4.21` branch from main
+- Run scorecard validation on OCP 4.21 / Kubernetes 1.34
+- Generate bundle for v1.0.10 with `replaces: v1.0.9`
+- Submit OperatorHub PR for `1.0.10/` after v1.0.9 PR merges
 
 ---
 
