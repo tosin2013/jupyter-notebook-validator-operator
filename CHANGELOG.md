@@ -9,41 +9,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned — v1.0.8 (OCP 4.19 stream) — Tracked Issues
-
-> **OCP-stream versioning**: each `v1.0.x` release maps to a specific OCP stream.
-> v1.0.7 → OCP 4.18 | v1.0.8 → OCP 4.19 | v1.0.9 → OCP 4.20 | v1.0.10 → OCP 4.21
-
-#### Core Operator
-- Smart error messages and structured user feedback (ADR-030) — [#9](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/9) `bug` `enhancement`
-- Fix unit test BeforeSuite setup issue in controller tests (CI gate)
-
-#### Observability
-- Community observability contributions (ADR-022) — [#8](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/8) `enhancement`
-- OpenShift-native dashboard strategy (ADR-021) — [#7](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/7) `enhancement`
-
-#### Infrastructure (completed in this commit)
-- `Makefile VERSION` corrected from `1.1.0` → `1.0.8` (OCP-stream convention)
-- `IMAGE_TAG_BASE` standardized to `quay.io/takinosh/jupyter-notebook-validator-operator`
-- Helm `Chart.yaml` `version` and `appVersion` corrected to `1.0.8`
-- Helm chart `kube-rbac-proxy` image corrected to `quay.io/brancz/kube-rbac-proxy:v0.18.0`
-- CI `GO_VERSION` bumped `1.22` → `1.24` in `ci.yml`, `build-push.yml`, `release.yml`, `bundle-validation.yaml`
-- `go.mod` `go` directive updated `1.22.3` → `1.24`
-- `bundle-validation.yaml`: added `release-4.21` to push/PR branch triggers
-- `bundle-validation.yaml`: extended upgrade chain summary to include `v1.0.10 (OCP 4.21)`
-- `docs/OPENSHIFT_SUPPORT_MATRIX_AND_STRATEGY.md`: updated OCP 4.21 status to GA (April 2026)
-
-#### Remaining OperatorHub Steps
-- Submit v1.0.7 bundle to `community-operators-prod` (OCP 4.18-4.22)
-- Verify `community-operators` Kubernetes PR #7235 (v1.0.7-1.0.9 kube-rbac-proxy fix)
-- Run `make bundle VERSION=1.0.8` after features complete; verify `replaces: v1.0.7` in CSV
-
-### Planned — v1.0.10 (OCP 4.21 stream, NEW)
+### Planned — v1.0.10 (OCP 4.21 stream)
 
 - Create `release-4.21` branch from main
 - Run scorecard validation on OCP 4.21 / Kubernetes 1.34
 - Generate bundle for v1.0.10 with `replaces: v1.0.9`
 - Submit OperatorHub PR for `1.0.10/` after v1.0.9 PR merges
+
+---
+
+## [1.0.8] - 2026-04-21
+
+**OCP Stream:** OCP 4.19+ (Kubernetes 1.32)
+**Status:** Released — CI builds operator and bundle images on tag push.
+**OperatorHub:** Pending PR submission to `community-operators-prod` after v1.0.7 chain confirms.
+
+> **OCP-stream versioning**: v1.0.7 → OCP 4.18 | v1.0.8 → OCP 4.19 | v1.0.9 → OCP 4.20 | v1.0.10 → OCP 4.21
+
+### Added
+- OpenShift-native dashboard Kustomize overlays (ADR-021) — [#7](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/7)
+  - `config/monitoring/kustomization.yaml` wiring all 5 OpenShift Console dashboard ConfigMaps
+  - `config/monitoring/openshift-console/kustomization.yaml` for standalone deployment
+  - `config/monitoring/grafana/kustomization.yaml` with ConfigMapGenerator for Grafana Operator
+- Community observability contribution framework (ADR-022) — [#8](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/8)
+  - `config/monitoring/community/` directory with `kustomization.yaml` placeholder for contributors
+  - `docs/dashboards/CONTRIBUTING.md` — full guide with formats, metrics table, doc template, review criteria
+- Comprehensive ADR-030 Level 1/2/3 test coverage — [#9](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/9)
+  - `TestADR030_AllThreeLevels`: validates accurate status, root cause, and actionable guidance
+  - `TestADR030_SeverityEscalation`: validates severity defaults per category
+
+### Changed
+- `Makefile VERSION` corrected from `1.1.0` → `1.0.8` (OCP-stream convention)
+- `IMAGE_TAG_BASE` standardized to `quay.io/takinosh/jupyter-notebook-validator-operator`
+- Helm `Chart.yaml` `version` and `appVersion` set to `1.0.8`
+- Helm chart `kube-rbac-proxy` migrated `gcr.io/kubebuilder` → `quay.io/brancz:v0.18.0`
+- CI `GO_VERSION` bumped `1.22` → `1.24` across all four workflows
+- `go.mod` `go` directive updated `1.22.3` → `1.24`
+- `bundle-validation.yaml`: added `release-4.21` to push/PR branch triggers
+- `bundle-validation.yaml`: extended upgrade chain and version table to include `v1.0.10 (OCP 4.21)`
+- `docs/OPENSHIFT_SUPPORT_MATRIX_AND_STRATEGY.md`: OCP 4.21 marked GA (April 2026); active window updated to 4.19/4.20/4.21
+- `docs/adrs/021-openshift-native-dashboard-strategy.md`: status Proposed → Implemented
+- `docs/adrs/022-community-observability-contributions.md`: status Proposed → Implemented
+
+### Bundle Metadata
+- Replaces: `jupyter-notebook-validator-operator.v1.0.7`
+- `com.redhat.openshift.versions: "v4.19-v4.22"`
+- Images built and pushed by CI on `v1.0.8` tag push
 
 ---
 
