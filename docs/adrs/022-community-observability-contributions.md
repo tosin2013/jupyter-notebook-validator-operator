@@ -1,7 +1,7 @@
 # ADR 022: Community Observability Contributions
 
 ## Status
-Proposed
+Implemented
 
 ## Context
 

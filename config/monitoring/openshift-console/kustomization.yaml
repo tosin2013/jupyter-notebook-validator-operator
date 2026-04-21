@@ -1,0 +1,6 @@
+resources:
+- operator-health-dashboard.yaml
+- notebook-performance-dashboard.yaml
+- resource-utilization-dashboard.yaml
+- git-operations-dashboard.yaml
+- model-validation-dashboard.yaml

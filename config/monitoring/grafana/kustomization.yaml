@@ -1,0 +1,14 @@
+resources: []
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+- name: jupyter-notebook-validator-grafana-dashboard
+  files:
+  - jupyter-notebook-validator-dashboard.json
+  options:
+    labels:
+      grafana_dashboard: "true"
+      app.kubernetes.io/name: jupyter-notebook-validator-operator
+      app.kubernetes.io/component: observability

@@ -1,0 +1,6 @@
+resources:
+- openshift-console/operator-health-dashboard.yaml
+- openshift-console/notebook-performance-dashboard.yaml
+- openshift-console/resource-utilization-dashboard.yaml
+- openshift-console/git-operations-dashboard.yaml
+- openshift-console/model-validation-dashboard.yaml

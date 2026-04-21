@@ -1,7 +1,7 @@
 # ADR 021: OpenShift-Native Dashboard Strategy
 
 ## Status
-Proposed
+Implemented
 
 ## Context
 

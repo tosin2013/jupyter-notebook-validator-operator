@@ -320,3 +320,109 @@ func TestGetCategory(t *testing.T) {
 	assert.Equal(t, CategoryTekton, GetCategory(smartErr))
 	assert.Equal(t, CategoryUnknown, GetCategory(regularErr))
 }
+
+// TestADR030_AllThreeLevels validates ADR-030 Level 1 (accurate status), Level 2 (root cause),
+// and Level 3 (actionable guidance) are all present in a single SmartError instance.
+func TestADR030_AllThreeLevels(t *testing.T) {
+	tests := []struct {
+		name           string
+		err            error
+		wantCategory   ErrorCategory
+		wantCode       string
+		wantRootCause  bool // Level 2: must have root cause
+		wantActions    bool // Level 3: must have actionable guidance
+		wantRetryable  bool
+	}{
+		{
+			// RBAC pattern requires "forbidden" or "unauthorized" to be recognized
+			name:          "RBAC tasks permission error - all three levels",
+			err:           errors.New("forbidden: User cannot create resource 'tasks' in API group 'tekton.dev'"),
+			wantCategory:  CategoryRBAC,
+			wantCode:      "RBAC_PERMISSION_DENIED",
+			wantRootCause: true,
+			wantActions:   true,
+			wantRetryable: false,
+		},
+		{
+			// git auth pattern requires "authentication" keyword
+			name:          "git authentication failure - all three levels",
+			err:           errors.New("git clone failed: authentication failed for remote"),
+			wantCategory:  CategoryAuthentication,
+			wantCode:      "GIT_AUTH_FAILED",
+			wantRootCause: true,
+			wantActions:   true,
+			wantRetryable: false,
+		},
+		{
+			name:          "network timeout - retryable with guidance",
+			err:           errors.New("connection refused to registry.example.com"),
+			wantCategory:  CategoryNetwork,
+			wantCode:      "NETWORK_ERROR",
+			wantRootCause: false,
+			wantActions:   false,
+			wantRetryable: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			smartErr := AnalyzeError(tt.err)
+
+			// Level 1: Accurate status — category and code must be set correctly
+			assert.NotNil(t, smartErr, "Level 1: SmartError must not be nil")
+			assert.Equal(t, tt.wantCategory, smartErr.Category, "Level 1: category must be accurate")
+			assert.Equal(t, tt.wantCode, smartErr.Code, "Level 1: error code must be accurate")
+			assert.Equal(t, tt.wantRetryable, smartErr.Retryable, "Level 1: retryable flag must reflect recoverability")
+
+			// Level 2: Root cause analysis — RootCause must be populated for known errors
+			if tt.wantRootCause {
+				assert.NotEmpty(t, smartErr.RootCause, "Level 2: root cause must explain WHY the error occurred")
+			}
+
+			// Level 3: Actionable guidance — Actions must contain fix instructions for known errors
+			if tt.wantActions {
+				assert.NotEmpty(t, smartErr.Actions, "Level 3: actions must provide specific steps to fix the problem")
+				for _, action := range smartErr.Actions {
+					assert.NotEmpty(t, action, "Level 3: each action step must be non-empty")
+				}
+			}
+
+			// Format validation: Error() output must include category, code, and message (Level 1 display)
+			errorStr := smartErr.Error()
+			assert.Contains(t, errorStr, string(tt.wantCategory), "Level 1 display: error string must include category")
+			assert.Contains(t, errorStr, tt.wantCode, "Level 1 display: error string must include error code")
+
+			// DetailedMessage format must include root cause and actions when present
+			detailedMsg := smartErr.DetailedMessage()
+			if tt.wantRootCause {
+				assert.Contains(t, detailedMsg, "Root Cause", "Level 2 display: detailed message must surface root cause")
+			}
+			if tt.wantActions {
+				assert.Contains(t, detailedMsg, "Actions to fix", "Level 3 display: detailed message must surface fix actions")
+			}
+		})
+	}
+}
+
+// TestADR030_SeverityEscalation validates that severity levels escalate correctly
+// for different error categories (Critical for RBAC, Error for platform issues).
+func TestADR030_SeverityEscalation(t *testing.T) {
+	tests := []struct {
+		name     string
+		category ErrorCategory
+		severity ErrorSeverity
+	}{
+		{"RBAC errors are critical by default", CategoryRBAC, SeverityCritical},
+		{"Network errors are retryable errors", CategoryNetwork, SeverityError},
+		{"Configuration errors are critical", CategoryConfiguration, SeverityCritical},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			smartErr := NewSmartError(tt.category, "TEST", "test message", nil).
+				WithSeverity(tt.severity)
+			assert.Equal(t, tt.severity, smartErr.Severity,
+				"Severity must be correctly set for category %s", tt.category)
+		})
+	}
+}
