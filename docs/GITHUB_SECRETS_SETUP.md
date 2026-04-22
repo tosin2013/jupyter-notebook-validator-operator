@@ -2,11 +2,15 @@
 
 This guide explains how to configure GitHub Secrets for the CI/CD pipeline (ADR-032 and ADR-033).
 
+> **See also:** [docs/CI_CLUSTER_SETUP.md](CI_CLUSTER_SETUP.md) for the full OpenShift cluster
+> registration guide — service account creation, token rotation, test topology, and how to
+> trigger OpenShift E2E tests on a PR.
+
 ## Overview
 
 The Jupyter Notebook Validator Operator uses GitHub Actions for two-tier testing:
 - **Tier 1**: Unit & Integration tests on KinD (Kubernetes v1.31.10) - No secrets required
-- **Tier 2**: E2E tests on live OpenShift 4.18 cluster - Requires OpenShift and registry secrets
+- **Tiers 2-5**: E2E tests on live OpenShift cluster - Requires OpenShift and registry secrets
 
 ---
 

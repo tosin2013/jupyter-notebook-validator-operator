@@ -4,8 +4,25 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/tosin2013/jupyter-notebook-validator-operator)](https://goreportcard.com/report/github.com/tosin2013/jupyter-notebook-validator-operator)
 [![CI](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/ci.yml/badge.svg)](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/ci.yml)
 [![Tier 1 Tests](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/ci-unit-tests.yaml/badge.svg)](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/ci-unit-tests.yaml)
-[![OpenShift](https://img.shields.io/badge/OpenShift-4.18+-red.svg)](https://www.openshift.com/)
+[![E2E Kind](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/e2e-kind.yaml/badge.svg)](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/e2e-kind.yaml)
+[![E2E OpenShift](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/e2e-openshift.yaml/badge.svg)](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/e2e-openshift.yaml)
+[![OpenShift](https://img.shields.io/badge/OpenShift-4.19+-red.svg)](https://www.openshift.com/)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.31+-blue.svg)](https://kubernetes.io/)
+
+### CI Badge Guide
+
+| Badge | Workflow | Cluster | Always runs |
+|---|---|---|---|
+| CI | `ci.yml` | none | yes — lint, build, security on every push/PR |
+| Tier 1 Tests | `ci-unit-tests.yaml` | Kind (ephemeral) | yes — unit + integration tests |
+| E2E Kind | `e2e-kind.yaml` | Kind (ephemeral) | yes — Tier 1 E2E on every push/PR |
+| E2E OpenShift | `e2e-openshift.yaml` | live OCP cluster | no — see note below |
+
+> **Grey or skipped E2E OpenShift badge is expected and not a failure.**
+> OpenShift E2E tests (Tiers 2-5) only run when `OPENSHIFT_SERVER` and `OPENSHIFT_TOKEN`
+> repository secrets are set and either a push to `main`/`release-*` occurs or a PR has
+> the `e2e-test` label applied. See [docs/CI_CLUSTER_SETUP.md](docs/CI_CLUSTER_SETUP.md)
+> for cluster registration instructions.
 
 A Kubernetes-native operator that automates Jupyter Notebook validation in MLOps workflows. Built with Operator SDK and Go, it provides Git integration, pod orchestration for notebook execution, golden notebook comparison for regression testing, and model-aware validation for ML/AI workloads.
 
