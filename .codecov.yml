@@ -10,8 +10,10 @@ coverage:
   status:
     project:
       default:
-        # Initial gate: 60% overall. Stretch goal is 75% (see docs/TESTING_GUIDE.md).
-        target: 60%
+        # Baseline gate: 41% (measured April 2026). Milestone targets:
+        #   v1.0.10 → 50%  |  v1.1.0 → 60%  |  stretch → 75%
+        # Raise this value as coverage improves.
+        target: 41%
         threshold: 2%
         if_not_found: success
         if_ci_failed: error

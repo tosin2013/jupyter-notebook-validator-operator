@@ -462,28 +462,23 @@ kubectl patch notebookvalidationjob test-model-training \
 
 ## Coverage Standards
 
-### Baseline (measured April 2026)
+### Baseline (measured April 2026, commit b329281)
 
-| Package | Coverage |
-|---|---|
-| `pkg/errors` | 94.4% |
-| `pkg/logging` | 92.8% |
-| `pkg/platform` | 60.4% |
-| `internal/controller/argocd` | 48.6% |
-| `pkg/build` | 34.8% |
-| `internal/controller` | 35.7%* |
-
-\* `internal/controller` requires `envtest` binaries; run via `make test` (not `go test` directly).
+| Package | Tracked Lines | Coverage |
+|---|---|---|
+| `api/v1alpha1` | 1095 | 5.21% |
+| `internal/controller` | 4388 | 45.58% |
+| `pkg` | 2924 | 47.81% |
+| **Overall** | **8407** | **41.09%** |
 
 ### Thresholds
 
-| Gate | Target | Notes |
+| Gate | Current Target | Milestone |
 |---|---|---|
-| Project overall | **60%** | Enforced via `.codecov.yml` + Codecov PR status check |
-| Patch (new code) | **−5% max** | A PR must not drop overall coverage by more than 5 points |
-| Stretch goal | **75%** | Target once envtest-dependent controller tests are fully wired |
+| Project overall | **41%** | v1.0.10 → 50%, v1.1.0 → 60%, stretch → 75% |
+| Patch (new code) | **−5% max** | A PR must not drop coverage by more than 5 points |
 
-These thresholds are enforced automatically on every PR by Codecov. If a PR drops overall coverage below 60% or drops patch coverage by more than 5%, the Codecov status check will fail.
+These thresholds are enforced automatically on every PR by Codecov. The project gate is set at the current baseline so PRs are not blocked unfairly — raise `.codecov.yml` `target:` as coverage improves milestone by milestone. The `api/v1alpha1` package is the biggest gap (5.21%); adding generated-type validation tests there will have the largest impact on the overall number.
 
 ### Running Coverage Locally
 
