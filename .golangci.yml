@@ -3,6 +3,8 @@
 #   someFunc() // #nosec G204 - <one-line rationale explaining why it is safe>
 # Never use a bare #nosec without a rule ID and rationale.
 
+version: "2"
+
 run:
   timeout: 5m
   allow-parallel-runners: true
