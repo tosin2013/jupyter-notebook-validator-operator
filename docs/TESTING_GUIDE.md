@@ -460,6 +460,49 @@ kubectl patch notebookvalidationjob test-model-training \
   -p '{"spec":{"timeoutSeconds":1800}}'  # 30 minutes
 ```
 
+## Coverage Standards
+
+### Baseline (measured April 2026)
+
+| Package | Coverage |
+|---|---|
+| `pkg/errors` | 94.4% |
+| `pkg/logging` | 92.8% |
+| `pkg/platform` | 60.4% |
+| `internal/controller/argocd` | 48.6% |
+| `pkg/build` | 34.8% |
+| `internal/controller` | 35.7%* |
+
+\* `internal/controller` requires `envtest` binaries; run via `make test` (not `go test` directly).
+
+### Thresholds
+
+| Gate | Target | Notes |
+|---|---|---|
+| Project overall | **60%** | Enforced via `.codecov.yml` + Codecov PR status check |
+| Patch (new code) | **−5% max** | A PR must not drop overall coverage by more than 5 points |
+| Stretch goal | **75%** | Target once envtest-dependent controller tests are fully wired |
+
+These thresholds are enforced automatically on every PR by Codecov. If a PR drops overall coverage below 60% or drops patch coverage by more than 5%, the Codecov status check will fail.
+
+### Running Coverage Locally
+
+```bash
+# Full coverage via make (sets up envtest automatically)
+make test
+go tool cover -func=cover.out | tail -1   # total line
+
+# HTML report in browser
+go tool cover -html=cover.out
+```
+
+### Roadmap to 75%
+
+1. Fix `internal/controller` BeforeSuite flakiness so all 14 controller specs run reliably in CI
+2. Add table-driven unit tests for the reconciler happy-path and error branches
+3. Bring `pkg/build` from ~35% to ~60% with additional build-strategy unit tests
+4. Each new feature PR is expected to include tests that keep patch coverage ≥ 0%
+
 ## Next Steps
 
 1. **Review ADR 008**: [Notebook Testing Strategy and Complexity Levels](adrs/008-notebook-testing-strategy-and-complexity-levels.md)

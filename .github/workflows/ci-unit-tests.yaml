@@ -55,24 +55,21 @@ jobs:
       - name: Run unit tests
         run: make test
 
-      - name: Generate coverage report
-        run: go test -coverprofile=coverage.out -covermode=atomic $(go list ./... | grep -v /e2e)
-
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
-          files: ./coverage.out
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./cover.out
           flags: unittests
           name: codecov-tier1
+          fail_ci_if_error: false
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: unit-test-results
-          path: |
-            coverage.out
-            cover.out
+          path: cover.out
 
   integration-tests:
     name: Integration Tests (KinD + Kubernetes v1.30.13)
