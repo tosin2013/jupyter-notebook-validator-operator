@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: '1.22'
+  GO_VERSION: '1.24'
   KUBERNETES_VERSION: 'v1.31.12'  # Updated to match OpenShift 4.18.21 (Phase 5 testing)
   KIND_VERSION: 'v0.20.0'  # Stable version used in local testing
   TEKTON_VERSION: 'v0.65.0'
