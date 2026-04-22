@@ -2,6 +2,7 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   annotations:
+    olm.skipRange: ">=1.0.2 <1.0.8"
     alm-examples: |-
       [
         {
@@ -517,7 +518,6 @@ spec:
   provider:
     name: Tosin Akinosho
     url: https://github.com/tosin2013
-  replaces: jupyter-notebook-validator-operator.v1.0.7
   version: 1.0.8
   webhookdefinitions:
   - admissionReviewVersions:
