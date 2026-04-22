@@ -8,21 +8,23 @@ catalogs. Follow the numbered steps in order.
 
 ## Version History and Submission Status
 
-| Version | OCP Stream | `replaces` | OperatorHub Status |
+| Version | OCP Stream | Upgrade Strategy | OperatorHub Status |
 |---|---|---|---|
-| v1.0.5 | 4.18+ | v1.0.4 | Submitted |
-| v1.0.6 | 4.18+ | v1.0.5 | Submitted |
-| v1.0.7 | 4.18 | v1.0.6 | **Pending PR — submit before v1.0.8** |
-| v1.0.8 | 4.19 | v1.0.7 | **Never submitted — blocked on v1.0.7 chain** |
-| v1.0.9 | 4.20 | v1.0.8 | Not yet released |
-| v1.0.10 | 4.21 | v1.0.9 | Planned |
+| v1.0.5 | 4.18+ | `replaces: v1.0.4` | Submitted |
+| v1.0.6 | 4.18+ | `replaces: v1.0.5` | Submitted |
+| v1.0.7 | 4.18 | `replaces: v1.0.6` | Submitted (merged upstream) |
+| v1.0.8 | 4.19 | `olm.skipRange: >=1.0.2 <1.0.8` | [community-operators-prod PR #9442](https://github.com/redhat-openshift-ecosystem/community-operators-prod/pull/9442) / [community-operators PR #7940](https://github.com/k8s-operatorhub/community-operators/pull/7940) — pending maintainer merge |
+| v1.0.9 | 4.20 | `olm.skipRange: >=1.0.2 <1.0.9` | Not yet released |
+| v1.0.10 | 4.21 | `olm.skipRange: >=1.0.2 <1.0.10` | Planned |
 
 > **OCP-stream convention:** v1.0.7 → OCP 4.18 | v1.0.8 → OCP 4.19 |
 > v1.0.9 → OCP 4.20 | v1.0.10 → OCP 4.21
-
-The `replaces:` chain is enforced by OLM. A version cannot be submitted to
-OperatorHub until the version it replaces has been accepted. See the
-[Backlog section](#operatorhub-submission-backlog) for resolution order.
+>
+> **Upgrade strategy change at v1.0.8:** `spec.replaces` was replaced with
+> `olm.skipRange` because v1.0.7 was submitted with a flat bundle structure
+> (no `manifests/` subdirectory), making it invisible to the operatorcert
+> `check_replaces_availability` check. See
+> [Known Pipeline Pitfalls](#known-pipeline-pitfalls) for details.
 
 ---
 
@@ -151,27 +153,59 @@ git diff --stat   # verify only expected generated files changed
 
 ```bash
 make bundle
+```
 
-# Set the replaces chain — MUST point to the previous released version
-PREV_VERSION=1.0.8
+After `make bundle`, manually correct the CSV and bundle metadata. **Do NOT
+use `spec.replaces`** — use `olm.skipRange` instead. See
+[Known Pipeline Pitfalls](#known-pipeline-pitfalls) for the reason.
+
+```bash
 CSV=bundle/manifests/jupyter-notebook-validator-operator.clusterserviceversion.yaml
 
-# Update replaces
-sed -i "s|replaces:.*|replaces: jupyter-notebook-validator-operator.v${PREV_VERSION}|" $CSV
+# Remove spec.replaces if make bundle generated it
+sed -i '/^  replaces:/d' $CSV
+
+# Add olm.skipRange annotation to metadata.annotations
+# (adjust lower bound to the first ever published version: 1.0.2)
+python3 - <<'EOF'
+import re, sys
+
+path = "bundle/manifests/jupyter-notebook-validator-operator.clusterserviceversion.yaml"
+version = "${VERSION}"   # replace with actual VERSION value
+
+with open(path) as f:
+    content = f.read()
+
+skip_line = f'    olm.skipRange: ">=1.0.2 <{version}"\n'
+# Insert after 'metadata:\n  annotations:\n'
+content = re.sub(
+    r'(metadata:\n  annotations:\n)',
+    r'\1' + skip_line,
+    content,
+    count=1
+)
+with open(path, "w") as f:
+    f.write(content)
+print("olm.skipRange written")
+EOF
 
 # Update containerImage annotation (must match the image tag you will push)
 sed -i "s|containerImage:.*quay.io/takinosh/jupyter-notebook-validator-operator:.*|containerImage: quay.io/takinosh/jupyter-notebook-validator-operator:${VERSION}|" $CSV
 
-# Update OCP version range annotation
-# Edit bundle/metadata/annotations.yaml to add:
-#   com.redhat.openshift.versions: "v4.20-v4.22"
-# (adjust range to match the OCP stream)
+# Update bundle/metadata/annotations.yaml — set channel and OCP range
+# Edit manually or with sed:
+sed -i "s|operators.operatorframework.io.bundle.channels.v1:.*|operators.operatorframework.io.bundle.channels.v1: stable|" \
+    bundle/metadata/annotations.yaml
+sed -i "s|com.redhat.openshift.versions:.*|com.redhat.openshift.versions: v${OCP_STREAM}-v4.22|" \
+    bundle/metadata/annotations.yaml
 ```
 
-Verify the key CSV fields after editing:
+Verify the key fields after editing:
 
 ```bash
-grep -E "replaces:|containerImage:|com.redhat.openshift" $CSV
+grep -E "skipRange|containerImage:|com.redhat.openshift|channels" $CSV bundle/metadata/annotations.yaml
+# spec.replaces must NOT appear:
+grep "spec.replaces\|^  replaces:" $CSV && echo "ERROR: replaces still present" || echo "OK: no replaces"
 ```
 
 ### Step 5 — Validate the bundle
@@ -269,8 +303,22 @@ git push origin add-${OPERATOR}-${VERSION}
 gh pr create \
   --repo redhat-openshift-ecosystem/community-operators-prod \
   --title "operator ${OPERATOR} (${VERSION})" \
-  --body "Adding ${OPERATOR} version ${VERSION} which replaces v${PREV_VERSION}."
+  --body "Adding ${OPERATOR} version ${VERSION}."
 ```
+
+> **OperatorHub requires exactly one commit per PR.** If you need to amend
+> after pushing, squash before force-pushing — never add a second commit:
+> ```bash
+> git add -A
+> git commit --amend -s --no-edit
+> git push --force origin add-${OPERATOR}-${VERSION}
+> ```
+> If you already have multiple commits, squash them first:
+> ```bash
+> git reset --soft HEAD~N   # N = number of commits to collapse
+> git commit -s -m "operator ${OPERATOR} (${VERSION})"
+> git push --force origin add-${OPERATOR}-${VERSION}
+> ```
 
 Wait for the PR to pass all automated checks and be reviewed/merged before
 proceeding to Step 10.
@@ -303,28 +351,116 @@ git push origin add-${OPERATOR}-${VERSION}
 gh pr create \
   --repo k8s-operatorhub/community-operators \
   --title "operator ${OPERATOR} (${VERSION})" \
-  --body "Adding ${OPERATOR} version ${VERSION} which replaces v${PREV_VERSION}."
+  --body "Adding ${OPERATOR} version ${VERSION}."
 ```
+
+> **OperatorHub requires exactly one commit per PR.** Apply the same
+> squash procedure described in Step 9 if any amendments are needed.
 
 ---
 
 ## OperatorHub Submission Backlog
 
-As of April 2026, two versions are pending submission:
+Current status as of April 2026:
 
-| Version | Blocked by | Action |
+| Version | community-operators-prod | community-operators |
 |---|---|---|
-| v1.0.7 | Nothing — submit first | Open PR to `community-operators-prod` |
-| v1.0.8 | v1.0.7 PR must merge first | Open PR after v1.0.7 merges |
-| v1.0.9 | v1.0.8 PR must merge first | Do not submit until chain is clear |
-
-The `replaces:` field in OLM enforces a linear upgrade chain. Submitting
-v1.0.8 before v1.0.7 has merged will cause catalog validation errors. Work
-through the backlog in order.
+| v1.0.7 | Merged ✓ | Merged ✓ |
+| v1.0.8 | [PR #9442](https://github.com/redhat-openshift-ecosystem/community-operators-prod/pull/9442) — CI passing, awaiting merge | [PR #7940](https://github.com/k8s-operatorhub/community-operators/pull/7940) — CI passing, awaiting merge |
+| v1.0.9 | Not yet submitted — blocked until v1.0.8 merges | Not yet submitted |
 
 Related issues:
-- [#22](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/22) — Resolve OperatorHub submission backlog (v1.0.7 and v1.0.8)
+- [#22](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/22) — Resolve OperatorHub submission backlog
 - [#39](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/39) — Automate OperatorHub bundle submission script
+
+---
+
+## Known Pipeline Pitfalls
+
+These issues were encountered during the v1.0.8 submission and are documented
+here to prevent repeating them.
+
+### Pitfall 1 — `check_replaces_availability` fails for flat-structure bundles
+
+**Symptom:** The operatorcert static test reports `KeyError: '<version>'`
+inside `check_replaces_availability`, even though the prior version exists in
+the upstream repo.
+
+**Root cause:** The `Bundle.probe()` function in the operatorcert framework
+requires a `manifests/` subdirectory to consider a directory a valid bundle.
+v1.0.7 was submitted to both upstream repos with manifests placed directly in
+the version root (no `manifests/` subdir). As a result `all_bundles()` silently
+skips v1.0.7, and any bundle that sets `spec.replaces: v1.0.7` gets a
+`KeyError` during the check.
+
+**Fix:** Use `olm.skipRange` in the CSV `metadata.annotations` instead of
+`spec.replaces` in the CSV spec:
+
+```yaml
+metadata:
+  annotations:
+    olm.skipRange: ">=1.0.2 <1.0.8"
+```
+
+The `check_replaces_availability` function returns immediately when
+`spec.replaces` is absent, so the broken lookup never happens. OLM still
+honours the `skipRange` for upgrade path decisions.
+
+**Future mitigation:** Always ensure bundle directories have the correct nested
+structure (`manifests/` and `metadata/` subdirectories). Validate locally with:
+
+```bash
+operator-sdk bundle validate ./bundle
+```
+
+---
+
+### Pitfall 2 — Channel trap: `stable,alpha` with a `stable`-only `replaces` target
+
+**Symptom:** `check_replaces_availability` fails with `KeyError` even when
+`spec.replaces` points to a version that appears to exist.
+
+**Root cause:** The check runs once for every channel the submitted bundle is
+declared in. If the bundle is in `stable,alpha` and the `replaces` target
+(e.g. v1.0.7) is only in `stable`, the check fails when it processes the
+`alpha` channel because v1.0.7 is not visible there.
+
+**Fix:** Submit to `stable` only unless there is an explicit reason for
+`alpha`. Set channels in `bundle/metadata/annotations.yaml`:
+
+```yaml
+operators.operatorframework.io.bundle.channels.v1: stable
+operators.operatorframework.io.bundle.channel.default.v1: stable
+```
+
+Do not set `alpha` unless you are intentionally maintaining an alpha channel
+with a full, unbroken upgrade chain from the oldest alpha bundle.
+
+---
+
+### Pitfall 3 — Transient `ppc64le` IIB build failure
+
+**Symptom:** The `add-bundle-to-index` task in the `operator-hosted-pipeline`
+fails with `IIB build failed` and `Reason: Failed to build the container image
+on the arch ppc64le`. All static and certification tasks passed.
+
+**Root cause:** Red Hat's IIB (Index Image Builder) service occasionally
+encounters infrastructure failures on `ppc64le` build nodes. The failure is
+unrelated to the bundle content.
+
+**Fix:** Retry the pipeline. Because the GitHub token used for fork operations
+may not have write access to comment on the upstream PR, the easiest retry
+method is a no-op force-push:
+
+```bash
+cd ~/forks/community-operators-prod
+git commit --amend --no-edit
+git push --force origin add-jupyter-notebook-validator-operator-${VERSION}
+```
+
+This triggers a new pipeline run without changing any bundle content. If the
+pipeline keeps failing on IIB for more than 2–3 retries, post a comment on the
+upstream PR asking a maintainer to run `/pipeline restart operator-hosted-pipeline`.
 
 ---
 
