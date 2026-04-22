@@ -518,8 +518,6 @@ spec:
     name: Tosin Akinosho
     url: https://github.com/tosin2013
   replaces: jupyter-notebook-validator-operator.v1.0.7
-  skips:
-    - jupyter-notebook-validator-operator.v1.0.2
   version: 1.0.8
   webhookdefinitions:
   - admissionReviewVersions:
