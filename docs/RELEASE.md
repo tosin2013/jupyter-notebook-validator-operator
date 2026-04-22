@@ -208,6 +208,60 @@ grep -E "skipRange|containerImage:|com.redhat.openshift|channels" $CSV bundle/me
 grep "spec.replaces\|^  replaces:" $CSV && echo "ERROR: replaces still present" || echo "OK: no replaces"
 ```
 
+### Step 4.5 — Update the FBC catalog
+
+Add the new version to `catalog/catalog.yaml`. Two sections need updating:
+
+**In the `stable` channel block** (`schema: olm.channel`), append a new entry:
+
+```yaml
+  - name: jupyter-notebook-validator-operator.v${VERSION}
+    skipRange: ">=1.0.2 <${VERSION}"
+```
+
+**Add a new `olm.bundle` block** at the end of the file (copy from the previous
+version and update `name`, `version`, `image`, `containerImage`, `createdAt`,
+and `com.redhat.openshift.versions`):
+
+```yaml
+---
+schema: olm.bundle
+name: jupyter-notebook-validator-operator.v${VERSION}
+package: jupyter-notebook-validator-operator
+image: quay.io/takinosh/jupyter-notebook-validator-operator-bundle:v${VERSION}
+properties:
+  - type: olm.package
+    value:
+      packageName: jupyter-notebook-validator-operator
+      version: ${VERSION}
+  - type: olm.gvk
+    value:
+      group: mlops.mlops.dev
+      kind: NotebookValidationJob
+      version: v1alpha1
+  - type: olm.csv.metadata
+    value:
+      annotations:
+        capabilities: Seamless Upgrades
+        categories: Developer Tools, AI/Machine Learning
+        certified: "false"
+        containerImage: quay.io/takinosh/jupyter-notebook-validator-operator:${VERSION}
+        createdAt: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        description: Automates Jupyter Notebook validation in MLOps workflows
+        repository: https://github.com/tosin2013/jupyter-notebook-validator-operator
+        support: Community
+        com.redhat.openshift.versions: "v${OCP_STREAM}-v4.22"
+        operatorframework.io/suggested-namespace: jupyter-notebook-validator-operator-system
+```
+
+Then validate the catalog:
+
+```bash
+make catalog-validate
+```
+
+All checks must pass before proceeding.
+
 ### Step 5 — Validate the bundle
 
 ```bash

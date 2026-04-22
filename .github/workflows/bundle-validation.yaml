@@ -62,15 +62,19 @@ jobs:
           operator-sdk bundle validate ./bundle --select-optional suite=operatorframework
           echo "✅ Operator Framework suite validation passed"
 
-      - name: Check replaces field exists
+      - name: Check upgrade strategy
         run: |
-          echo "🔍 Checking for replaces field in CSV..."
-          if grep -q "replaces:" bundle/manifests/*.clusterserviceversion.yaml; then
-            echo "✅ replaces field found:"
-            grep "replaces:" bundle/manifests/*.clusterserviceversion.yaml
+          echo "Checking for upgrade strategy in CSV..."
+          CSV=bundle/manifests/*.clusterserviceversion.yaml
+          if grep -q "olm.skipRange" $CSV; then
+            echo "upgrade strategy: olm.skipRange"
+            grep "olm.skipRange" $CSV
+          elif grep -q "^  replaces:" $CSV; then
+            echo "upgrade strategy: spec.replaces"
+            grep "^  replaces:" $CSV
           else
-            echo "⚠️  WARNING: No replaces field found in CSV"
-            echo "This may cause issues with OLM upgrade chain"
+            echo "WARNING: No upgrade strategy found (neither olm.skipRange nor spec.replaces)"
+            echo "New bundles should set olm.skipRange in metadata.annotations"
           fi
 
       - name: Check OpenShift version annotation
@@ -86,7 +90,6 @@ jobs:
   catalog-validate:
     name: Validate FBC Catalog
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -107,9 +110,9 @@ jobs:
 
       - name: Check upgrade chain
         run: |
-          echo "🔍 Checking upgrade chain in catalog..."
-          echo "Upgrade chain entries:"
-          grep -A 1 "replaces:" catalog/catalog.yaml || echo "No replaces found in catalog"
+          echo "Checking upgrade chain in catalog..."
+          echo "Channel entries with replaces or skipRange:"
+          grep -E "replaces:|skipRange:" catalog/catalog.yaml || echo "No explicit replaces or skipRange entries in catalog"
 
   bundle-build:
     name: Build Bundle Image
