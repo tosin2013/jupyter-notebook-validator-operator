@@ -1,3 +1,8 @@
+# golangci-lint version pinned in .github/workflows/ci.yml: v2.11.4
+# To add a justified gosec suppression use an inline comment on the flagged line:
+#   someFunc() // #nosec G204 - <one-line rationale explaining why it is safe>
+# Never use a bare #nosec without a rule ID and rationale.
+
 run:
   timeout: 5m
   allow-parallel-runners: true
@@ -36,23 +41,12 @@ issues:
     - path: "_test\\.go$"
       linters:
         - lll
-    # Exclude typecheck due to Kubernetes dependency version incompatibility
-    # This is a known issue with golangci-lint and Kubernetes projects
-    # The code compiles and tests pass successfully with go build and go test
+    # Suppress typecheck false positives for Kubernetes generated code that
+    # golangci-lint v2.11.4 occasionally mis-resolves in multi-module workspaces.
+    # go build ./... passes cleanly; these exclusions cover lint-cache artefacts only.
     - linters:
         - typecheck
       text: "could not import k8s.io"
-    - linters:
-        - typecheck
-      text: "undefined.*Get|Status|Create|Delete"
-    # Exclude Ginkgo/Gomega test framework undefined symbols
-    - linters:
-        - typecheck
-      text: "undefined.*(Describe|Context|It|BeforeEach|AfterEach|By|Expect|BeforeSuite|AfterSuite|RegisterFailHandler|RunSpecs|GinkgoWriter|Succeed|HaveOccurred|Fail|BeNil|Ordered|BeforeAll|AfterAll|ContainSubstring|Equal|BeTrue|BeFalse)"
-    # Exclude webhook receiver method issues (r.Name, r.Namespace)
-    - linters:
-        - typecheck
-      text: "r\\.(Name|Namespace) undefined"
 linters:
   disable-all: true
   enable:
