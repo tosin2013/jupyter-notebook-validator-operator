@@ -20,9 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.8] - 2026-04-21
 
-**OCP Stream:** OCP 4.19+ (Kubernetes 1.32)
-**Status:** Released — CI builds operator and bundle images on tag push.
-**OperatorHub:** Pending PR submission to `community-operators-prod` after v1.0.7 chain confirms.
+**OCP Stream:** OCP 4.19+ (Kubernetes 1.32)  
+**Status:** Released — CI builds operator and bundle images on tag push.  
+**OperatorHub (community-operators-prod):** PR open — [tosin2013/community-operators-prod branch `add-jupyter-notebook-validator-operator-1.0.8`](https://github.com/tosin2013/community-operators-prod/tree/add-jupyter-notebook-validator-operator-1.0.8) → open PR at https://github.com/redhat-openshift-ecosystem/community-operators-prod/compare/main...tosin2013:add-jupyter-notebook-validator-operator-1.0.8  
+**OperatorHub (community-operators):** PR open — [tosin2013/community-operators branch `add-jupyter-notebook-validator-operator-1.0.8`](https://github.com/tosin2013/community-operators/tree/add-jupyter-notebook-validator-operator-1.0.8) → open PR at https://github.com/k8s-operatorhub/community-operators/compare/main...tosin2013:add-jupyter-notebook-validator-operator-1.0.8
 
 > **OCP-stream versioning**: v1.0.7 → OCP 4.18 | v1.0.8 → OCP 4.19 | v1.0.9 → OCP 4.20 | v1.0.10 → OCP 4.21
 
