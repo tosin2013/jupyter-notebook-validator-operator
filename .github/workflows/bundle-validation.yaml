@@ -22,7 +22,7 @@ on:
   workflow_dispatch:
 
 env:
-  GO_VERSION: '1.24'
+  GO_VERSION: '1.25'
   OPERATOR_SDK_VERSION: 'v1.37.0'
   OPM_VERSION: 'v1.43.0'
 

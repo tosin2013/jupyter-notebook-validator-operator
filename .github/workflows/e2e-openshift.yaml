@@ -40,7 +40,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: '1.24'
+  GO_VERSION: '1.25'
   TEST_NAMESPACE: 'e2e-tests'
   OPERATOR_NAMESPACE: 'jupyter-notebook-validator-operator'
   TEST_REPO: 'https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git'

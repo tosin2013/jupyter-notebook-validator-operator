@@ -15,6 +15,17 @@ import (
 type BuildStatus string
 
 const (
+	// LabelManagedBy is the standard Kubernetes managed-by label key.
+	LabelManagedBy = "app.kubernetes.io/managed-by"
+	// LabelManagedByValue is the operator name used as the managed-by label value.
+	LabelManagedByValue = "jupyter-notebook-validator-operator"
+	// LabelNotebookValidation is the label used to identify operator-managed resources.
+	LabelNotebookValidation = "mlops.redhat.com/notebook-validation"
+	// LabelSharedWorkspace is the workspace name for Tekton pipeline resources.
+	LabelSharedWorkspace = "shared-workspace"
+)
+
+const (
 	// BuildStatusPending indicates the build is pending
 	BuildStatusPending BuildStatus = "Pending"
 	// BuildStatusRunning indicates the build is running
