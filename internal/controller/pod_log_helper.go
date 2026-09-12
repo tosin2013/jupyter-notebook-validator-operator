@@ -19,6 +19,11 @@ import (
 	"github.com/tosin2013/jupyter-notebook-validator-operator/internal/controller/argocd"
 )
 
+// Cell output type constants used in notebook execution results.
+const (
+	OutputTypeError = "error"
+)
+
 // NotebookExecutionResult represents the parsed results from the validation pod
 type NotebookExecutionResult struct {
 	Status                   string                `json:"status"`
@@ -184,7 +189,7 @@ func convertExecutionResultToNotebookFormat(result *NotebookExecutionResult) *No
 		// For code cells with errors, add error output
 		if cell.Status == StatusFailed && cell.Error != "" {
 			errorOutput := CellOutput{
-				OutputType: "error",
+				OutputType: OutputTypeError,
 				Ename:      "ExecutionError",
 				Evalue:     cell.Error,
 				Traceback:  cell.Traceback,
