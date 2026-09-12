@@ -104,6 +104,7 @@ See [docs/](docs/) for the full documentation index, organized by topic:
 
 - **[Getting Started](docs/getting-started/)** -- installation, quick start, namespace setup
 - **[Guides](docs/guides/)** -- credentials, model validation, golden notebooks, error handling
+- **[Design Document](DESIGN_DOC.md)** -- arc42 software design document
 - **[Architecture](docs/architecture/)** -- system design, platform compatibility
 - **[Testing](docs/testing/)** -- testing guide, E2E, integration tests
 - **[Operations](docs/operations/)** -- CI setup, observability, webhooks, releases
