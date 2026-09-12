@@ -43,18 +43,17 @@ func SetSyncWaveAnnotations(ctx context.Context, c client.Client, obj client.Obj
 	completionTime := time.Now().Format(time.RFC3339)
 
 	// Set completion annotations based on phase
-	if phase == "Succeeded" {
+	switch phase {
+	case "Succeeded":
 		annotations[AnnotationWaveComplete] = syncWave
 		annotations[AnnotationCompletionTime] = completionTime
-		// Remove wave-failed if it was set
 		delete(annotations, AnnotationWaveFailed)
 		logger.Info("Set sync wave completion annotation",
 			"wave", syncWave,
 			"completionTime", completionTime)
-	} else if phase == "Failed" {
+	case "Failed":
 		annotations[AnnotationWaveFailed] = syncWave
 		annotations[AnnotationCompletionTime] = completionTime
-		// Remove wave-complete if it was set
 		delete(annotations, AnnotationWaveComplete)
 		logger.Info("Set sync wave failure annotation",
 			"wave", syncWave,

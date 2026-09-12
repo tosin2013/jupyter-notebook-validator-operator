@@ -116,29 +116,29 @@ func (e *SmartError) UserFriendlyMessage() string {
 func (e *SmartError) DetailedMessage() string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("Error: %s\n", e.Message))
-	sb.WriteString(fmt.Sprintf("Category: %s\n", e.Category))
-	sb.WriteString(fmt.Sprintf("Severity: %s\n", e.Severity))
+	fmt.Fprintf(&sb, "Error: %s\n", e.Message)
+	fmt.Fprintf(&sb, "Category: %s\n", e.Category)
+	fmt.Fprintf(&sb, "Severity: %s\n", e.Severity)
 
 	if e.RootCause != "" {
-		sb.WriteString(fmt.Sprintf("\nRoot Cause:\n%s\n", e.RootCause))
+		fmt.Fprintf(&sb, "\nRoot Cause:\n%s\n", e.RootCause)
 	}
 
 	if e.Impact != "" {
-		sb.WriteString(fmt.Sprintf("\nImpact:\n%s\n", e.Impact))
+		fmt.Fprintf(&sb, "\nImpact:\n%s\n", e.Impact)
 	}
 
 	if len(e.Actions) > 0 {
 		sb.WriteString("\nActions to fix:\n")
 		for i, action := range e.Actions {
-			sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, action))
+			fmt.Fprintf(&sb, "%d. %s\n", i+1, action)
 		}
 	}
 
 	if len(e.References) > 0 {
 		sb.WriteString("\nReferences:\n")
 		for _, ref := range e.References {
-			sb.WriteString(fmt.Sprintf("- %s\n", ref))
+			fmt.Fprintf(&sb, "- %s\n", ref)
 		}
 	}
 
