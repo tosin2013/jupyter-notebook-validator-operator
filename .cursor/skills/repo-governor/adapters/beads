@@ -1,0 +1,274 @@
+#!/usr/bin/env python3
+"""ExecutionStateProvider backed by a Beads JSONL export (spec §13, §62).
+
+Reads the export Beads itself uses to synchronise through git -- one JSON
+object per line, produced by `bd export` -- rather than the `.beads/` store.
+
+WHY THE FILE AND NOT THE CLI. `adapters/execution-file` has said since it was
+written that this adapter "should use the `bd` CLI (stable JSON)". ADR-016 is
+about which Beads INTERFACE to prefer -- CLI over MCP -- and that guidance
+still holds for anything needing live state. It is silent on live-versus-
+committed, which ADR-033 is not:
+
+    a repo-local provider answers about the checked-out revision
+
+A `.beads/` store is an embedded Dolt database, machine-local and routinely
+gitignored -- it is in the repository that motivated this adapter. Two
+checkouts of one commit hold different Beads state and a CI runner holds none,
+so a CLI-backed adapter would answer about the machine rather than the
+revision. The export is a tracked file, so it moves with the branch, needs no
+`bd` on PATH, and cites a path a reader can open at that revision.
+
+The cost is real and is not concealed: the export is only as current as the
+last `bd export`. Staleness is a property of the source, and `get_provenance`
+names the file so a reader can check it themselves.
+
+INV-002 is the point of this role's separation: nothing here confers roadmap
+authority. A task marked IN_PROGRESS says the execution graph is running, not
+that the parent work is still authorized.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from _protocol import cite, fail, main, ok, unknown  # noqa: E402
+
+ROLE = "execution"
+SRC = Path(os.environ.get("REPO_GOVERNOR_BEADS", ".beads/issues.jsonl"))
+
+# Beads status -> the vocabulary this role's consumers already read.
+# `completion.py` filters IN_PROGRESS for active work and DONE for completed;
+# everything else rides in get_tasks and is neither.
+#
+# CLOSED, and an unrecognised status is MALFORMED_SOURCE rather than passed
+# through. The alternative -- forward an unknown string -- means a Beads
+# release adding a status silently produces a task that is neither active nor
+# complete, with nothing saying so. That is the failure ADR-017 rule 4 refuses
+# for check names, and it is worse here because the result looks like an empty
+# result rather than an error.
+STATUS = {
+    "open": "OPEN",
+    "in_progress": "IN_PROGRESS",
+    "blocked": "BLOCKED",
+    "deferred": "DEFERRED",
+    "closed": "DONE",
+}
+
+# `discovered-from` is Beads' own edge for work found while doing other work,
+# which is exactly §32's discovery. Nothing else in the dependency vocabulary
+# (blocks, tracks, related, parent-child) carries that meaning.
+DISCOVERY_EDGE = "discovered-from"
+
+
+def _probe():
+    return SRC.exists()
+
+
+def _load(fn):
+    """Parse the export into roots keyed by `external_ref`.
+
+    `external_ref` is Beads' own field for the identity of the item in another
+    tracker -- `bd create --external-ref`, and `bd linear pull` accepts one as
+    a positional argument. Using it means the join to roadmap authority is a
+    field Beads maintains, not a string parsed out of prose.
+    """
+    if not _probe():
+        return None, fail(ROLE, fn, "PROVIDER_UNAVAILABLE", f"{str(SRC)!r} does not exist")
+    try:
+        text = SRC.read_text(encoding="utf-8")
+    except OSError as e:
+        return None, fail(ROLE, fn, "PROVIDER_UNAVAILABLE", f"cannot read {SRC}: {e}")
+
+    roots, unrefd = {}, 0
+    for n, line in enumerate(text.splitlines(), 1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError as e:
+            return None, fail(ROLE, fn, "MALFORMED_SOURCE", f"{SRC}:{n} is not valid JSON: {e}")
+        if not isinstance(rec, dict):
+            return None, fail(ROLE, fn, "MALFORMED_SOURCE", f"{SRC}:{n} is not a JSON object")
+        # `bd export --all` also emits infrastructure records -- agents, roles,
+        # messages. They are not execution state and must not be counted as it.
+        if rec.get("_type") not in (None, "issue"):
+            continue
+        raw = rec.get("status")
+        if raw not in STATUS:
+            return None, fail(ROLE, fn, "MALFORMED_SOURCE",
+                              f"{SRC}:{n} declares status {raw!r}, outside the mapped set "
+                              f"{sorted(STATUS)}. Mapping it would state an execution fact "
+                              "this adapter cannot support; extending the map is a change "
+                              "to what this provider claims to understand.")
+        ref = rec.get("external_ref")
+        if not isinstance(ref, str) or not ref.strip():
+            # NOT an error. A bead with no external_ref belongs to no roadmap
+            # authority this engine can name, and INV-002 means execution state
+            # never confers authority anyway. Counted, so get_provenance can
+            # say how much of the store is invisible to governance.
+            unrefd += 1
+            continue
+        roots.setdefault(ref.strip(), []).append(rec)
+    return (roots, unrefd), None
+
+
+def _root(fn, kw):
+    loaded, err = _load(fn)
+    if err:
+        return None, err
+    roots, _ = loaded
+    wid = kw.get("id")
+    if not wid:
+        return None, fail(ROLE, fn, "BAD_REQUEST", "missing required argument: id=<authority-id>")
+    beads = roots.get(wid)
+    if beads is None:
+        return None, fail(ROLE, fn, "NOT_FOUND", f"no execution root for authority {wid!r}")
+    return beads, None
+
+
+def _ref(wid, field):
+    return cite("beads", f"{SRC}#external_ref={wid}", field)
+
+
+def _task(rec):
+    return {"id": rec.get("id"), "title": rec.get("title"),
+            "status": STATUS[rec["status"]], "type": rec.get("issue_type")}
+
+
+def _deps(rec):
+    # Count from the array, never from `dependency_count`: an exported record
+    # was observed carrying one dependency and a count of 0. A number that
+    # disagrees with the thing it counts is not a number worth reading.
+    return rec.get("dependencies") or []
+
+
+def find_execution_root(kw):
+    beads, err = _root("find_execution_root", kw)
+    if err:
+        return err
+    return ok(ROLE, "find_execution_root",
+              {"root": f"beads:{kw['id']}", "authority_id": kw["id"], "count": len(beads)},
+              [_ref(kw["id"], "external_ref")])
+
+
+def get_tasks(kw):
+    beads, err = _root("get_tasks", kw)
+    if err:
+        return err
+    tasks = [_task(r) for r in beads]
+    by = {}
+    for t in tasks:
+        by[t["status"]] = by.get(t["status"], 0) + 1
+    return ok(ROLE, "get_tasks", {"tasks": tasks, "count": len(tasks), "by_status": by},
+              [_ref(kw["id"], "tasks")])
+
+
+def get_dependencies(kw):
+    beads, err = _root("get_dependencies", kw)
+    if err:
+        return err
+    deps = [{"from": d.get("issue_id"), "to": d.get("depends_on_id"), "type": d.get("type")}
+            for r in beads for d in _deps(r)]
+    return ok(ROLE, "get_dependencies", {"dependencies": deps, "count": len(deps)},
+              [_ref(kw["id"], "dependencies")])
+
+
+def get_completed_work(kw):
+    beads, err = _root("get_completed_work", kw)
+    if err:
+        return err
+    done = [_task(r) for r in beads if STATUS[r["status"]] == "DONE"]
+    return ok(ROLE, "get_completed_work", {"completed": done, "count": len(done)},
+              [_ref(kw["id"], "status=closed")])
+
+
+def get_active_work(kw):
+    beads, err = _root("get_active_work", kw)
+    if err:
+        return err
+    act = [_task(r) for r in beads if STATUS[r["status"]] == "IN_PROGRESS"]
+    return ok(ROLE, "get_active_work", {"active": act, "count": len(act)},
+              [_ref(kw["id"], "status=in_progress")])
+
+
+def get_discoveries(kw):
+    """Discoveries default to CAPTURE_ONLY authority NONE (§32, INV-001)."""
+    beads, err = _root("get_discoveries", kw)
+    if err:
+        return err
+    d = [{**_task(r), "authority": "NONE", "default_disposition": "CAPTURE_ONLY",
+          "discovered_from": [x.get("depends_on_id") for x in _deps(r)
+                              if x.get("type") == DISCOVERY_EDGE]}
+         for r in beads
+         if any(x.get("type") == DISCOVERY_EDGE for x in _deps(r))]
+    return ok(ROLE, "get_discoveries", {"discoveries": d, "count": len(d)},
+              [_ref(kw["id"], f"dependencies[type={DISCOVERY_EDGE}]")])
+
+
+def get_execution_history(kw):
+    _, err = _root("get_execution_history", kw)
+    if err:
+        return err
+    return unknown(ROLE, "get_execution_history",
+                   reason="HISTORY_NOT_RETAINED",
+                   detail=f"{SRC} is a snapshot of current state. Beads keeps history in its "
+                          "Dolt store, which is not part of the export and is not tracked.",
+                   resolution="Query `bd history` directly, or bind a provider with durable "
+                              "execution history.",
+                   blocking=False)
+
+
+def get_provenance(kw):
+    loaded, err = _load("get_provenance")
+    if err:
+        return err
+    roots, unrefd = loaded
+    return ok(ROLE, "get_provenance",
+              {"source": str(SRC), "roots": len(roots), "beads_with_ref": sum(map(len, roots.values())),
+               # Surfaced, not hidden. Beads with no external_ref are real work
+               # that no authority id can reach, and a governance reader should
+               # be able to see how much of the store that is.
+               "beads_without_ref": unrefd},
+              [cite("beads", str(SRC), "external_ref")])
+
+
+FUNCTIONS = {
+    "find_execution_root": find_execution_root,
+    "get_tasks": get_tasks,
+    "get_dependencies": get_dependencies,
+    "get_completed_work": get_completed_work,
+    "get_active_work": get_active_work,
+    "get_discoveries": get_discoveries,
+    "get_execution_history": get_execution_history,
+    "get_provenance": get_provenance,
+}
+
+PROPERTIES = {"persistence": True, "provenance_quality": "exact"}
+
+# Honest advertisement (ADR-008 C2): every True here is exercised by a Layer 1
+# probe. `failures` and `handoff_state` are False and NOT IMPLEMENTED -- Beads
+# models neither, and answering "no failures" from a store that cannot record
+# one is evidence of absence dressed as absence of evidence (ADR-003 rule 6).
+# UNSUPPORTED_FUNCTION is the honest reply.
+CAPABILITIES = {
+    "execution_root": True,
+    "tasks": True,
+    "dependencies": True,
+    "completed_work": True,
+    "discoveries": True,
+    "provenance": True,
+    "failures": False,
+    "handoff_state": False,
+    "execution_history": False,
+}
+
+if __name__ == "__main__":
+    sys.exit(main(ROLE, CAPABILITIES, FUNCTIONS,
+                  {"name": "beads", "permissions": {"read": True, "write": False}},
+                  properties=PROPERTIES, probe=_probe))

@@ -1,11 +1,14 @@
 # ADR-040: Unique Build PVCs for Concurrent Tekton Builds
 
 **Date**: 2025-11-24
-**Status**: Implemented
+**Status**: Accepted
 **Updated**: 2026-01-24
 **Deciders**: Development Team
 **Technical Story**: Fix Tier 3 E2E test failures due to PVC workspace contention
 **Implementation**: `pkg/build/tekton_strategy.go`
+
+## Status
+Accepted
 
 ## Context and Problem Statement
 

@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+"""AcceptanceCriteriaProvider backed by repo-local files (ADR-017).
+
+The eighth provider role. Answers "what counts as done?" — deliberately
+separate from the roadmap provider, which answers "is this authorized?",
+and from the repository provider, which answers "is it actually done?".
+The engine composes STOP_COMPLETE from all three (§40).
+
+Source: .repo-governor/acceptance/<authority-id>.json
+
+Criteria are DECLARED, never inferred. This adapter reads a file a human
+wrote and committed. It does not derive a completion bar from commit
+messages, PR titles, or repository state — that would manufacture
+completion authority exactly as §37 forbids manufacturing architectural
+authority, and a green build is information, not intent (INV-003).
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from _protocol import cite, fail, main, ok, unknown  # noqa: E402
+
+ROLE = "acceptance_criteria"
+DIR = Path(os.environ.get("REPO_GOVERNOR_ACCEPTANCE_DIR", ".repo-governor/acceptance"))
+
+# Closed vocabulary. ADR-017 rule 4: an unrecognised check is MALFORMED_SOURCE,
+# never assumed satisfied. Growing this set requires an ADR — the natural
+# growth path ends at an expression language nobody planned.
+CHECKS = ("tests_pass", "file_exists", "command_exit")
+
+# A criterion is closed too, and for the same reason: a key that is not read
+# but looks like it is (issue 213) makes the bar say something it does not
+# check. Mirrored by $defs.criterion in schemas/acceptance-v1.json, and
+# conformance/acceptance.py asserts the two agree.
+CRITERION_KEYS = ("check", "target", "$comment")
+
+SAFE_ID = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def _probe():
+    return DIR.exists() and DIR.is_dir()
+
+
+def _load(fn, kw):
+    if not _probe():
+        return None, fail(ROLE, fn, "PROVIDER_UNAVAILABLE",
+                          f"acceptance directory {str(DIR)!r} does not exist")
+    wid = kw.get("id")
+    if not wid:
+        return None, fail(ROLE, fn, "BAD_REQUEST", "missing required argument: id=<authority-id>")
+    # Path traversal guard: the id becomes a filename.
+    if not SAFE_ID.match(wid):
+        return None, fail(ROLE, fn, "BAD_REQUEST", f"authority id {wid!r} is not a safe filename")
+    p = DIR / f"{wid}.json"
+    if not p.exists():
+        # Absence is NOT failure (ADR-017 rule 5). It degrades to a
+        # non-blocking unknown: no criteria declared => no STOP_COMPLETE.
+        return None, unknown(
+            ROLE, fn,
+            reason="NO_CRITERIA_DECLARED",
+            detail=f"No acceptance criteria declared for {wid} at {p}. "
+                   "Completion cannot be verified, so STOP_COMPLETE is unavailable.",
+            resolution=f"Declare criteria in {p}, or accept that this work has no completion bar.",
+            blocking=False,
+        )
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        return None, fail(ROLE, fn, "MALFORMED_SOURCE", f"{p} is not valid JSON: {e}")
+    except OSError as e:
+        return None, fail(ROLE, fn, "PROVIDER_UNAVAILABLE", f"cannot read {p}: {e}")
+    if not isinstance(data, dict) or not isinstance(data.get("criteria"), list):
+        return None, fail(ROLE, fn, "MALFORMED_SOURCE",
+                          f"{p} must be an object with a 'criteria' array")
+    # Amendment integrity (ADR-017 open weakness). An un-cited amendment makes
+    # the criteria unfalsifiable, so the adapter refuses to serve them at all
+    # rather than returning a bar that may have been edited to fit.
+    for i, a in enumerate(data.get("amendments") or []):
+        if not isinstance(a, dict) or not a.get("cites"):
+            return None, fail(ROLE, fn, "MALFORMED_SOURCE",
+                              f"{p}: amendment {i + 1} has no 'cites'. An amendment without a "
+                              "verifiable citation cannot be distinguished from editing the bar "
+                              "to fit the work.")
+        if a.get("effect") not in ("added", "removed", "weakened", "strengthened", "corrected"):
+            return None, fail(ROLE, fn, "MALFORMED_SOURCE",
+                              f"{p}: amendment {i + 1} declares effect {a.get('effect')!r}, "
+                              "which is outside the closed set.")
+    if d_legacy := (data.get("amended") or data.get("amendment_reason")):
+        return None, fail(ROLE, fn, "MALFORMED_SOURCE",
+                          f"{p}: free-prose amendment record ({str(d_legacy)[:40]}...). "
+                          "Use the structured 'amendments' array so the justification is checkable.")
+
+    # A bar may DECLARE that it covers only part of its authority. Two issues
+    # shipped with exactly that written in a $comment -- "cut 1 only",
+    # "DECISION HALF ONLY" -- and both read STOP_COMPLETE for the whole item,
+    # because nothing mechanical reads prose. One of them nearly lost its
+    # remaining half.
+    #
+    # `uncovered` is the required half. A bar that says which part it covers
+    # but not which part it does not has recorded a boast, not a limit, and the
+    # limit is the thing a reader needs.
+    if "covers" in data:
+        c = data["covers"]
+        if not isinstance(c, dict) or not c.get("declared") or not c.get("uncovered"):
+            return None, fail(ROLE, fn, "MALFORMED_SOURCE",
+                              f"{p}: 'covers' must declare both what it covers and what "
+                              "it does NOT ('declared' and 'uncovered'). A partial bar "
+                              "that will not name the uncovered part cannot be acted on.")
+
+    if data.get("authority_id") != wid:
+        return None, fail(ROLE, fn, "MALFORMED_SOURCE",
+                          f"{p} declares authority_id={data.get('authority_id')!r}, expected {wid!r}")
+    return (data, p), None
+
+
+def _no_criteria(fn, wid, p):
+    """A file that declares nothing is not a bar that is met (issue 58)."""
+    return unknown(ROLE, fn,
+                   reason="NO_CRITERIA_DECLARED",
+                   detail=f"{p} exists but its 'criteria' array is empty. An empty bar "
+                          "states nothing for completion to be checked against, and must "
+                          "never be read as a satisfied one.",
+                   resolution=f"Declare at least one criterion in {p}, or accept that this "
+                              "work has no completion bar.",
+                   blocking=False)
+
+
+def get_criteria(kw):
+    loaded, err = _load("get_criteria", kw)
+    if err:
+        return err
+    data, p = loaded
+    if not data["criteria"]:
+        return _no_criteria("get_criteria", kw["id"], p)
+    bad = [c for c in data["criteria"]
+           if not isinstance(c, dict) or c.get("check") not in CHECKS]
+    if bad:
+        return fail(ROLE, "get_criteria", "MALFORMED_SOURCE",
+                    f"{p} contains {len(bad)} criterion/criteria outside the closed "
+                    f"vocabulary {list(CHECKS)}: {bad[:2]}")
+    # A criterion is (check, target). `target` is what the repository provider
+    # measures -- a path for file_exists, a command string for the other two
+    # (adapters/git evaluate_check). Serving a criterion without it hands the
+    # engine something it cannot evaluate, and the engine crashed on the
+    # KeyError rather than reaching any disposition (issue 213). That is the
+    # same class as an unrecognised check -- a bar that states nothing
+    # measurable -- so it gets the same refusal ADR-017 rule 4 already
+    # prescribes. A malformed bar must produce a verdict, never a traceback.
+    untargeted = [c for c in data["criteria"]
+                  if not isinstance(c.get("target"), str) or not c["target"].strip()]
+    if untargeted:
+        return fail(ROLE, "get_criteria", "MALFORMED_SOURCE",
+                    f"{p} contains {len(untargeted)} criterion/criteria with no usable "
+                    f"'target': {untargeted[:2]}. Every criterion is {{check, target}} -- "
+                    "target is the path for file_exists and the command string for "
+                    "tests_pass and command_exit. Keys such as 'command' or "
+                    "'description' are not read; see schemas/acceptance-v1.json.")
+    # The other half of the same defect. A criterion carrying `command` NEXT TO
+    # a valid `target` is worse than one carrying it instead: it reads as though
+    # two things are checked and only one is. Silently ignoring a key that looks
+    # load-bearing is how a bar comes to check something other than what its
+    # author believes. So the criterion object is closed, exactly as the check
+    # vocabulary is.
+    extra = sorted({k for c in data["criteria"] for k in c} - set(CRITERION_KEYS))
+    if extra:
+        return fail(ROLE, "get_criteria", "MALFORMED_SOURCE",
+                    f"{p}: criteria carry key(s) {extra} that are never read. A criterion "
+                    f"is {set(CRITERION_KEYS)}. Put the command in 'target' and any prose "
+                    "in '$comment'; see schemas/acceptance-v1.json.")
+    return ok(ROLE, "get_criteria",
+              {"authority_id": kw["id"],
+               "criteria": data["criteria"],
+               "covers": data.get("covers"),
+               "amendments": len(data.get("amendments") or []),
+               "count": len(data["criteria"]),
+               "machine_checkable": True},
+              [cite("acceptance-file", str(p), "criteria")])
+
+
+def get_provenance(kw):
+    if not _probe():
+        return fail(ROLE, "get_provenance", "PROVIDER_UNAVAILABLE",
+                    f"acceptance directory {str(DIR)!r} does not exist")
+    declared = sorted(p.stem for p in DIR.glob("*.json"))
+    return ok(ROLE, "get_provenance",
+              {"source": "acceptance-file", "path": str(DIR),
+               "declared_for": declared, "count": len(declared)},
+              [cite("acceptance-file", str(DIR))])
+
+
+FUNCTIONS = {
+    "get_criteria": get_criteria,
+    "get_provenance": get_provenance,
+}
+
+PROPERTIES = {
+    "persistence": True,
+    "provenance_quality": "exact",
+    "vocabulary": list(CHECKS),
+}
+
+CAPABILITIES = {
+    "criteria": True,
+    "provenance": True,
+    "machine_checkable": True,
+}
+
+if __name__ == "__main__":
+    sys.exit(main(ROLE, CAPABILITIES, FUNCTIONS,
+                  {"name": "acceptance-file", "permissions": {"read": True, "write": False}},
+                  properties=PROPERTIES, probe=_probe))

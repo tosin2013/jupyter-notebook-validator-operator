@@ -1,0 +1,44 @@
+{
+  "$comment": "Claude Code hook config (ADR-029). VERIFIED against code.claude.com/docs/en/hooks, 2026-08-19. Merge into .claude/settings.json (project) or ~/.claude/settings.json (user). Substitute the placeholder token (skill dir) with sed before use -- see docs/installation.md. Add --exit2-on-deny to the write hook only if the governed repository sets repo_governor.enforcement to 'blocking'; the flag alone does nothing.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["RG_SKILL_DIR/tools/hooks/governance-hook.py", "prompt"],
+            "timeout": 20,
+            "statusMessage": "Checking governance..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["RG_SKILL_DIR/tools/hooks/governance-hook.py", "write"],
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["RG_SKILL_DIR/tools/hooks/governance-hook.py", "capture"],
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

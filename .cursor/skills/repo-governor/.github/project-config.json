@@ -1,0 +1,140 @@
+{
+  "$comment": "Marker for the github-project-release-manager skill. Presence => Operational mode; do not re-run setup analysis.",
+  "version": 1,
+  "evaluated_at": "2026-08-17",
+  "repo": "tosin2013/repo-governor",
+  "board": {
+    "decision": "full",
+    "source": "human override",
+    "project": {
+      "number": 5,
+      "title": "repo-governor",
+      "url": "https://github.com/users/tosin2013/projects/5",
+      "fields": [
+        "Status",
+        "Priority",
+        "Size",
+        "Estimate",
+        "Iteration"
+      ],
+      "status_options": [
+        "Backlog",
+        "Ready",
+        "In progress",
+        "In review",
+        "Done"
+      ],
+      "auto_add_workflow": true,
+      "items": 33,
+      "status_snapshot": "21 Done, 12 Backlog (2026-08-17). 0 drift across 33 items, verified with --limit 100. Earlier snapshots in this file said '0 drift across 30 items' and were capped by gh project item-list's silent default of 30 -- true of the first 30 only.",
+      "write_scope_acquired": "2026-08-17 \u2014 token now carries 'project'; manual field edits work. Note the refresh REPLACED read:project rather than adding to it.",
+      "reconciliation_method": "gh project item-list REQUIRES --limit; without it the command returns 30 and exit 0, so a truncated board is indistinguishable from a complete one. Cross-check against gh issue list --state all --limit 100."
+    },
+    "reason": "Linked by the maintainer on 2026-08-17, overriding the computed recommendation of 'none'. The override is correct and the score is not wrong: it measures COORDINATION need \u2014 contributors, open items, activity \u2014 and coordination need genuinely is low for a solo repository. What it does not measure is TRACKING need. This repository carries 19 tracked items across three distinct categories (gate conditions, thesis risks, architecture questions) with real dependencies between them, and that is what the board is for. Two different needs; the score only sees one.",
+    "revisit_when": "board sits empty with no open issues for an extended period, or the maintainer asks to reconsider",
+    "populated_at": "2026-08-17"
+  },
+  "release": {
+    "decision": "milestone",
+    "reason": "Gate work is now tracked under milestone RG-SIM-ONBOARDING-v0.1 (0/7). Still no shippable artifact, so no tags, CHANGELOG, or release automation yet.",
+    "revisit_when": "v0.2 scope. Open non-blocking bugs 27 and 28, and the thesis questions 1, 2, 5, 20, 23. None is admitted.",
+    "milestone": "RG-REAL-REPO-v0.2 OPEN (0/6). Four prior milestones closed.",
+    "milestone_scope": "Expanded 2026-08-17 from 7 gate conditions to 10. Rule: an issue belongs in RG-SIM-ONBOARDING-v0.1 if it blocks IMPLEMENTATION_READY. #15/#17/#18 block gate conditions and were added; #1/#2/#16 are product-viability and positioning questions and were kept out.",
+    "milestone_items": 10,
+    "milestone_progress": "RG-THESIS-v0.2 2/2 \u2014 21 (engine resolves providers through the manifest) and 19 (roadmap of record moved to GitHub).",
+    "implementation_gate": "MET 2026-08-17, re-verified against live GitHub issues 7-13. Met against 22 ADRs that are all still Proposed; architecture ratification is now the release gate (docs/adrs/RATIFICATION-v0.1.0.md).",
+    "shippable_artifact": "Now exists: 12 adapters, 7 engine modules, 6 conformance suites, SKILL.md. Release decision stays 'milestone' \u2014 no version cut yet, and commits are not conventional, so any version recommendation is judgment-based rather than derivable.",
+    "milestone_state": "The validation program: mcp-adr-analysis-server as the common testbed for stages A-G. Stage A PASSED against the v0.1.0 tag before publishing the draft release -- runtime verified byte-identical to the tag.",
+    "version_recommendation": "v0.1.0, judgment-based. 0 feat / 0 fix / 0 breaking across 42 commits because this repository does not use conventional commits, so the count is not evidence of a patch release \u2014 it is evidence the heuristic does not apply here.",
+    "release_blocker": "None. All defect blockers closed and the ratification gate cleared.",
+    "license": "Apache-2.0, applied 2026-08-17. Chosen for the patent grant and contribution terms because ADR-003's adapter protocol invites third-party adapters. Ownership (section 68, Tosin Open Source) was decided separately and is recorded in NOTICE.",
+    "adr_status": "23 of 26 Accepted 2026-08-17. Held: ADR-020 and ADR-024, neither referenced by the runtime. ADR-014 Superseded, split into 023 (Accepted) and 024 (held).",
+    "tag_decision": "TAGGED v0.1.0 on 2026-08-17 after the release condition was met: every decision the runtime depends on is Accepted (23 of 26), and no Proposed ADR is silently normative. Annotated tag pushed. The GitHub release is a DRAFT -- publishing it is a separate, public act and is the maintainer's.",
+    "next_milestone_when": "Create a milestone and add 24 and 25 to it. That is the admission act; until then the engine reads both NOT_ADMITTED and no work on them is authorized. Deliberate: discovery confers no authority (INV-001).",
+    "not_blocking": "Issues 27 and 28 are open bugs and were assessed NOT release-blocking. 28 (adapters/adr reads 16% of real ADRs) is now correct-but-limited rather than confidently wrong, because issue 25's fix makes the adapter block on a dominated read instead of reporting DEFINED. 27 fails closed (PROVIDER_UNAVAILABLE) and over-promises at onboarding; neither yields a confident wrong governance verdict.",
+    "stage_a_verdict": "PASS 5/5 on 2026-08-17: target named as un-onboarded, wrong-repo defect does not recur, foreign repo assessed L4, identity refused when undeclared, proposal written locally and never read by the engine. NOTHING BLOCKS PUBLISHING THE DRAFT. Publishing is the maintainer's act: gh release edit v0.1.0 --draft=false"
+  },
+  "open_work": {
+    "$comment": "Post-milestone. None of these block anything; all are open questions or backlog.",
+    "issues": {
+      "23": "ScopeEnvelope compiler -- REMOVED from RG-RATIFY-v0.1.0 2026-08-17. Milestone membership means admission, so leaving it there admitted work whose ADR (024) is deliberately held Proposed.",
+      "22": "architecture ratification gate for v0.1.0 -- the release blocker",
+      "20": "manifest does not bound what the host could supply; five-layer authority taxonomy recorded",
+      "14": "Jira adapter -- backlogged (relabelled gate -> enhancement; it never was a gate condition)",
+      "6": "monorepo governance -- deferred past v1",
+      "5": "skill activation reliability across hosts -- governance logic is not governance enforcement",
+      "2": "ScopeEnvelope thinness -- UNANSWERABLE as written; nothing compiles an envelope. Blocked on 23",
+      "1": "cross-provider normalization -- the thesis question; Layer 2 has never run on two LIVE providers",
+      "25": "adr.get_constraints swallows STATUS_UNSTATED -- RELEASE-BLOCKING",
+      "27": "detected ADR location never reaches the adapter; detection over-promises",
+      "28": "adapters/adr reads 16% of real ADRs -- split from 25, not blocking",
+      "30": "governed roadmap writeback -- research question, proposed INV-015; exit is an ADR, not code",
+      "31": "RG-REAL-REPO-v0.2 umbrella -- stages A-G; A passed"
+    },
+    "milestoned": 0,
+    "note": "Program admitted per the maintainer's directive: 31 (umbrella), 27, 28, 23, 1, 5 in RG-REAL-REPO-v0.2 -- all ADMITTED, none yet AUTHORIZED; assignment authorizes per stage. Beads discipline binding: define the Stage E experiment before admitting any adapter build. Outside: 30, 20, 2 (follows 23), 6, 14.",
+    "review_2026_08_17": {
+      "$comment": "Full review of all ten open issues post-v0.1.0, at the maintainer's request. Outcome: ZERO closeable. Every claim re-verified live against the code.",
+      "why_deferrals_stay_open": "Closing 6 or 14 as NOT_PLANNED would be read back by decision-history-github as a recorded REJECTED decision -- this repository's own semantics make closure-reason a decision record, and deferral is not rejection. Unmilestoned-open IS the deferred state: the engine already reads them NOT_ADMITTED.",
+      "verified_live": {
+        "1": "layer2 still runs both trackers on fixtures; thesis bar unmet",
+        "2": "blocked on 23; nothing compiles an envelope",
+        "5": "activation unmeasured; instrument improved by AGENTS.md but experiment not run",
+        "20": "engine never passes --input; ADR-020 held partly on this",
+        "23": "engine never calls get_scope; ADR-024 acceptance conditions unmet",
+        "27": "adapter reads no binding path; onboard.py still substring-counts statuses",
+        "28": "STATUS_RE still single-dialect; 16% coverage stands",
+        "30": "filed this session; research not started"
+      },
+      "v02_candidates": "Coherent slate if admitted together: 27+28 (make the ADR provider work on real repositories -- shared surface, 28 depends on 27's path threading landing first) and 23 (unlocks 2, satisfies ADR-024's acceptance conditions). Research track: 30, 20, 1, 5. Standing deferrals: 6, 14. Admission is the maintainer's act."
+    }
+  },
+  "governance_self_binding": {
+    "$comment": "This repository is now governed by its own engine off GitHub issues, not off a local file. Recorded because the previous arrangement was a section 54 failure condition that went unnoticed for 40 commits (ADR-022).",
+    "roadmap_authority": "adapters/github-projects",
+    "admission_signal": "milestone",
+    "consequence": "An issue with no milestone reads NOT_ADMITTED and blocks. Correct for the deferrals (6, 14) and for the open questions (1, 2, 5, 20), which are not admitted work."
+  },
+  "evidence_run": {
+    "$comment": "Step 5-6 of the ratification directive. First run against a repository this project does not own.",
+    "target": "tosin2013/mcp-adr-analysis-server",
+    "scale": "22 ADRs, 24 open issues, 100 closed (84 NOT_PLANNED / 16 COMPLETED), 2 live milestones",
+    "assessment": "L4 / GOVERNOR_HIGH_ASSURANCE, floor raised by public_api_surface, release_branches, generated_consumers",
+    "worked": "Onboarding assessed a foreign repository correctly. Adapters accept targeting via env. decision-history-github read real NOT_PLANNED closures as REJECTED.",
+    "failed": "Governance itself cannot target a foreign repository and does not say so -- it answers about its own. See issue 24.",
+    "structural_finding": "Second real-repo run to find a format assumption in adapters/adr. Both were invisible to conformance because the fixtures share the implementation's conventions. Layer 1 and Layer 2 cannot catch a convention the fixtures and the code agree on -- the strongest argument yet for the third-party adapter issue 1 asks for."
+  },
+  "cross_repo_audit": {
+    "$comment": "Audit of every adapter for assumptions that break on repositories this project did not write. Prompted by issue 25; the ADR dialect turned out to be one of four classes.",
+    "date": "2026-08-17",
+    "corpus": "437 numbered ADRs across 34 collections in ~/workspace and ~/workspaces",
+    "headline": "adapters/adr reads 70 of 437 (16%) and reads 10 of those from the wrong part of the document, while passing 136/136 Layer 1 checks.",
+    "classes": {
+      "1_content_format": "status dialect -- heading 57%, bullet 19%, inline 16% (only form supported). Issue 25.",
+      "2_location": "onboard.py proposes binding path=docs/adr; adapters/adr never reads it and defaults to docs/adrs. Issue 27.",
+      "3_detection_overpromise": "onboard.py substring-counts statuses (20) where the adapter parses (2). Issue 27.",
+      "4_identity_default": "REPO_GOVERNOR_GH_REPO defaults to tosin2013/repo-governor in two shipped adapters. Issue 26. RELEASE-BLOCKING."
+    },
+    "structural_conclusion": "A test cannot detect a convention it shares with the implementation. Layer 1 measures contract conformance and says nothing about input coverage; the suite currently carries only one of those properties. Recorded on issue 1.",
+    "mechanism_correction": {
+      "$comment": "Maintainer observation 2026-08-17, verified. Refines issue 24 and reorders 27.",
+      "finding": "Every file-backed adapter defaults to a RELATIVE path and resolves it against the working directory, which is correct. engine/bindings.py:98 pins cwd=ROOT to the engine's own install directory, which overrides all seven repo-local providers at once.",
+      "demonstration": "adapters/adr run from the target repo reports 21 documents; the same adapter through the engine reports 24 -- this repository's. Both report path='docs/adrs', so the provenance cannot distinguish them.",
+      "fix_reordering": "Minimal correct fix is cwd, not per-adapter plumbing. Issue 27's path threading remains needed for location variance but must follow 24, not precede it."
+    }
+  },
+  "agent_surface": {
+    "$comment": "Added 2026-08-17 after the maintainer asked how an LLM would know how to use the skill, then found the better half of the answer: no AGENTS.md or CLAUDE.md existed, so an agent working here was never told the repository is governed.",
+    "pull": "SKILL.md -- loads only when the agent decides the skill is relevant. Issue 5's risk.",
+    "push": "AGENTS.md -- loaded automatically for every agent in the repository. CLAUDE.md is a one-line pointer, not a copy: content in the vendor file would be the bet section 54 warns against.",
+    "checked_by": "conformance/skill.py -- executes what the surface documents rather than grepping it. Caught four unmarked citations of Proposed ADRs on its first run.",
+    "not_done": "engine/onboard.py does not propose an AGENTS.md stanza, so only hand-edited repositories get the push half. Issue 27's territory, and the thing that would make governance reach agents in arbitrary repositories."
+  },
+  "program": {
+    "$comment": "RG-REAL-REPO-v0.2 tracking structure, decided 2026-08-17.",
+    "umbrella": "issue 31, with the stage table as the source of truth for stage completion",
+    "hierarchy": "Native GitHub sub-issues: 27, 28, 23, 1, 5, 32, 33 linked under 31. The board already exposed 'Parent issue' and 'Sub-issues progress' fields, so no labels were invented -- the relation is real rather than described in prose.",
+    "milestone_caveat": "Milestone progress counts issues, not stages. Stage A completed with no issue at all (recorded in 31), and stages E/F had none until 33 was filed. A milestone reading 7/7 would have reported a program complete with two stages unattempted.",
+    "beads_discipline": "Issue 33 defines the Stage E experiment and delivers a go/no-go on the Beads adapter. no-go is a successful outcome. The adapter build is NOT admitted and must not be until necessity is argued."
+  }
+}

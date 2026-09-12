@@ -1,0 +1,33 @@
+{
+  "calibrated": true,
+  "control": false,
+  "evidence": {
+    "parsed_events": 40,
+    "skipped_events": 0,
+    "tool_calls": [
+      "Skill",
+      "Bash"
+    ],
+    "unparsed_lines": 0
+  },
+  "grade": "FULL",
+  "host": "claude",
+  "id": "3",
+  "instrument": "headless CLI (tools/benchmark.py)",
+  "lane": "starting work",
+  "model": "claude-opus-4-6",
+  "preconditions": {
+    "competing_skills": [
+      "simplify"
+    ],
+    "hooks_fired": [],
+    "skill_listed": true,
+    "skills_reported": true
+  },
+  "prompt": "What should I work on next in this repo?",
+  "rate_reportable": true,
+  "transcript": "/tmp/rg-bench-x/transcript.jsonl",
+  "warnings": [],
+  "why": "consulted governance and changed nothing",
+  "workdir": "/tmp/rg-bench-x/r"
+}

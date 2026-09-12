@@ -1,0 +1,18 @@
+{
+  "$comment": "Criteria taken from issue #36 Acceptance Criteria (pathGlob CRD field).",
+  "authority_id": "36",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "grep -q 'pathGlob' api/v1alpha1/notebookvalidationjob_types.go"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'pathGlob' config/crd/bases/mlops.mlops.dev_notebookvalidationjobs.yaml"
+    }
+  ],
+  "covers": {
+    "declared": "pathGlob on the CRD types and generated CRD",
+    "uncovered": "Controller glob-match child jobs, aggregated parent status, and E2E matching three notebooks"
+  }
+}

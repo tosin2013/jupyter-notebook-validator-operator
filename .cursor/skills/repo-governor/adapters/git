@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+"""RepositoryEvidenceProvider backed by Git (spec §14, ADR-003).
+
+The only always-required role. Reports what is actually present in the
+repository — and nothing about whether any of it is authorized (INV-003).
+"""
+
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from _protocol import cite, fail, main, ok, unknown  # noqa: E402
+
+ROLE = "repository"
+ROOT = os.environ.get("REPO_GOVERNOR_REPO", ".")
+
+
+def _git(*args):
+    """Run git. Returns (rc, stdout). Never raises on a git-level failure."""
+    try:
+        p = subprocess.run(
+            ["git", "-C", ROOT, *args],
+            capture_output=True, text=True, timeout=30,
+        )
+        return p.returncode, p.stdout.rstrip("\n")
+    except FileNotFoundError:
+        return 127, ""
+    except subprocess.TimeoutExpired:
+        return 124, ""
+
+
+def _available():
+    rc, _ = _git("rev-parse", "--git-dir")
+    return rc == 0
+
+
+def _unavailable(fn):
+    return fail(ROLE, fn, "PROVIDER_UNAVAILABLE",
+                f"{ROOT!r} is not a git repository, or git is not installed")
+
+
+def get_state(kw):
+    if not _available():
+        return _unavailable("get_state")
+    _, head = _git("rev-parse", "HEAD")
+    _, branch = _git("rev-parse", "--abbrev-ref", "HEAD")
+    rc, status = _git("status", "--porcelain")
+    _, count = _git("rev-list", "--count", "HEAD")
+    return ok(ROLE, "get_state", {
+        "head": head or None,
+        "branch": branch or None,
+        "dirty": bool(status.strip()),
+        "commits": int(count) if count.isdigit() else None,
+    }, [cite("git", "rev-parse HEAD"), cite("git", "status --porcelain")])
+
+
+def get_files(kw):
+    if not _available():
+        return _unavailable("get_files")
+    rc, out = _git("ls-files")
+    files = [f for f in out.splitlines() if f]
+    prefix = kw.get("prefix")
+    if prefix:
+        files = [f for f in files if f.startswith(prefix)]
+    return ok(ROLE, "get_files", {"files": files, "count": len(files)},
+              [cite("git", "ls-files")])
+
+
+def get_manifests(kw):
+    """Dependency manifests present. Evidence of stack, not of intent."""
+    if not _available():
+        return _unavailable("get_manifests")
+    known = ("package.json", "pyproject.toml", "go.mod", "Cargo.toml",
+             "requirements.txt", "Gemfile", "pom.xml", "build.gradle")
+    _, out = _git("ls-files")
+    found = sorted({f for f in out.splitlines() if Path(f).name in known})
+    return ok(ROLE, "get_manifests", {"manifests": found}, [cite("git", "ls-files")])
+
+
+def get_entry_points(kw):
+    """Not derivable from Git alone — a genuine UNKNOWN, not an empty list."""
+    if not _available():
+        return _unavailable("get_entry_points")
+    return unknown(
+        ROLE, "get_entry_points",
+        reason="NOT_DERIVABLE_FROM_SOURCE",
+        detail="Entry points require language-aware analysis; Git only lists files.",
+        resolution="Bind a language-specific repository adapter, or declare entry points in the manifest.",
+        blocking=False,
+    )
+
+
+def evaluate_check(kw):
+    """Evaluate one acceptance criterion (ADR-017 rule 7).
+
+    The acceptance provider says WHAT must be true; this says WHETHER it is.
+    Keeping the bar and the measurement in separate roles is the same
+    separation that keeps roadmap authority away from execution state.
+    """
+    if not _available():
+        return _unavailable("evaluate_check")
+    check = kw.get("check")
+    target = kw.get("target")
+    if not check or not target:
+        return fail(ROLE, "evaluate_check", "BAD_REQUEST",
+                    "requires check=<name> target=<value>")
+    root = Path(ROOT).resolve()
+
+    if check == "file_exists":
+        candidate = (root / target).resolve()
+        if not str(candidate).startswith(str(root)):
+            return fail(ROLE, "evaluate_check", "BAD_REQUEST",
+                        f"target {target!r} escapes the repository")
+        return ok(ROLE, "evaluate_check",
+                  {"check": check, "target": target, "satisfied": candidate.exists()},
+                  [cite("git", f"filesystem:{target}", "exists")])
+
+    if check in ("command_exit", "tests_pass"):
+        try:
+            p = subprocess.run(target, shell=True, cwd=str(root),
+                               capture_output=True, text=True, timeout=300)
+        except subprocess.TimeoutExpired:
+            return unknown(ROLE, "evaluate_check",
+                           reason="CHECK_TIMED_OUT",
+                           detail=f"{target!r} did not finish within 300s.",
+                           resolution="Make the check faster, or evaluate it out of band.",
+                           blocking=True)
+        return ok(ROLE, "evaluate_check",
+                  {"check": check, "target": target,
+                   "satisfied": p.returncode == 0, "exit_code": p.returncode},
+                  [cite("git", f"command:{target}", "exit_code")])
+
+    return fail(ROLE, "evaluate_check", "UNSUPPORTED_FUNCTION",
+                f"check {check!r} is not evaluable by the git provider")
+
+
+def _probe():
+    return _available()
+
+
+FUNCTIONS = {
+    "get_state": get_state,
+    "get_files": get_files,
+    "get_manifests": get_manifests,
+    "get_entry_points": get_entry_points,
+    "evaluate_check": evaluate_check,
+}
+
+PROPERTIES = {
+    "persistence": True,
+    "provenance_quality": "exact",
+}
+
+CAPABILITIES = {
+    "git_state": True,
+    "file_listing": True,
+    "dependency_manifests": True,
+    "evaluate_check": True,
+    "entry_points": False,      # advertised false — see get_entry_points
+    "dynamic_references": False,
+}
+
+if __name__ == "__main__":
+    sys.exit(main(ROLE, CAPABILITIES, FUNCTIONS,
+                  {"name": "git", "permissions": {"read": True, "write": False}},
+                  properties=PROPERTIES, probe=_probe))

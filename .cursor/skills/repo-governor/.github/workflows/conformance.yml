@@ -1,0 +1,143 @@
+name: conformance
+
+# Pays ADR-008 consequence 5 ("wire conformance into CI"), Accepted at v0.1.0
+# and never implemented. This runs the project's OWN tests. It deliberately
+# does NOT decide whether a change is authorized to merge -- that is issue 46's
+# surface, which stays deferred because it needs a DECLARED pr-to-authority
+# signal and every obvious answer (branch name, issue reference in the body,
+# linked issue) is an assumed one, which ADR-018 forbids.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A superseded run proves nothing about the head commit.
+concurrency:
+  group: conformance-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Pinned, not `latest`. An unpinned dependency turns "green" into a claim
+  # about a moment rather than about a commit, and a dolt release could redden
+  # a pull request for reasons the pull request did not cause.
+  DOLT_VERSION: "2.3.0"
+  # ADR-011 line 21 declares the floor: "The engine is Python 3.11+". Test what
+  # you promise. No matrix: there is no typing import, no walrus, no match and
+  # no tomllib anywhere, so 3.11/3.12/3.13 would spend three runs producing one
+  # answer. A matrix earns its place once ADR-011 plan item 5 (a version guard
+  # below 3.11) exists, and the informative row is then the one BELOW the floor.
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  static:
+    # Needs no adapter dependency at all, so it still answers when the dolt
+    # download is the thing that broke. The two checks it runs are the ones a
+    # docs-only change is most likely to trip.
+    name: static
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: ADR-011 dependency surface
+        run: python3 conformance/imports.py
+      - name: Agent surface and derivable-fact consistency
+        run: python3 conformance/skill.py
+
+  conformance:
+    name: conformance (hermetic)
+    # NOT `container:`. conformance/layer1.py C9 chmods a fixture to 0500 and
+    # asserts the adapter reports writable=false. Under uid 0 that does not
+    # hold, os.access returns True regardless, and C9 goes green while testing
+    # nothing -- which is the exact state that check was written to escape.
+    # ubuntu-latest runs as `runner`. Do not containerise this job.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # tools/install-skill.sh clones $SRC, and conformance/hooks.py drives
+          # it repeatedly. Full history keeps shallow+detached out of the list
+          # of things that can produce a confusing failure.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache dolt
+        id: dolt-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/bin/dolt
+          key: dolt-${{ runner.os }}-${{ env.DOLT_VERSION }}
+
+      - name: Install dolt
+        if: steps.dolt-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          # NOT `curl ... | sudo bash`. That is unpinned, unverified and runs as
+          # root, in a repository whose product claim is auditability.
+          url="https://github.com/dolthub/dolt/releases/download/v${DOLT_VERSION}/dolt-linux-amd64.tar.gz"
+          # Extract into a directory of our own and search ONLY that. Searching
+          # /tmp walks systemd-private-* directories the runner cannot read,
+          # find exits non-zero on those permission errors, and `set -e` kills
+          # the step even though the download succeeded. `-print -quit` also
+          # avoids the SIGPIPE that `| head -1` can produce under pipefail.
+          work="$(mktemp -d)"
+          curl -fsSL --retry 3 "$url" -o "$work/dolt.tgz"
+          tar -xzf "$work/dolt.tgz" -C "$work"
+          bin="$(find "$work" -type f -name dolt -perm -u+x -print -quit)"
+          [ -n "$bin" ] || { echo "::error::no dolt binary in the tarball"; exit 1; }
+          mkdir -p "$HOME/.local/bin"
+          install -m 0755 "$bin" "$HOME/.local/bin/dolt"
+
+      - name: Adapter dependencies are present, and named when they are not
+        run: |
+          set -euo pipefail
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          # A truncated cache restore otherwise surfaces as an obscure bootstrap
+          # error three steps later.
+          dolt version
+          # engine/manifest.py --validate probes github-projects and
+          # decision-history-github, and both probes are shutil.which("gh") --
+          # presence only, no auth, no network. gh ships on ubuntu-latest.
+          # Assert it, so a runner image change reads "gh is gone from the
+          # image" rather than "PROVIDER_UNAVAILABLE".
+          command -v gh >/dev/null || { echo "::error::gh missing from the runner image"; exit 1; }
+          # conformance/onboarding.py needs a YAML parser: it imports yaml and
+          # falls back to shelling ruby. Neither is guaranteed by contract, and
+          # it FAILS rather than skips when both are absent. Name the
+          # dependency rather than letting luck read as a pass.
+          python3 -c 'import yaml' 2>/dev/null || command -v ruby >/dev/null \
+            || { echo "::error::no YAML parser (pyyaml or ruby); onboarding.py fails for an infrastructure reason"; exit 1; }
+
+      - name: Bootstrap the decision store
+        run: ./tools/bootstrap-decisions.sh
+
+      - name: Conformance suites
+        run: ./tools/run-conformance.sh --hermetic
+
+      - name: Manifest binds adapters that satisfy their declared contracts
+        run: python3 engine/manifest.py --validate
+
+      - name: The suites left the working tree as they found it
+        # `if: always()` because a run that both fails and dirties the tree has
+        # two defects, not one. vocabulary.py rewrites a TRACKED fixture and
+        # layer1.py chmods another, each restoring only on the happy path.
+        if: always()
+        run: |
+          set -uo pipefail
+          dirty="$(git status --porcelain)"
+          if [ -n "$dirty" ]; then
+            echo "::error::a conformance suite modified the working tree"
+            printf '%s\n' "$dirty"
+            git diff
+            exit 1
+          fi

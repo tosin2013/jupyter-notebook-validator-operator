@@ -1,0 +1,53 @@
+{
+  "$comment": "Fixture manifest for the union suite (issue 154). Never bound anywhere; reached only by conformance/union.py passing an explicit path to MF.load. ONE provider per role. The ADR-008 C7 guard: this must behave exactly as the engine did before the union existed.",
+  "condition": {
+    "assessed": "L1",
+    "profile": "GOVERNOR_LITE"
+  },
+  "permissions": {
+    "architecture": {
+      "read": true,
+      "write": false
+    },
+    "decision_history": {
+      "read": true,
+      "write": false
+    },
+    "repository": {
+      "read": true,
+      "write": false
+    }
+  },
+  "providers": {
+    "architecture": [
+      {
+        "adapter": "adapters/adr",
+        "contract_version": 1,
+        "path": "conformance/fixtures/union/adrs-x",
+        "type": "adr"
+      }
+    ],
+    "decision_history": [
+      {
+        "adapter": "adapters/decision-history-file",
+        "contract_version": 1,
+        "env": {
+          "REPO_GOVERNOR_DECISIONS_DIR": "conformance/fixtures/union/dh-a"
+        },
+        "type": "decision-history-file"
+      }
+    ],
+    "repository": {
+      "adapter": "adapters/git",
+      "contract_version": 1,
+      "type": "git"
+    }
+  },
+  "repo_governor": {
+    "engine_min_version": "0.1.0",
+    "version": 1
+  },
+  "repository": {
+    "id": "tosin2013/repo-governor"
+  }
+}

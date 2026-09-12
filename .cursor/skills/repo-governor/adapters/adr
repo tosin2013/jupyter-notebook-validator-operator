@@ -1,0 +1,370 @@
+#!/usr/bin/env python3
+"""ArchitectureEvidenceProvider backed by an ADR directory (spec §12, ADR-003).
+
+Resolves architecture state to DEFINED / INFERRED / UNKNOWN (§37) and must
+never manufacture architectural authority. Supersession is resolved *within*
+this provider only (ADR-013 rule 4).
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from _protocol import cite, configured, fail, main, ok, unknown  # noqa: E402
+
+ROLE = "architecture"
+# Where the decisions live is the BINDING's business, not this file's default
+# (#27). `docs/adrs` remains the fallback only when nobody said otherwise.
+ADR_DIR = Path(configured("REPO_GOVERNOR_ADR_DIR", "path", "docs/adrs"))
+
+# Four dialects, measured across 439 real ADRs in 34 collections rather than
+# guessed. The inline form this adapter originally supported is the LEAST common
+# of the three that matter:
+#     heading  57%   ## Status \n\n Accepted        MADR / Nygard
+#     bullet   19%   - **Status:** Accepted          colon inside the bold
+#     inline   16%   **Status**: Accepted            the only form once supported
+#     yaml      2%   --- \n status: accepted         MADR 3.0 front matter
+STATUS_INLINE = re.compile(r"^\s*[-*]?\s*\*\*Status:?\*\*:?\s*(.+?)\s*$", re.M)
+STATUS_HEADING = re.compile(r"^#{1,4}\s*Status\s*$\n+\s*(.+?)\s*$", re.M)
+STATUS_YAML = re.compile(r"^status\s*:\s*(.+?)\s*$", re.M | re.I)
+# A template nobody filled in. `[Proposed | Accepted | ...]` used to survive as a
+# status whose first word matched nothing -- neither active, nor historical, nor
+# unstated. It fell out of every bucket without a word.
+PLACEHOLDER = re.compile(r"[\[\|]")
+TITLE_RE = re.compile(r"^#\s*(?:\d+\.\s*)?(.+?)\s*$", re.M)
+SUPERSEDED_RE = re.compile(r"[Ss]uperseded by\s+(ADR-\d+)")
+# Naming conventions in the wild. Found by running against a real repository
+# with 21 ADRs named `adr-NNN-title.md`, which the original `^\d{3,4}-` pattern
+# reported as zero decisions -- a silent wrong answer, not an error.
+NUM_RE = re.compile(r"^(?:adr[-_])?(\d{3,4})[-_.]", re.I)
+
+# Statuses that constrain current work vs. those that are provenance only.
+ACTIVE = {"accepted", "proposed"}
+HISTORICAL = {"superseded", "deprecated", "rejected"}
+
+
+
+def _header(text):
+    """The region a status may legitimately live in: front matter, or title to
+    the first body section.
+
+    Bounding this is the prerequisite, not a refinement. `STATUS_RE.search(text)`
+    scanned whole documents and took the first hit -- in one real ADR the status
+    sits at line 3 and the only inline match is at line 618, inside an
+    "Implementation Status Update" appendix. It produced the right answer by
+    luck. Ten files across the corpus are read from the body that way, and
+    ADDING dialects to an unbounded search makes it strictly worse, because
+    `## Status` is a common heading deep in long documents.
+    """
+    lines = text.splitlines()
+    if lines and lines[0].strip() == "---":                      # YAML front matter
+        for i, ln in enumerate(lines[1:], 1):
+            if ln.strip() == "---":
+                return "\n".join(lines[:i + 1]), True
+    out = []
+    seen_meta = False
+    for ln in lines:
+        s = ln.strip()
+        # Stop at the first body section -- a heading that is not the title and
+        # not a metadata heading like `## Status` / `## Date`.
+        if s.startswith("#") and out:
+            word = s.lstrip("#").strip().split()[0].lower() if s.lstrip("#").strip() else ""
+            if word in ("status", "date", "deciders", "related", "tags"):
+                seen_meta = True
+            elif seen_meta or word in ("context", "decision", "consequences", "background"):
+                break
+        out.append(ln)
+        if len(out) > 60:            # a header this long is a body; stop guessing
+            break
+    return "\n".join(out), False
+
+
+def _status_of(text):
+    """(status, reason) for one decision file. Reason is None when a status was read.
+
+    Several dialects agreeing is fine. Several DISAGREEING is MALFORMED_SOURCE,
+    never first-wins: precedence would silently pick a winner where the document
+    genuinely says two things.
+    """
+    header, is_yaml = _header(text)
+    found = {}
+    if is_yaml:
+        m = STATUS_YAML.search(header)
+        if m:
+            found["yaml"] = m.group(1).strip().strip('"\'')
+    else:
+        for name, rx in (("heading", STATUS_HEADING), ("inline", STATUS_INLINE)):
+            m = rx.search(header)
+            if m:
+                found[name] = m.group(1).strip()
+    if not found:
+        return None, "STATUS_UNSTATED"
+    firsts = {v.split()[0].lower() for v in found.values() if v.split()}
+    if len(firsts) > 1:
+        return None, "STATUS_DIALECTS_DISAGREE"
+    value = next(iter(found.values()))
+    if PLACEHOLDER.search(value):
+        return None, "STATUS_TEMPLATE_UNFILLED"
+    return value, None
+
+
+def _scan():
+    """Return (records, error). Never conflates unreadable with empty."""
+    if not ADR_DIR.exists():
+        return None, ("PROVIDER_UNAVAILABLE", f"ADR directory {str(ADR_DIR)!r} does not exist")
+    if not ADR_DIR.is_dir():
+        return None, ("PROVIDER_UNAVAILABLE", f"{str(ADR_DIR)!r} is not a directory")
+    try:
+        paths = sorted(ADR_DIR.glob("*.md"))
+    except OSError as e:
+        return None, ("PROVIDER_UNAVAILABLE", f"cannot read {str(ADR_DIR)!r}: {e}")
+
+    records = []
+    for p in paths:
+        if not NUM_RE.match(p.name):
+            continue  # README.md and friends are not decisions
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError as e:
+            return None, ("PROVIDER_UNAVAILABLE", f"cannot read {p}: {e}")
+        status, why = _status_of(text)
+        ti = TITLE_RE.search(text)
+        # Bounded to the header, for the reason _header() already exists: a
+        # document that TALKS ABOUT a thing is not an instance of the thing.
+        # Searching the whole text read ADR-013 -- Accepted, and explaining
+        # supersession as a concept -- as superseded by ADR-0031, which does
+        # not exist. The four-digit form was the tell that those were
+        # illustrative ids in a sentence.
+        #
+        # The consequence was not cosmetic: a foundational Accepted decision
+        # was dropped from get_active_decisions and therefore absent from every
+        # envelope the engine compiles (issue 151).
+        #
+        # A cross-check that the named ADR exists on disk was considered and
+        # REJECTED. It fails in the dangerous direction: an ADR genuinely
+        # superseded by one that lives elsewhere, or is not yet written, would
+        # be resurrected as a live constraint. Honouring a declared supersession
+        # when in doubt is the conservative reading.
+        sup = SUPERSEDED_RE.search(_header(text)[0])
+        records.append({
+            "id": f"ADR-{NUM_RE.match(p.name).group(1)}",
+            "path": str(p),
+            "title": ti.group(1) if ti else None,
+            "status": status,
+            "unreadable_reason": why,
+            "superseded_by": sup.group(1) if sup else None,
+        })
+    return records, None
+
+
+def _guard(fn):
+    recs, err = _scan()
+    if err:
+        return None, fail(ROLE, fn, err[0], err[1])
+    return recs, None
+
+
+def _completeness(recs, established):
+    """The unknown describing how much of the decision record was actually read.
+
+    Two distinct facts share one shape here, and this adapter **cannot yet tell
+    them apart**: a file with no Status line at all, and a file whose Status is
+    written in a dialect this parser does not support. Both leave `status` None.
+    Until the dialect work lands (issue #28) the reason is necessarily imprecise,
+    and saying so is better than picking one and sounding certain.
+
+    Blocking is decided by dominance rather than a threshold pulled from the air:
+    when more files could not be read than constraints were established, the
+    answer is dominated by what was not read, and governing on the readable
+    minority would state an architecture that is mostly unexamined. One
+    unreadable file among twenty constraints is a footnote; nineteen among two
+    is not the same fact at a different size.
+    """
+    unstated = [r for r in recs if r["status"] is None]
+    if not unstated:
+        return None
+    # A file the parser could not read is not the same fact as a file that
+    # declares nothing. Report the specific reason when the unreadable files
+    # agree on one, so "you left a template unfilled" never arrives disguised as
+    # "you have no statuses".
+    # A specific fault wins over a generic absence even when both are present.
+    # Requiring unanimity would let one file with no status at all mask a
+    # placeholder in another -- the definite problem diluted by the vague one.
+    reasons = [r.get("unreadable_reason") for r in unstated]
+    specific = next((x for x in ("STATUS_DIALECTS_DISAGREE", "STATUS_TEMPLATE_UNFILLED")
+                     if x in reasons), None)
+    if specific:
+        detail = (f"{len(unstated)} of {len(recs)} decision file(s): "
+                  + ", ".join(r["id"] for r in unstated[:5])
+                  + (" ..." if len(unstated) > 5 else ""))
+        resolution = ("Fill in the template placeholder, or reconcile the disagreeing status "
+                      "lines so the file says one thing.")
+        # Written as literals, not a variable: conformance/vocabulary.py scans
+        # statically for emitted reasons and a computed one is invisible to it.
+        if specific == "STATUS_DIALECTS_DISAGREE":
+            return {"reason": "STATUS_DIALECTS_DISAGREE", "detail": detail,
+                    "resolution": resolution, "blocking": True}
+        return {"reason": "STATUS_TEMPLATE_UNFILLED", "detail": detail,
+                "resolution": resolution, "blocking": True}
+    detail = (f"{len(unstated)} of {len(recs)} decision file(s) have no Status this adapter can "
+              f"read; {established} constraint(s) were established. "
+              + ", ".join(r["id"] for r in unstated[:5])
+              + (" ..." if len(unstated) > 5 else ""))
+    resolution = ("Add a Status line each parser can read, or check whether these use a status "
+                  "dialect this adapter does not support yet (issue #28).")
+    if len(unstated) > established:
+        return {"reason": "ARCHITECTURE_PARTIALLY_READ", "detail": detail,
+                "resolution": resolution, "blocking": True}
+    return {"reason": "STATUS_UNSTATED", "detail": detail,
+            "resolution": resolution, "blocking": False}
+
+
+def get_active_decisions(kw):
+    recs, err = _guard("get_active_decisions")
+    if err:
+        return err
+    active = [r for r in recs
+              if r["status"] and r["status"].split()[0].lower() in ACTIVE
+              and not r["superseded_by"]]
+    u = _completeness(recs, len(active))
+    return ok(ROLE, "get_active_decisions",
+              {"decisions": active, "count": len(active)},
+              [cite("adr", r["path"], "**Status**") for r in active] or [cite("adr", str(ADR_DIR))],
+              unknown=u)
+
+
+def get_superseded_decisions(kw):
+    recs, err = _guard("get_superseded_decisions")
+    if err:
+        return err
+    sup = [r for r in recs
+           if r["superseded_by"] or (r["status"] and r["status"].split()[0].lower() in HISTORICAL)]
+    return ok(ROLE, "get_superseded_decisions",
+              {"decisions": sup, "count": len(sup)},
+              [cite("adr", r["path"], "superseded by") for r in sup] or [cite("adr", str(ADR_DIR))])
+
+
+def get_constraints(kw):
+    """Architecture state per §37. Proposed-only => INFERRED, never DEFINED."""
+    recs, err = _guard("get_constraints")
+    if err:
+        return err
+    if not recs:
+        return unknown(ROLE, "get_constraints",
+                       reason="NO_ARCHITECTURE_EVIDENCE",
+                       detail=f"No ADR files found in {str(ADR_DIR)!r}.",
+                       resolution="Add ADRs, bind another architecture provider, or accept UNKNOWN.",
+                       blocking=False)
+    accepted = [r for r in recs
+                if r["status"] and r["status"].split()[0].lower() == "accepted"
+                and not r["superseded_by"]]
+    proposed = [r for r in recs
+                if r["status"] and r["status"].split()[0].lower() == "proposed"
+                and not r["superseded_by"]]
+    if accepted:
+        state, constraints = "DEFINED", accepted
+    elif proposed:
+        state, constraints = "INFERRED", proposed
+    else:
+        state, constraints = "UNKNOWN", []
+    # The defect this fixes (#25): `state` was returned as DEFINED with no unknown
+    # attached while every file the parser could not read was silently dropped.
+    # A partial read reported as DEFINED asserts an architecture that was never
+    # examined -- ADR-003 rule 6, absence conflated with unknown, inside our own
+    # adapter. Completeness takes precedence over the proposed-only note, because
+    # not having read the decisions outranks having read only unaccepted ones.
+    u = _completeness(recs, len(constraints))
+    if u and u["blocking"]:
+        # `state` must not contradict the unknown beside it. A consumer reading
+        # only `state` would see DEFINED and proceed, which is the same confident
+        # wrong answer one field over. Where the read is dominated by what could
+        # not be parsed, the architecture state IS unknown (§37's third value).
+        state = "UNKNOWN"
+    if u is None and state == "INFERRED":
+        u = {
+            "reason": "NO_ACCEPTED_DECISIONS",
+            "detail": f"{len(proposed)} decision(s) are Proposed; none Accepted. "
+                      "Proposed decisions do not establish authoritative constraints.",
+            "resolution": "Accept the decisions that should bind, or treat architecture as UNKNOWN.",
+            "blocking": False,
+        }
+    return ok(ROLE, "get_constraints",
+              {"state": state,
+               "constraints": [{"id": r["id"], "title": r["title"]} for r in constraints]},
+              [cite("adr", r["path"], "**Status**") for r in constraints] or [cite("adr", str(ADR_DIR))],
+              unknown=u)
+
+
+def get_provenance(kw):
+    recs, err = _guard("get_provenance")
+    if err:
+        return err
+    return ok(ROLE, "get_provenance",
+              {"source": "adr-directory", "path": str(ADR_DIR), "documents": len(recs)},
+              [cite("adr", str(ADR_DIR))])
+
+
+def get_specs(kw):
+    """This adapter reads ADRs, not specs. Absence, not failure."""
+    recs, err = _guard("get_specs")
+    if err:
+        return err
+    return ok(ROLE, "get_specs", {"specs": [], "count": 0,
+                                  "note": "ADR adapter serves decisions; bind OpenSpec/Spec Kit for specs."},
+              [cite("adr", str(ADR_DIR))])
+
+
+def _probe():
+    return ADR_DIR.exists() and ADR_DIR.is_dir()
+
+
+def _transport_detail():
+    """Why there is nothing here, in the adapter's own words (issue 199).
+
+    Without it `--validate` reports "advertises no capabilities; transport is
+    not configured" -- which is what a BROKEN ADAPTER looks like. The adapter is
+    fine; it was pointed at a directory that does not exist, and the operator
+    has no way to learn that from the refusal. A reporter reading this message
+    concluded the ADR provider did not work, when the manifest was missing a
+    `path` (the other half of 199).
+    """
+    if not ADR_DIR.exists():
+        return (f"no ADR directory at {str(ADR_DIR)!r} (relative to the governed "
+                f"repository). Declare providers.architecture[].path if your ADRs "
+                f"live elsewhere -- onboarding conventions are docs/adr, docs/adrs, "
+                f"docs/decisions, doc/adr, adrs.")
+    if not ADR_DIR.is_dir():
+        return f"{str(ADR_DIR)!r} exists but is not a directory"
+    return None
+
+
+FUNCTIONS = {
+    "get_active_decisions": get_active_decisions,
+    "get_superseded_decisions": get_superseded_decisions,
+    "get_constraints": get_constraints,
+    "get_provenance": get_provenance,
+    "get_specs": get_specs,
+}
+
+PROPERTIES = {
+    "persistence": True,
+    "provenance_quality": "exact",
+}
+
+CAPABILITIES = {
+    "active_decisions": True,
+    "superseded_decisions": True,
+    "constraints": True,
+    "specs": False,             # honest: returns empty by design
+    "provenance": True,
+}
+
+if __name__ == "__main__":
+    sys.exit(main(ROLE, CAPABILITIES, FUNCTIONS,
+                  {"name": "adr", "permissions": {"read": True, "write": False}},
+                  properties=PROPERTIES, probe=_probe,
+                  transport_detail=_transport_detail))

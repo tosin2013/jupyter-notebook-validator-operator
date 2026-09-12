@@ -1,0 +1,26 @@
+{
+  "$comment": "Criteria taken from issue #34 Acceptance Criteria (make targets and CONTRIBUTING.md).",
+  "authority_id": "34",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "grep -q '^dev-up:' Makefile"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q '^dev-down:' Makefile"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q '^dev-logs:' Makefile"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'dev-up' CONTRIBUTING.md"
+    }
+  ],
+  "covers": {
+    "declared": "Makefile dev-up/dev-down/dev-logs and CONTRIBUTING.md reference",
+    "uncovered": "End-to-end run on a clean Linux and macOS machine with only kind and docker"
+  }
+}

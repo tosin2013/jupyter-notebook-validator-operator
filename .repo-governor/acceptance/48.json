@@ -1,0 +1,10 @@
+{
+  "$comment": "Fix broken cross-links in docs/ after reorganization (#47). Criterion: grep finds zero broken docs/ references in guide subfolders.",
+  "authority_id": "48",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "test $(grep -rn 'docs/[A-Z][A-Z_-]*\\.md' docs/getting-started/ docs/guides/ docs/architecture/ docs/operations/ docs/testing/ docs/community/ 2>/dev/null | while IFS=: read -r file lineno content; do ref=$(echo \"$content\" | grep -oP 'docs/[A-Z][A-Z_-]+\\.md' | head -1); [ -n \"$ref\" ] && [ ! -f \"$ref\" ] && echo BROKEN; done | wc -l) -eq 0"
+    }
+  ]
+}

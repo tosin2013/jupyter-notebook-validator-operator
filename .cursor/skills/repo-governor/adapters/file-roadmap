@@ -1,0 +1,201 @@
+#!/usr/bin/env python3
+"""RoadmapAuthorityProvider backed by a local JSON file (spec §11, ADR-003).
+
+The reference roadmap provider. Exists so a repository can be governed with
+no tracker at all (§54: must not require a specific tracker), and so ADR-008
+Layer 2 has a neutral baseline to compare Linear/GitHub Projects against.
+
+Source: .repo-governor/roadmap.json — JSON per ADR-015.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from _protocol import cite, fail, main, ok, unknown  # noqa: E402
+
+ROLE = "roadmap_authority"
+SRC = Path(os.environ.get("REPO_GOVERNOR_ROADMAP", ".repo-governor/roadmap.json"))
+
+# Authority vocabulary. Closed — an unrecognised value is MALFORMED_SOURCE,
+# never silently coerced (the failure mode ADR-015 rejected YAML over).
+AUTHORITY = {"AUTHORIZED", "ADMITTED", "WITHDRAWN", "CANCELLED", "DEFERRED", "REJECTED"}
+
+
+def _load(fn):
+    if not SRC.exists():
+        return None, fail(ROLE, fn, "PROVIDER_UNAVAILABLE",
+                          f"roadmap file {str(SRC)!r} does not exist")
+    try:
+        raw = SRC.read_text(encoding="utf-8")
+    except OSError as e:
+        return None, fail(ROLE, fn, "PROVIDER_UNAVAILABLE", f"cannot read {str(SRC)!r}: {e}")
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        return None, fail(ROLE, fn, "MALFORMED_SOURCE", f"{str(SRC)!r} is not valid JSON: {e}")
+    if not isinstance(data, dict) or "items" not in data:
+        return None, fail(ROLE, fn, "MALFORMED_SOURCE", "roadmap must be an object with an 'items' map")
+    return data, None
+
+
+def _item(fn, kw):
+    data, err = _load(fn)
+    if err:
+        return None, None, err
+    wid = kw.get("id")
+    if not wid:
+        return None, None, fail(ROLE, fn, "BAD_REQUEST", "missing required argument: id=<work-id>")
+    # Structure is validated before it is used. `items` must be a MAPPING
+    # keyed by id; given a list -- the shape most people write first -- this
+    # raised AttributeError, the traceback reached the engine as reason
+    # NON_JSON, and a reader went looking for a syntax error in a file that is
+    # perfectly valid JSON. ADR-008 requires a typed failure, and a traceback
+    # in a detail field is not one.
+    items = data.get("items")
+    if not isinstance(items, dict):
+        return None, None, fail(ROLE, fn, "MALFORMED_SOURCE",
+                                f"{str(SRC)!r}: 'items' must be an object keyed by work id, "
+                                f"got {type(items).__name__}. The file parses as JSON; its "
+                                "shape is wrong, which is a different failure from unreadable.")
+    item = items.get(wid)
+    if item is None:
+        return None, None, fail(ROLE, fn, "NOT_FOUND", f"no work item {wid!r} in {str(SRC)!r}")
+    return data, item, None
+
+
+def get_work(kw):
+    _, item, err = _item("get_work", kw)
+    if err:
+        return err
+    return ok(ROLE, "get_work",
+              {"id": kw["id"], "title": item.get("title"), "exists": True},
+              [cite("file-roadmap", f"{SRC}#items.{kw['id']}", "title")])
+
+
+def get_status(kw):
+    _, item, err = _item("get_status", kw)
+    if err:
+        return err
+    return ok(ROLE, "get_status", {"status": item.get("status")},
+              [cite("file-roadmap", f"{SRC}#items.{kw['id']}", "status")])
+
+
+def get_authority(kw):
+    """The question that decides EXECUTE. Unrecognised values must not pass."""
+    _, item, err = _item("get_authority", kw)
+    if err:
+        return err
+    a = item.get("authority")
+    if a is None:
+        return unknown(ROLE, "get_authority",
+                       reason="AUTHORITY_UNSTATED",
+                       detail=f"{kw['id']} has no 'authority' field.",
+                       resolution="Set authority to one of: " + ", ".join(sorted(AUTHORITY)),
+                       blocking=True)
+    if a not in AUTHORITY:
+        return fail(ROLE, "get_authority", "MALFORMED_SOURCE",
+                    f"{kw['id']}.authority = {a!r} is not in the closed vocabulary {sorted(AUTHORITY)}")
+    return ok(ROLE, "get_authority",
+              {"authority": a, "admitted": item.get("admitted", a != "REJECTED")},
+              [cite("file-roadmap", f"{SRC}#items.{kw['id']}", "authority")])
+
+
+def get_scope(kw):
+    _, item, err = _item("get_scope", kw)
+    if err:
+        return err
+    return ok(ROLE, "get_scope",
+              {"in_scope": item.get("in_scope", []),
+               "required_outcome": item.get("required_outcome")},
+              [cite("file-roadmap", f"{SRC}#items.{kw['id']}", "in_scope")])
+
+
+def get_non_goals(kw):
+    """Absence is meaningful here — a thin envelope governs weakly (#2)."""
+    _, item, err = _item("get_non_goals", kw)
+    if err:
+        return err
+    if "non_goals" not in item:
+        return unknown(ROLE, "get_non_goals",
+                       reason="NON_GOALS_UNSTATED",
+                       detail=f"{kw['id']} declares no non_goals; the scope envelope will be thin.",
+                       resolution="Add explicit non_goals to bound the authorization.",
+                       blocking=False)
+    return ok(ROLE, "get_non_goals", {"non_goals": item["non_goals"]},
+              [cite("file-roadmap", f"{SRC}#items.{kw['id']}", "non_goals")])
+
+
+def get_acceptance_conditions(kw):
+    _, item, err = _item("get_acceptance_conditions", kw)
+    if err:
+        return err
+    conds = item.get("acceptance_conditions")
+    if conds is None:
+        return unknown(ROLE, "get_acceptance_conditions",
+                       reason="ACCEPTANCE_UNSTATED",
+                       detail=f"{kw['id']} has no acceptance_conditions; completion cannot be verified.",
+                       resolution="Add machine-checkable acceptance_conditions.",
+                       blocking=False)
+    return ok(ROLE, "get_acceptance_conditions",
+              {"acceptance_conditions": conds,
+               "machine_checkable": all(isinstance(c, dict) and "check" in c for c in conds)},
+              [cite("file-roadmap", f"{SRC}#items.{kw['id']}", "acceptance_conditions")])
+
+
+def get_parent_or_goal(kw):
+    _, item, err = _item("get_parent_or_goal", kw)
+    if err:
+        return err
+    return ok(ROLE, "get_parent_or_goal", {"parent": item.get("parent")},
+              [cite("file-roadmap", f"{SRC}#items.{kw['id']}", "parent")])
+
+
+def get_decision_history(kw):
+    _, item, err = _item("get_decision_history", kw)
+    if err:
+        return err
+    return ok(ROLE, "get_decision_history",
+              {"history": item.get("decision_history", [])},
+              [cite("file-roadmap", f"{SRC}#items.{kw['id']}", "decision_history")])
+
+
+def _probe():
+    return SRC.exists()
+
+
+FUNCTIONS = {
+    "get_work": get_work,
+    "get_status": get_status,
+    "get_authority": get_authority,
+    "get_scope": get_scope,
+    "get_non_goals": get_non_goals,
+    "get_acceptance_conditions": get_acceptance_conditions,
+    "get_parent_or_goal": get_parent_or_goal,
+    "get_decision_history": get_decision_history,
+}
+
+PROPERTIES = {
+    "persistence": True,
+    "provenance_quality": "exact",
+}
+
+CAPABILITIES = {
+    "work_lookup": True,
+    "status": True,
+    "authority": True,
+    "cancellation_detection": True,
+    "scope": True,
+    "non_goals": True,
+    "acceptance_conditions": True,
+    "decision_history": True,
+}
+
+if __name__ == "__main__":
+    sys.exit(main(ROLE, CAPABILITIES, FUNCTIONS,
+                  {"name": "file-roadmap", "permissions": {"read": True, "write": False}},
+                  properties=PROPERTIES, probe=_probe))

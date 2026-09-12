@@ -1,0 +1,16 @@
+{
+  "profile": "GOVERNOR_GREENFIELD",
+  "condition": "L0",
+  "$comment": "Absence of constraints is not unlimited authority (INV-011). Controls are few but firm: architecture budget, dependency restraint, hard first-feature scope.",
+  "active_invariants": [
+    "INV-001",
+    "INV-009",
+    "INV-010",
+    "INV-012",
+    "INV-011"
+  ],
+  "required_roles": [
+    "repository"
+  ],
+  "escalate_to_blocking": []
+}

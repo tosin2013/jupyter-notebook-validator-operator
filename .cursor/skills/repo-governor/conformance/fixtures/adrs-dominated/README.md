@@ -1,0 +1,1 @@
+Fixture: a decision directory the parser is mostly unable to read. Two files carry a Status this adapter understands; five do not. The read is dominated by what was not parsed, so `get_constraints` must report `UNKNOWN` with a blocking `ARCHITECTURE_PARTIALLY_READ`.

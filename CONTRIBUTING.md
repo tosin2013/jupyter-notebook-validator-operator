@@ -109,6 +109,10 @@ Write clear, concise commit messages:
 - Reference related issues when applicable (e.g., `Fixes #42`)
 - Keep the subject line under 72 characters
 
+### Architectural decisions
+
+Do not edit an Accepted ADR in place to change the decision. Follow **[Changing ADRs](docs/adrs/README.md#changing-adrs)** in `docs/adrs/README.md`: run Repo Governor `completion.py` on the issue first, draft a **Proposed** superseding ADR, and leave **Accepted** / **Superseded** status for human ratification.
+
 ### Code Style
 
 - Follow standard Go conventions and idioms.
@@ -164,7 +168,7 @@ To sync the repository description, homepage URL, topics, and Discussions flag v
 
 ### Adding Model Serving Platforms
 
-The operator supports a plugin-based architecture for model serving platforms. For detailed instructions on adding support for new platforms (e.g., custom inference servers), see the [Contributing Model Platforms Guide](docs/CONTRIBUTING_MODEL_PLATFORMS.md).
+The operator supports a plugin-based architecture for model serving platforms. For detailed instructions on adding support for new platforms (e.g., custom inference servers), see the [Contributing Model Platforms Guide](docs/community/CONTRIBUTING_MODEL_PLATFORMS.md).
 
 ### Helm Chart
 

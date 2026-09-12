@@ -1,0 +1,13 @@
+{
+  "$comment": "Shaped to GitHub's issue schema. Titles and bodies are synthetic; only the stateReason vocabulary is drawn from real observation (a repository where 54 of 60 closed issues were NOT_PLANNED). Real issue content is not committed: this repository is public and the source is not.",
+  "issues": [
+    { "number": 901, "title": "Declined work", "state": "CLOSED", "stateReason": "NOT_PLANNED",
+      "closedAt": "2026-08-01T00:00:00Z", "labels": { "nodes": [] } },
+    { "number": 902, "title": "Duplicate of another item", "state": "CLOSED", "stateReason": "DUPLICATE",
+      "closedAt": "2026-08-02T00:00:00Z", "labels": { "nodes": [] } },
+    { "number": 903, "title": "Finished work", "state": "CLOSED", "stateReason": "COMPLETED",
+      "closedAt": "2026-08-03T00:00:00Z", "labels": { "nodes": [] } },
+    { "number": 904, "title": "Still open", "state": "OPEN", "stateReason": null,
+      "closedAt": null, "labels": { "nodes": [] } }
+  ]
+}

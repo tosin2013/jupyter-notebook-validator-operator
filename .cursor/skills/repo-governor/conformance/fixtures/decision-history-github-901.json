@@ -1,0 +1,17 @@
+{
+  "$comment": "Single-issue GraphQL response for #901, the raw shape an agent hands to the adapter under option C (#18). Content is identical to node 901 in decision-history-github.json, so option A and option C must agree byte for byte.",
+  "data": {
+    "repository": {
+      "issue": {
+        "number": 901,
+        "title": "Declined work",
+        "state": "CLOSED",
+        "stateReason": "NOT_PLANNED",
+        "closedAt": "2026-08-01T00:00:00Z",
+        "labels": {
+          "nodes": []
+        }
+      }
+    }
+  }
+}

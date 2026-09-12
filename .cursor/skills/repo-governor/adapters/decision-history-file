@@ -1,0 +1,399 @@
+#!/usr/bin/env python3
+"""DecisionHistoryProvider backed by an append-only JSONL file. Zero dependencies.
+
+WHY THIS EXISTS. `decision_history` was the only role with no zero-dependency
+backend: Dolt needs a binary and an initialised database, GitHub needs `gh`.
+Every other role degrades to a plain file. So a default install could not
+record a decision at all -- and `CAPTURE_ONLY` is the product's DEFAULT
+disposition (§32), the outcome the skill tells agents to expect. `envelope.py
+--record` resolved `decision_history` through `writer_for`, got UNBOUND, and
+the capture had nowhere to go. The disposition still read CAPTURE_ONLY, which
+looks exactly like the system working. Issue 56.
+
+ADR-019 authorised this and dictated its shape. Rule 2: "The backend is
+pluggable, not prescribed. Any store satisfying the role contract may back it.
+Dolt is the reference implementation because it supplies history natively."
+Rule 3: "A backend that cannot supply history must implement chaining itself
+and SAY SO in its properties, so the difference is visible rather than
+assumed."
+
+So this hand-rolls the chain, and says so. `chain_supplied_by_store` is False
+here and True on Dolt, and that field is the whole point: a consumer must be
+able to tell a chain the store guarantees from one this file computes.
+
+WHAT IT IS HONESTLY WEAKER AT. Dolt's `dolt_log` makes rewriting history
+detectable by the store, with a committer and a timestamp per commit. This
+computes a sha256 over each record, links it to its predecessor, and verifies
+the links on read. That makes a rewrite DETECTABLE -- `get_provenance` reports
+a broken chain -- but not PREVENTED, and it names no committer. Append-only is
+a convention here and a guarantee there. Recommend Dolt where the evidence
+chain has to hold against an adversary rather than against a mistake.
+
+Storage: one JSON object per line, appended, never rewritten.
+
+  REPO_GOVERNOR_DECISIONS_DIR   directory holding decisions.jsonl
+                                (default .repo-governor/decisions)
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from _protocol import cite, fail, main, ok, unknown  # noqa: E402
+
+ROLE = "decision_history"
+DIR = Path(os.environ.get("REPO_GOVERNOR_DECISIONS_DIR", ".repo-governor/decisions"))
+LOG = DIR / "decisions.jsonl"
+
+# Same closed vocabulary as the Dolt backend. Two backends of one role that
+# disagree about the vocabulary would fail Layer 2 equivalence, which is the
+# point of binding both (ADR-019 rule 2, ADR-013).
+DISPOSITIONS = ("ACCEPTED", "DEFERRED", "REJECTED", "SUPERSEDED", "CANCELLED")
+
+SAFE_ID = re.compile(r"^[A-Za-z0-9._#-]{1,128}$")
+
+# Fields that make up a record, in a fixed order. The hash is computed over
+# these and nothing else, so adding a field later cannot silently change the
+# hash of an existing record.
+FIELDS = ("decision_id", "authority_id", "disposition", "reason", "reversal_condition",
+          "engine_version", "manifest_hash", "snapshot_sha256", "typed_facts",
+          "redacted", "fields_redacted", "prev_sha256")
+
+TRANSPORTS = {
+    "file":          {"writers": {"record_decision": None}},
+    "file-readonly": {"writers": {}},
+}
+
+
+def _probe():
+    """No directory means no capabilities -- missing is absent, never an empty history."""
+    return DIR.exists() and DIR.is_dir()
+
+
+def _writable():
+    """A readable store is not a writable one (ADR-008 C9)."""
+    return DIR.is_dir() and os.access(DIR, os.W_OK)
+
+
+def _digest(rec):
+    """sha256 over the canonical form of the declared fields, excluding `sha256`.
+
+    Sorted keys and a fixed separator so the same record always hashes the
+    same, on any machine and any interpreter. A chain whose links depend on
+    dict ordering is not a chain.
+    """
+    body = {k: rec.get(k) for k in FIELDS}
+    return hashlib.sha256(
+        json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def _read():
+    """(records, chain_error). A malformed line is an error, never a skipped line.
+
+    Skipping unparseable lines would turn a corrupted store into a shorter,
+    healthy-looking history -- the "silently returning no ADRs found" defect
+    ADR-008 names, applied to decisions.
+    """
+    if not LOG.exists():
+        return [], None
+    recs = []
+    for n, line in enumerate(LOG.read_text(encoding="utf-8").splitlines(), 1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            recs.append(json.loads(line))
+        except json.JSONDecodeError as e:
+            return None, f"line {n} is not valid JSON ({e.msg})"
+    prev = None
+    for i, r in enumerate(recs, 1):
+        if r.get("prev_sha256") != prev:
+            return recs, (f"chain broken at record {i} ({r.get('decision_id')!r}): "
+                          f"prev_sha256 is {r.get('prev_sha256')!r}, expected {prev!r}")
+        if r.get("sha256") != _digest(r):
+            return recs, (f"record {i} ({r.get('decision_id')!r}) does not match its own "
+                          "sha256 -- it was edited in place")
+        prev = r["sha256"]
+    return recs, None
+
+
+def _guard(fn, kw):
+    wid = kw.get("id")
+    if not wid:
+        return None, fail(ROLE, fn, "BAD_REQUEST", "missing required argument: id=<authority-id>")
+    if not SAFE_ID.match(wid):
+        return None, fail(ROLE, fn, "BAD_REQUEST", f"authority id {wid!r} is not a safe identifier")
+    return wid, None
+
+
+def _unavailable(fn):
+    """A missing store is UNAVAILABLE, not empty.
+
+    These are different facts and conflating them is the specific defect
+    ADR-008 C3 exists to catch: "silently returning 'no ADRs found' when the
+    directory is unreadable is the bug that produces confidently wrong
+    governance." A store nobody can read has no opinion; an empty store has
+    the opinion that nothing was decided. Only the second is evidence.
+
+    Directory present but decisions.jsonl absent IS legitimately empty -- that
+    is a store that exists and holds nothing yet.
+    """
+    if not DIR.is_dir():
+        return fail(ROLE, fn, "PROVIDER_UNAVAILABLE",
+                    f"{DIR} does not exist or is not a directory; the decision store is "
+                    "unreadable, which is not the same as holding no decisions")
+    return None
+
+
+def _rows(fn, wid):
+    un = _unavailable(fn)
+    if un:
+        return None, un
+    recs, cerr = _read()
+    if recs is None:
+        return None, fail(ROLE, fn, "MALFORMED_SOURCE", f"{LOG}: {cerr}")
+    if cerr:
+        # A broken chain is not a reason to answer from it. Reporting the
+        # records anyway would be handing back evidence we just said is
+        # untrustworthy.
+        return None, fail(ROLE, fn, "MALFORMED_SOURCE", f"{LOG}: {cerr}")
+    rows = [r for r in recs if r.get("authority_id") == wid]
+    bad = [r for r in rows if r.get("disposition") not in DISPOSITIONS]
+    if bad:
+        return None, fail(ROLE, fn, "MALFORMED_SOURCE",
+                          f"{len(bad)} record(s) carry a disposition outside "
+                          f"{list(DISPOSITIONS)}: {[b.get('disposition') for b in bad][:3]}")
+    return rows, None
+
+
+def get_decisions(kw):
+    wid, err = _guard("get_decisions", kw)
+    if err:
+        return err
+    rows, err = _rows("get_decisions", wid)
+    if err:
+        return err
+    if not rows:
+        return unknown(ROLE, "get_decisions",
+                       reason="NO_DECISION_RECORDED",
+                       detail=f"No decision has been recorded for {wid}. Absence of a prior "
+                              "decision is not permission; it means the question was never asked.",
+                       resolution="Proceed under current authority, or record a decision.",
+                       blocking=False)
+    return ok(ROLE, "get_decisions",
+              {"authority_id": wid, "decisions": rows, "count": len(rows)},
+              [cite("decision-file", f"{LOG}#{r['decision_id']}", "disposition") for r in rows])
+
+
+def get_disposition(kw):
+    """Most recent live disposition. SUPERSEDED records do not govern (INV-008)."""
+    wid, err = _guard("get_disposition", kw)
+    if err:
+        return err
+    rows, err = _rows("get_disposition", wid)
+    if err:
+        return err
+    live = [r for r in rows if r["disposition"] != "SUPERSEDED"]
+    if not live:
+        return unknown(ROLE, "get_disposition",
+                       reason="NO_DECISION_RECORDED",
+                       detail=f"No live decision for {wid}"
+                              + (f"; {len(rows)} superseded record(s) exist." if rows else "."),
+                       resolution="Record a decision, or proceed under current authority.",
+                       blocking=False)
+    latest = live[-1]
+    return ok(ROLE, "get_disposition",
+              {"authority_id": wid, "disposition": latest["disposition"],
+               "reason": latest.get("reason"), "superseded_count": len(rows) - len(live)},
+              [cite("decision-file", f"{LOG}#{latest['decision_id']}", "disposition")])
+
+
+def get_reversal_condition(kw):
+    """§39: rediscovered work stays CAPTURE_ONLY unless the condition is met."""
+    wid, err = _guard("get_reversal_condition", kw)
+    if err:
+        return err
+    rows, err = _rows("get_reversal_condition", wid)
+    if err:
+        return err
+    withheld = [r for r in rows if r["disposition"] in ("DEFERRED", "REJECTED")]
+    if not withheld:
+        return unknown(ROLE, "get_reversal_condition",
+                       reason="NO_DECISION_RECORDED",
+                       detail=f"{wid} has no DEFERRED or REJECTED decision, so no reversal "
+                              "condition applies.",
+                       resolution="None needed.",
+                       blocking=False)
+    latest = withheld[-1]
+    cond = latest.get("reversal_condition")
+    if not cond:
+        return unknown(ROLE, "get_reversal_condition",
+                       reason="NO_DECISION_RECORDED",
+                       detail=f"{wid} was {latest['disposition']} but recorded no reversal "
+                              "condition, so nothing can establish that it may be revisited.",
+                       resolution="Record a reversal_condition on the decision.",
+                       blocking=True)
+    return ok(ROLE, "get_reversal_condition",
+              {"authority_id": wid, "disposition": latest["disposition"],
+               "reversal_condition": cond, "satisfied": None,
+               "note": "Whether the condition is satisfied is a judgement this provider "
+                       "does not make. It reports the condition; the engine composes."},
+              [cite("decision-file", f"{LOG}#{latest['decision_id']}", "reversal_condition")])
+
+
+def get_provenance(kw):
+    """The chain, and whether it still holds. This is where ADR-019 rule 3 lands.
+
+    Dolt answers this from `dolt_log`, which the store maintains. Here the
+    chain is ours, so the honest thing to report is not just its shape but its
+    CURRENT VERIFICATION -- a hand-rolled chain nobody checks is decoration.
+    """
+    un = _unavailable("get_provenance")
+    if un:
+        return un
+    recs, cerr = _read()
+    if recs is None:
+        return fail(ROLE, "get_provenance", "MALFORMED_SOURCE", f"{LOG}: {cerr}")
+    return ok(ROLE, "get_provenance",
+              {"source": "decision-file", "path": str(LOG),
+               "records": len(recs),
+               "chain": "hand-rolled: each record carries sha256 of its own fields and "
+                        "prev_sha256 of its predecessor. NOT supplied by the store "
+                        "(ADR-019 rule 3); a rewrite is detectable here, not prevented.",
+               "chain_intact": cerr is None,
+               "chain_error": cerr,
+               "head": recs[-1]["sha256"] if recs else None},
+              [cite("decision-file", str(LOG), "sha256")])
+
+
+def get_history(kw):
+    """Every appended version of the records for one authority item.
+
+    Weaker than Dolt's `dolt_history_decisions`: that returns each record as of
+    each commit, with a commit hash. This returns each APPEND, which is the
+    only notion of revision an append-only file has. Same question, coarser
+    answer, and `chain_supplied_by_store: false` is what tells a consumer so.
+    """
+    wid, err = _guard("get_history", kw)
+    if err:
+        return err
+    rows, err = _rows("get_history", wid)
+    if err:
+        return err
+    if not rows:
+        return unknown(ROLE, "get_history",
+                       reason="NO_DECISION_RECORDED",
+                       detail=f"No revision history for {wid}.",
+                       resolution="Record a decision.",
+                       blocking=False)
+    revs = [{"decision_id": r["decision_id"], "disposition": r["disposition"],
+             "sha256": r.get("sha256")} for r in rows]
+    return ok(ROLE, "get_history", {"authority_id": wid, "revisions": revs, "count": len(revs)},
+              [cite("decision-file", f"{LOG}#{r['decision_id']}", "sha256") for r in rows])
+
+
+def record_decision(kw):
+    """Append one decision record, linked to the current head. The only write."""
+    for req in ("decision_id", "authority_id", "disposition"):
+        if not kw.get(req):
+            return fail(ROLE, "record_decision", "BAD_REQUEST", f"missing required argument: {req}")
+    if kw["disposition"] not in DISPOSITIONS:
+        return fail(ROLE, "record_decision", "MALFORMED_SOURCE",
+                    f"disposition {kw['disposition']!r} is not in {list(DISPOSITIONS)}")
+    for field in ("decision_id", "authority_id"):
+        if not SAFE_ID.match(kw[field]):
+            return fail(ROLE, "record_decision", "BAD_REQUEST",
+                        f"{field}={kw[field]!r} is not a safe identifier")
+    un = _unavailable("record_decision")
+    if un:
+        return un
+    if not _writable():
+        return fail(ROLE, "record_decision", "PROVIDER_UNAVAILABLE",
+                    f"{DIR} is not writable")
+
+    recs, cerr = _read()
+    if recs is None or cerr:
+        # Appending to a broken chain would extend it and bury the break.
+        return fail(ROLE, "record_decision", "MALFORMED_SOURCE",
+                    f"refusing to append to a store whose chain does not verify: {cerr}")
+
+    # Idempotent: the same decision_id recorded twice is not two decisions.
+    # `--record` is documented as idempotent and callers rely on it.
+    existing = [r for r in recs if r.get("decision_id") == kw["decision_id"]]
+    if existing:
+        return ok(ROLE, "record_decision",
+                  {"decision_id": kw["decision_id"], "authority_id": kw["authority_id"],
+                   "recorded": True, "already_present": True,
+                   "note": "Already recorded; nothing appended. Recording is idempotent by "
+                           "decision_id, so a retried capture does not grow the chain."},
+                  [cite("decision-file", f"{LOG}#{kw['decision_id']}", "disposition")])
+
+    rec = {k: kw.get(k) for k in FIELDS}
+    rec["decision_id"] = kw["decision_id"]
+    rec["authority_id"] = kw["authority_id"]
+    rec["disposition"] = kw["disposition"]
+    rec["redacted"] = str(kw.get("redacted", "")).lower() == "true"
+    rec["prev_sha256"] = recs[-1]["sha256"] if recs else None
+    rec["sha256"] = _digest(rec)
+
+    DIR.mkdir(parents=True, exist_ok=True)
+    with LOG.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(rec, sort_keys=True, separators=(",", ":")) + "\n")
+    return ok(ROLE, "record_decision",
+              {"decision_id": rec["decision_id"], "authority_id": rec["authority_id"],
+               "recorded": True, "sha256": rec["sha256"], "prev_sha256": rec["prev_sha256"],
+               "note": "Appended and linked. The file is not committed by this adapter; "
+                       "committing it is a separate human or CI action, the same shape as "
+                       "ADR-010's detection-proposes rule."},
+              [cite("decision-file", f"{LOG}#{rec['decision_id']}", "disposition")])
+
+
+WRITERS = {"record_decision": record_decision}
+
+FUNCTIONS = {
+    "get_decisions": get_decisions,
+    "get_disposition": get_disposition,
+    "get_reversal_condition": get_reversal_condition,
+    "get_provenance": get_provenance,
+    "get_history": get_history,
+}
+
+PROPERTIES = {
+    "persistence": True,
+    # Survives a change of host. The store is a text file at a path git tracks,
+    # so `git clone` carries the chain. This is the property that decides
+    # whether a decommissioned machine takes the decision history with it --
+    # see the sibling field on decision-history-dolt.
+    "portable": True,
+    # Values are READ from fields that mean what they say, so provenance is
+    # exact -- unlike decision-history-github, which infers a disposition from
+    # a closure reason.
+    "provenance_quality": "exact",
+    # The field ADR-019 rule 3 exists for. False here, True on Dolt. A
+    # consumer that cannot tell these apart is trusting a guarantee nobody made.
+    "chain_supplied_by_store": False,
+    "chain": "hand-rolled sha256 links; rewrite detectable, not prevented",
+    "vocabulary": list(DISPOSITIONS),
+}
+
+CAPABILITIES = {
+    "decisions": True,
+    "disposition": True,
+    "reversal_condition": True,
+    "provenance": True,
+    "revision_history": True,
+}
+
+if __name__ == "__main__":
+    sys.exit(main(ROLE, CAPABILITIES, FUNCTIONS,
+                  {"name": "decision-history-file",
+                   "permissions": {"read": True, "write": True}},
+                  properties=PROPERTIES, probe=_probe, writers=WRITERS,
+                  writers_probe=_writable, transports=TRANSPORTS))

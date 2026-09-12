@@ -1,0 +1,22 @@
+{
+  "$comment": "Criteria taken from issue #31 Acceptance Criteria (named EBS/EFS sample CRs and AWS Storage guide).",
+  "authority_id": "31",
+  "criteria": [
+    {
+      "check": "file_exists",
+      "target": "config/samples/mlops_v1alpha1_notebookvalidationjob_aws_ebs_pvc.yaml"
+    },
+    {
+      "check": "file_exists",
+      "target": "config/samples/mlops_v1alpha1_notebookvalidationjob_aws_efs_pvc.yaml"
+    },
+    {
+      "check": "file_exists",
+      "target": "docs/AWS_STORAGE_GUIDE.md"
+    }
+  ],
+  "covers": {
+    "declared": "Named EBS and EFS sample CRs and docs/AWS_STORAGE_GUIDE.md (issue allowed this new file)",
+    "uncovered": "kubectl apply --dry-run=client against a cluster kubeconfig; alternative of folding storage docs into NOTEBOOK_CREDENTIALS_GUIDE.md instead of the new file"
+  }
+}

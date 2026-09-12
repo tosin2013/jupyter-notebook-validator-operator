@@ -1,0 +1,22 @@
+{
+  "$comment": "ADR alignment: every ADR has standard status, README index is complete and consistent, no duplicates, no dialect disagreements.",
+  "authority_id": "46",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "test $(cd /home/ubuntu/jupyter-notebook-validator-operator && for f in docs/adrs/0*.md; do s=$(grep -A1 '^## Status' \"$f\" | tail -1 | tr -d '[:space:]'); [ -z \"$s\" ] && echo BLANK; done | wc -l) -eq 0"
+    },
+    {
+      "check": "command_exit",
+      "target": "test $(cd /home/ubuntu/jupyter-notebook-validator-operator && ls docs/adrs/0*.md | sed 's|.*/||' | grep -oP '^\\d+' | sort | uniq -d | wc -l) -eq 0"
+    },
+    {
+      "check": "command_exit",
+      "target": "test $(cd /home/ubuntu/jupyter-notebook-validator-operator && for f in docs/adrs/0*.md; do num=$(basename \"$f\" | grep -oP '^\\d+'); grep -qP \"^\\| \\[0*${num}\\]\" docs/adrs/README.md || echo MISSING; done | wc -l) -eq 0"
+    },
+    {
+      "check": "command_exit",
+      "target": "cd /home/ubuntu/jupyter-notebook-validator-operator && ! python3 .cursor/skills/repo-governor/engine/status.py . 2>&1 | grep -q 'STATUS_DIALECTS_DISAGREE'"
+    }
+  ]
+}

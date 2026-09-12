@@ -1,0 +1,69 @@
+{
+  "$comment": "MCP-shaped Linear payload. Derived mechanically from linear.json so the two fixtures are the SAME semantic states in two transports -- hand-matching them would make the equivalence test a test of my copying (#18 Q1).",
+  "issues": [
+    {
+      "id": "ENG-100",
+      "title": "Filed but not yet admitted",
+      "status": "Triage",
+      "statusType": "triage",
+      "project": null,
+      "parentId": null,
+      "labels": []
+    },
+    {
+      "id": "ENG-101",
+      "title": "Admitted, not scheduled",
+      "status": "Backlog",
+      "statusType": "backlog",
+      "project": "Governance",
+      "parentId": null,
+      "labels": []
+    },
+    {
+      "id": "ENG-102",
+      "title": "Scheduled and ready to start",
+      "status": "Todo",
+      "statusType": "unstarted",
+      "project": "Governance",
+      "parentId": null,
+      "labels": []
+    },
+    {
+      "id": "ENG-103",
+      "title": "In progress",
+      "status": "In Progress",
+      "statusType": "started",
+      "project": "Governance",
+      "parentId": null,
+      "labels": []
+    },
+    {
+      "id": "ENG-104",
+      "title": "Authority withdrawn",
+      "status": "Canceled",
+      "statusType": "canceled",
+      "project": "Governance",
+      "parentId": null,
+      "labels": []
+    },
+    {
+      "id": "ENG-105",
+      "title": "Finished",
+      "status": "Done",
+      "statusType": "completed",
+      "project": "Governance",
+      "parentId": null,
+      "labels": []
+    },
+    {
+      "id": "ENG-106",
+      "title": "Custom workflow state name, standard type",
+      "status": "Shipping It",
+      "statusType": "started",
+      "project": "Governance",
+      "parentId": null,
+      "labels": []
+    }
+  ],
+  "hasNextPage": false
+}

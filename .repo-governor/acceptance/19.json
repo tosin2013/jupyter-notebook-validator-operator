@@ -1,0 +1,14 @@
+{
+  "$comment": "Criteria taken from issue #19 Acceptance Criteria (copy S2I outputDockerImageReference). ImageReference already exists on the CRD type; that is not this bar.",
+  "authority_id": "19",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "grep -q 'outputDockerImageReference' internal/controller/*.go pkg/build/*.go"
+    }
+  ],
+  "covers": {
+    "declared": "Controller or build strategy reads build.status.outputDockerImageReference",
+    "uncovered": "Tier 4 E2E that the validation pod uses the built image rather than the base image (needs OpenShift)"
+  }
+}

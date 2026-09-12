@@ -1,0 +1,18 @@
+{
+  "$comment": "Criteria taken from issue #27 Acceptance Criteria (sample community dashboard; kustomization is currently resources: []).",
+  "authority_id": "27",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "! grep -q 'resources: \\[\\]' config/monitoring/community/kustomization.yaml"
+    },
+    {
+      "check": "command_exit",
+      "target": "ls config/monitoring/community/*.yaml | grep -v kustomization.yaml | grep -q ."
+    }
+  ],
+  "covers": {
+    "declared": "Community kustomization lists at least one dashboard YAML besides the kustomization file",
+    "uncovered": "Human walkthrough of docs/dashboards/CONTRIBUTING.md; kubectl apply -k on a cluster; third-party contributor PR"
+  }
+}

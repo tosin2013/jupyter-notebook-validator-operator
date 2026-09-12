@@ -9,6 +9,9 @@
 
 ---
 
+## Status
+Accepted
+
 ## Context and Problem Statement
 
 The v1.0.8 submission to both OperatorHub repositories encountered a series of
@@ -216,4 +219,4 @@ git push --force origin <branch>
 - [community-operators-prod PR #9442](https://github.com/redhat-openshift-ecosystem/community-operators-prod/pull/9442)
 - [community-operators PR #7940](https://github.com/k8s-operatorhub/community-operators/pull/7940)
 - ADR-047: Fix Bundle Versioning for Consecutive Upgrade Chain
-- ADR-048: Upgrade from Published v1.0.3-ocp4.19
+- ADR-057: Upgrade from Published v1.0.3-ocp4.19

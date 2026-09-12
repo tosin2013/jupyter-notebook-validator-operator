@@ -1,38 +1,25 @@
 # Jupyter Notebook Validator Operator
 
+Automate Jupyter Notebook testing in Kubernetes and OpenShift. Run notebooks, compare outputs against golden references, and validate against live ML models -- all from a single custom resource.
+
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Go Report Card](https://goreportcard.com/badge/github.com/tosin2013/jupyter-notebook-validator-operator)](https://goreportcard.com/report/github.com/tosin2013/jupyter-notebook-validator-operator)
 [![CI](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/ci.yml/badge.svg)](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/ci.yml)
 [![Tier 1 Tests](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/ci-unit-tests.yaml/badge.svg)](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/ci-unit-tests.yaml)
 [![E2E Kind](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/e2e-kind.yaml/badge.svg)](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/e2e-kind.yaml)
 [![E2E OpenShift](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/e2e-openshift.yaml/badge.svg)](https://github.com/tosin2013/jupyter-notebook-validator-operator/actions/workflows/e2e-openshift.yaml)
-[![OpenShift](https://img.shields.io/badge/OpenShift-4.19+-red.svg)](https://www.openshift.com/)
+[![OpenShift](https://img.shields.io/badge/OpenShift-4.20+-red.svg)](https://www.openshift.com/)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.31+-blue.svg)](https://kubernetes.io/)
+[![OperatorHub](https://img.shields.io/badge/OperatorHub.io-available-brightgreen.svg)](https://operatorhub.io/operator/jupyter-notebook-validator-operator)
 
-### CI Badge Guide
+## Why this operator?
 
-| Badge | Workflow | Cluster | Always runs |
-|---|---|---|---|
-| CI | `ci.yml` | none | yes — lint, build, security on every push/PR |
-| Tier 1 Tests | `ci-unit-tests.yaml` | Kind (ephemeral) | yes — unit + integration tests |
-| E2E Kind | `e2e-kind.yaml` | Kind (ephemeral) | yes — Tier 1 E2E on every push/PR |
-| E2E OpenShift | `e2e-openshift.yaml` | live OCP cluster | no — see note below |
+- **Notebook regression testing.** Compare executed outputs cell-by-cell against golden notebooks with configurable numeric tolerances.
+- **Model-aware validation.** Auto-detect 9 model serving platforms (KServe, OpenShift AI, vLLM, Triton, and more) and inject endpoints into notebooks.
+- **Git-native.** Clone notebooks from any Git repository (HTTPS or SSH). Credentials stay in Kubernetes Secrets.
+- **Zero custom images needed.** Auto-detect `requirements.txt` and build images with S2I or Tekton -- or bring your own.
 
-> **Grey or skipped E2E OpenShift badge is expected and not a failure.**
-> OpenShift E2E tests (Tiers 2-5) only run when `OPENSHIFT_SERVER` and `OPENSHIFT_TOKEN`
-> repository secrets are set and either a push to `main`/`release-*` occurs or a PR has
-> the `e2e-test` label applied. See [docs/CI_CLUSTER_SETUP.md](docs/CI_CLUSTER_SETUP.md)
-> for cluster registration instructions.
-
-A Kubernetes-native operator that automates Jupyter Notebook validation in MLOps workflows. Built with Operator SDK and Go, it provides Git integration, pod orchestration for notebook execution, golden notebook comparison for regression testing, and model-aware validation for ML/AI workloads.
-
-## Overview
-
-The Jupyter Notebook Validator Operator enables automated testing and validation of Jupyter notebooks in Kubernetes and OpenShift environments. It's designed for data science teams, ML engineers, and platform teams who need to ensure notebook reliability, reproducibility, and integration with deployed ML models.
-
-### Architecture
-
-High-level flow from a `NotebookValidationJob` to execution, comparison, and status:
+## Architecture
 
 ```mermaid
 flowchart LR
@@ -46,52 +33,40 @@ flowchart LR
     Controller -->|"update"| Status["Job Status"]
 ```
 
-For more detail, see [Architecture Overview](docs/ARCHITECTURE_OVERVIEW.md).
-
-### Key Features
-
-- **🔄 Automated Notebook Execution** - Execute notebooks in isolated Kubernetes pods with Papermill
-- **📊 Golden Notebook Comparison** - Regression testing with cell-by-cell output comparison
-- **🔐 Credential Management** - Secure injection of credentials (AWS, databases, APIs) via Secrets, ESO, or Vault
-- **🤖 Model-Aware Validation** - Validate notebooks against deployed models (KServe, OpenShift AI, vLLM, etc.)
-- **🔍 Git Integration** - Clone notebooks from Git repositories (HTTPS and SSH authentication)
-- **📈 Observability** - Prometheus metrics and structured logging with credential sanitization
-- **🎯 Platform Detection** - Auto-detect model serving platforms (9 platforms supported)
-- **🔒 Security** - RBAC, Pod Security Standards, secret rotation, and audit logging
-
 ## Quick Start
 
-### Prerequisites
-
-- **Kubernetes/OpenShift Cluster:** OpenShift 4.18+ (recommended) or Kubernetes 1.31+
-- **Command-line Tools:** kubectl or oc CLI, make (for building from source)
-- **Optional:** External Secrets Operator (ESO), KServe or OpenShift AI, Tekton Pipelines (for build integration)
-
-### Installation
+### Option A: Helm (recommended)
 
 ```bash
-# Install CRDs
+helm repo add jupyter-validator https://tosin2013.github.io/jupyter-notebook-validator-operator
+helm install jupyter-validator jupyter-validator/jupyter-notebook-validator-operator \
+  --namespace jupyter-validator-system --create-namespace
+```
+
+### Option B: Build from source
+
+```bash
 make install
-
-# Build and push image
 make docker-build docker-push IMG=quay.io/tosin2013/jupyter-notebook-validator-operator:v0.1.0
-
-# Deploy operator
 make deploy IMG=quay.io/tosin2013/jupyter-notebook-validator-operator:v0.1.0
 ```
 
-### Verify Installation
+### Verify
 
 ```bash
 kubectl get pods -n jupyter-notebook-validator-operator-system
 kubectl get crd notebookvalidationjobs.mlops.mlops.dev
 ```
 
-## Usage Examples
+### Prerequisites
 
-See [config/samples/](config/samples/) for complete examples.
+- OpenShift 4.20+ or Kubernetes 1.31+
+- `kubectl` or `oc` CLI
+- Optional: External Secrets Operator, KServe / OpenShift AI, Tekton Pipelines
 
-### Basic Validation
+## Usage
+
+Apply a `NotebookValidationJob` to run and validate a notebook:
 
 ```yaml
 apiVersion: mlops.mlops.dev/v1alpha1
@@ -108,80 +83,47 @@ spec:
     containerImage: quay.io/jupyter/scipy-notebook:latest
 ```
 
-### GPU and Specialized Node Scheduling
+More examples in [config/samples/](config/samples/), including GPU scheduling, golden notebook comparison, model validation, credential injection, and Tekton builds.
 
-Schedule validation pods on GPU nodes, high-memory nodes, or spot instances using Kubernetes-native scheduling features:
+## Key Features
 
-```yaml
-apiVersion: mlops.mlops.dev/v1alpha1
-kind: NotebookValidationJob
-metadata:
-  name: gpu-training-validation
-spec:
-  notebook:
-    git:
-      url: https://github.com/example/ml-notebooks.git
-      ref: main
-    path: notebooks/gpu-training.ipynb
-  podConfig:
-    containerImage: quay.io/jupyter/pytorch-notebook:cuda-latest
-    resources:
-      limits:
-        nvidia.com/gpu: "1"
-        memory: "16Gi"
-    # Tolerate GPU node taints
-    tolerations:
-      - key: nvidia.com/gpu
-        operator: Exists
-        effect: NoSchedule
-    # Target GPU nodes
-    nodeSelector:
-      nvidia.com/gpu.present: "true"
-    # Advanced affinity rules
-    affinity:
-      nodeAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-            - matchExpressions:
-                - key: nvidia.com/gpu.present
-                  operator: In
-                  values: ["true"]
-  timeout: "2h"
-```
-
-See [config/samples/mlops_v1alpha1_notebookvalidationjob_gpu_scheduling.yaml](config/samples/mlops_v1alpha1_notebookvalidationjob_gpu_scheduling.yaml) for more examples including:
-- GPU node scheduling with NVIDIA tolerations
-- High-memory node scheduling
-- Spot/preemptible instance scheduling
-- Multi-tenant cluster node pools with pod anti-affinity
+| Feature | Description |
+|---|---|
+| Notebook execution | Isolated Kubernetes pods with Papermill |
+| Golden comparison | Cell-by-cell output diff with numeric tolerances |
+| Credential injection | Kubernetes Secrets, ESO, HashiCorp Vault |
+| Model validation | KServe, OpenShift AI, vLLM, TorchServe, TensorFlow Serving, Triton, Ray Serve, Seldon, BentoML |
+| Git integration | HTTPS and SSH authentication |
+| Build integration | S2I and Tekton for custom dependency images |
+| Observability | Prometheus metrics, structured logging, credential sanitization |
+| Scheduling | GPU tolerations, node selectors, affinity rules |
 
 ## Documentation
 
-- **[Architecture Overview](docs/ARCHITECTURE_OVERVIEW.md)** - System design
-- **[Testing Guide](docs/TESTING_GUIDE.md)** - Testing procedures
-- **[Notebook Credentials Guide](docs/NOTEBOOK_CREDENTIALS_GUIDE.md)** - Credential injection
-- **[Model Discovery Guide](docs/MODEL_DISCOVERY_GUIDE.md)** - Model validation
-- **[Community Platforms](docs/COMMUNITY_PLATFORMS.md)** - Supported platforms
-- **[ADRs](docs/adrs/)** - Architectural decisions
+See [docs/](docs/) for the full documentation index, organized by topic:
 
-## Supported Platforms
-
-- **Model Serving:** KServe, OpenShift AI, vLLM, TorchServe, TensorFlow Serving, Triton, Ray Serve, Seldon, BentoML
-- **Credential Management:** Kubernetes Secrets, External Secrets Operator (ESO), HashiCorp Vault
+- **[Getting Started](docs/getting-started/)** -- installation, quick start, namespace setup
+- **[Guides](docs/guides/)** -- credentials, model validation, golden notebooks, error handling
+- **[Architecture](docs/architecture/)** -- system design, platform compatibility
+- **[Testing](docs/testing/)** -- testing guide, E2E, integration tests
+- **[Operations](docs/operations/)** -- CI setup, observability, webhooks, releases
+- **[Community](docs/community/)** -- supported platforms, contributing model platforms
+- **[ADRs](docs/adrs/)** -- architectural decision records
 
 ## Contributing
 
-We welcome contributions! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, coding standards, and the pull request process.
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, coding standards, and the pull request process.
 
 ## Code of Conduct
 
-This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). By participating, you agree to uphold this code.
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md).
 
 ## Community
 
-- **Issues & feature requests:** Use [GitHub Issues](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues).
-- **Discussions:** [GitHub Discussions](https://github.com/tosin2013/jupyter-notebook-validator-operator/discussions) for Q&A and sharing usage patterns.
-- **Distribution:** [OperatorHub.io](https://operatorhub.io/operator/jupyter-notebook-validator-operator) (OLM) and [Artifact Hub](https://artifacthub.io/packages/search?ts_query=jupyter-notebook-validator-operator).
+- [GitHub Issues](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues) -- bugs and feature requests
+- [GitHub Discussions](https://github.com/tosin2013/jupyter-notebook-validator-operator/discussions) -- Q&A and usage patterns
+- [OperatorHub.io](https://operatorhub.io/operator/jupyter-notebook-validator-operator) -- OLM distribution
+- [Artifact Hub](https://artifacthub.io/packages/search?ts_query=jupyter-notebook-validator-operator) -- Helm distribution
 
 ## License
 

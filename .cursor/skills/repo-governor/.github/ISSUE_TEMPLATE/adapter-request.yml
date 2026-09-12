@@ -1,0 +1,111 @@
+name: Adapter request
+description: Ask for support for a tracker, ADR store, or other system Repo Governor does not yet read
+title: "Adapter request: "
+labels: ["adapter-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks — an unsupported system is a gap worth recording, not a dead end.
+
+        **The engine never changes to accommodate a provider** ([ADR-003](https://github.com/tosin2013/repo-governor/blob/main/docs/adrs/003-seven-provider-roles-with-normalized-contracts.md)). An adapter is a single file that answers a fixed set of questions and returns typed facts. The contract is [`adapters/_protocol.py`](https://github.com/tosin2013/repo-governor/blob/main/adapters/_protocol.py), and every shipped adapter is one file you can read in a sitting.
+
+        The questions below are the ones an adapter has to be able to answer. If you can answer them, the adapter is mostly already designed.
+
+  - type: dropdown
+    id: role
+    attributes:
+      label: Which role would this fill?
+      description: A provider absent from the manifest has no governance function, however reachable it is (INV-013).
+      options:
+        - roadmap_authority — says what work is admitted
+        - acceptance_criteria — says when work is done
+        - architecture — architectural decision records
+        - decision_history — the append-only evidence chain
+        - retirement — signals that something may be obsolete
+        - change_signals — dependency and version signals
+        - execution — where work is actually carried out
+        - repository — the code itself
+    validations:
+      required: true
+
+  - type: input
+    id: system
+    attributes:
+      label: Which system?
+      placeholder: Jira, Azure Boards, Asana, Notion, Shortcut, a spreadsheet...
+    validations:
+      required: true
+
+  - type: textarea
+    id: admission
+    attributes:
+      label: What does ADMITTED mean there?
+      description: |
+        The single most important question, and the one detection can never answer
+        ([ADR-018](https://github.com/tosin2013/repo-governor/blob/main/docs/adrs/018-admission-signal-is-declared-not-assumed.md): the admission signal is declared, never assumed).
+
+        In GitHub it might be milestone membership, a Project column, or a label.
+        In Linear it is the distinction between triage and a real backlog state.
+        What is the equivalent in yours — and is there a state meaning "filed but
+        nobody has agreed to do this"?
+      placeholder: "Admitted = the issue is in a sprint AND has a fix version set. Items in 'Triage' are not admitted."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: transport
+    attributes:
+      label: How is it read?
+      description: Adapters may carry dependencies; the engine may not (ADR-011 rule 4).
+      options:
+        - A CLI tool (like `gh`)
+        - A REST or GraphQL API with a token
+        - An MCP server
+        - A file in the repository
+        - Something else — describe below
+    validations:
+      required: true
+
+  - type: dropdown
+    id: unauthenticated
+    attributes:
+      label: Can its presence be detected WITHOUT authenticating?
+      description: |
+        Detection is filesystem-only and never probes remote systems. A probe that
+        succeeds because a token happens to be present is capability implying
+        permission, which [ADR-005](https://github.com/tosin2013/repo-governor/blob/main/docs/adrs/005-deny-by-default-authority-resolution.md) forbids. "No" is a fine answer — it just means the
+        provider is proposed as `PROVIDER_UNCONFIRMED` and you confirm it by hand.
+      options:
+        - "Yes — a config file or remote URL in the repo gives it away"
+        - "No — you cannot tell without an authenticated call"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: textarea
+    id: withdrawal
+    attributes:
+      label: How does work get WITHDRAWN there?
+      description: |
+        Cancelled, won't-do, closed-not-planned, moved out of scope. This matters more
+        than it sounds: an agent that keeps working on withdrawn work is the failure
+        the whole project exists to prevent, and providers express it very differently.
+      placeholder: "Status becomes 'Rejected', or the fix version is cleared."
+
+  - type: checkboxes
+    id: contributing
+    attributes:
+      label: Would you write it?
+      options:
+        - label: I would be willing to write this adapter myself, given the contract
+        - label: I can test it against a real instance
+        - label: I am requesting it, not volunteering — that is fine, say so
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        **Before you file:** this repository is public. Report shapes and rates, never
+        private workspace content — no issue titles, bodies, identifiers, or private
+        repository names (§51). Describe the *structure* of your tracker, not what is in it.

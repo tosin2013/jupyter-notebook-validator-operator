@@ -1,0 +1,34 @@
+{
+  "$comment": "Doc overhaul #47: README rewrite, docs/ reorg, version fixes, archive artifacts, cleanup cruft.",
+  "authority_id": "47",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "grep -q 'OpenShift-4.20' README.md"
+    },
+    {
+      "check": "file_exists",
+      "target": "docs/README.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "test $(find docs -maxdepth 1 -name '*.md' ! -name 'README.md' | wc -l) -eq 0"
+    },
+    {
+      "check": "command_exit",
+      "target": "test -d docs/_archive"
+    },
+    {
+      "check": "command_exit",
+      "target": "test ! -f docs/TODO.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "! grep -q '4\\.18' README.md"
+    }
+  ],
+  "covers": {
+    "declared": "README rewrite, docs/ reorganization into subfolders with index, archive internal artifacts, fix stale version references, delete cruft",
+    "uncovered": "Social preview image (manual GitHub Settings action); content rewrites of individual guide docs (filed as separate issues)"
+  }
+}

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The Jupyter Notebook Validator Operator is a Kubernetes-native operator that automates Jupyter Notebook validation in MLOps workflows. Built with Operator SDK and Go, it orchestrates notebook execution in isolated pods, performs golden notebook comparisons, integrates with Git repositories, and validates against deployed ML models.
 
-**Key Technologies**: Go 1.22+, Operator SDK v1.37.0, controller-runtime, OpenShift 4.18+, Kubernetes 1.31+
+**Key Technologies**: Go 1.22+, Operator SDK v1.37.0, controller-runtime, OpenShift 4.20+ (certified: 4.20/4.21/4.22 per ADR-056), Kubernetes 1.31+
 
 ## Repo Governor
 
@@ -383,10 +383,10 @@ oc logs build/<build-name>
 
 ## Documentation References
 
-- **Architecture**: `docs/ARCHITECTURE_OVERVIEW.md`
-- **Testing**: `docs/TESTING_GUIDE.md`
-- **Credentials**: `docs/NOTEBOOK_CREDENTIALS_GUIDE.md`
-- **Model Validation**: `docs/MODEL_DISCOVERY_GUIDE.md`
+- **Architecture**: `docs/architecture/ARCHITECTURE_OVERVIEW.md`
+- **Testing**: `docs/testing/TESTING_GUIDE.md`
+- **Credentials**: `docs/guides/NOTEBOOK_CREDENTIALS_GUIDE.md`
+- **Model Validation**: `docs/guides/MODEL_DISCOVERY_GUIDE.md`
 - **ADRs**: `docs/adrs/` (architectural decision records)
 
 ## Development Workflow
@@ -403,7 +403,7 @@ oc logs build/<build-name>
 
 The project uses release branches:
 - `main`: Development branch
-- `release-X.Y`: Stable release branches (e.g., `release-4.18` for OpenShift 4.18)
+- `release-X.Y`: Stable release branches (e.g., `release-4.20` for OpenShift 4.20)
 
 When creating PRs or commits:
 - Target appropriate branch based on OpenShift/Kubernetes version

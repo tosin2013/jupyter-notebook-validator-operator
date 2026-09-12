@@ -1,0 +1,334 @@
+#!/usr/bin/env python3
+"""DecisionHistoryProvider backed by Dolt (spec §17, ADR-019).
+
+Closes the last unbound provider role. INV-005 and INV-008 depend on it:
+resolving "was this deferred before, and has its reversal condition been
+met?" (§39) requires reading prior decisions, and until now nothing could.
+
+Why a database rather than the JSON files ADR-009 specified: decision
+history is append-only, unbounded, and queried by relationship. Dolt also
+supplies the evidence chain natively --  `dolt_log` carries commit hash,
+committer and timestamp; `dolt_history_decisions` carries every revision
+of every row. ADR-009's hand-specified hash chaining is superseded rather
+than reimplemented.
+
+Transport is the `dolt` CLI, not a SQL driver, so the engine's
+zero-dependency guarantee (ADR-011 rule 1) is untouched. Adapters may
+carry dependencies; the engine may not (rule 4).
+
+Contract facts measured against Dolt 2.3.0 before this was written:
+  `dolt sql -q '…' -r json`  -> {"rows": [ … ]}
+  JSON columns                -> returned parsed, not as strings
+  errors                      -> exit 1, output is NOT JSON
+  `dolt init`                 -> requires --name/--email or fails with
+                                 "empty ident name not allowed"
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from _protocol import cite, fail, main, ok, unknown  # noqa: E402
+
+ROLE = "decision_history"
+DB_DIR = Path(os.environ.get("REPO_GOVERNOR_DECISIONS_DB", ".repo-governor/decisions-db"))
+
+# Closed vocabulary. An unrecognised disposition is MALFORMED_SOURCE, never
+# assumed benign -- the same rule the acceptance and roadmap adapters apply.
+DISPOSITIONS = ("ACCEPTED", "DEFERRED", "REJECTED", "SUPERSEDED", "CANCELLED")
+
+# Authority ids become SQL literals. Anything outside this is refused rather
+# than escaped, because refusing is checkable and escaping is a promise.
+SAFE_ID = re.compile(r"^[A-Za-z0-9._#-]{1,128}$")
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS decisions (
+  decision_id        VARCHAR(64) PRIMARY KEY,
+  authority_id       VARCHAR(128) NOT NULL,
+  disposition        VARCHAR(32)  NOT NULL,
+  reason             TEXT,
+  reversal_condition TEXT,
+  engine_version     VARCHAR(32),
+  manifest_hash      VARCHAR(64),
+  snapshot_sha256    VARCHAR(64),
+  typed_facts        JSON,
+  redacted           BOOLEAN,
+  fields_redacted    JSON,
+  INDEX (authority_id)
+)
+"""
+
+
+def _probe():
+    """No binary or no database => advertise nothing (ADR-019 rule 4)."""
+    return shutil.which("dolt") is not None and (DB_DIR / ".dolt").is_dir()
+
+
+def _writable():
+    """Reachable is not writable. A read-only Dolt database answers reads fine
+    and fails every write, so advertising record_decision against one is the
+    same dishonesty as advertising reads against an absent one (issue #17)."""
+    return _probe() and os.access(DB_DIR, os.W_OK) and os.access(DB_DIR / ".dolt", os.W_OK)
+
+
+# Capabilities are a property of (provider x transport). Reads are identical
+# either way; only the write half differs, so that is all this declares.
+TRANSPORTS = {
+    "cli":        {"writers": {"record_decision": None}},
+    "cli-readonly": {"writers": {}},
+}
+
+
+def _sql(query):
+    """Run one query. Returns (rows, error_message).
+
+    Exit code is checked BEFORE parsing: Dolt reports errors on stdout as
+    plain text, so parsing first would raise on the error path and lose the
+    message. Measured behaviour, not assumed.
+    """
+    if shutil.which("dolt") is None:
+        return None, "dolt binary is not installed"
+    if not (DB_DIR / ".dolt").is_dir():
+        return None, f"no Dolt database at {DB_DIR} (run: dolt init --name … --email …)"
+    try:
+        p = subprocess.run(["dolt", "sql", "-q", query, "-r", "json"],
+                           capture_output=True, text=True, cwd=str(DB_DIR), timeout=60)
+    except FileNotFoundError:
+        return None, "dolt binary disappeared between probe and query"
+    except subprocess.TimeoutExpired:
+        return None, "dolt query timed out"
+    if p.returncode != 0:
+        return None, (p.stdout or p.stderr).strip()[:200]
+    if not p.stdout.strip():
+        return [], None          # a genuinely empty result set
+    try:
+        return json.loads(p.stdout).get("rows", []), None
+    except json.JSONDecodeError as e:
+        return None, f"dolt returned non-JSON on success: {e}"
+
+
+def _guard(fn, kw, need_id=True):
+    if not need_id:
+        return None, None
+    wid = kw.get("id")
+    if not wid:
+        return None, fail(ROLE, fn, "BAD_REQUEST", "missing required argument: id=<authority-id>")
+    if not SAFE_ID.match(wid):
+        return None, fail(ROLE, fn, "BAD_REQUEST",
+                          f"authority id {wid!r} contains characters that cannot appear in a query")
+    return wid, None
+
+
+def _rows(fn, wid):
+    rows, err = _sql(f"SELECT * FROM decisions WHERE authority_id = '{wid}' ORDER BY decision_id")
+    if err:
+        return None, fail(ROLE, fn, "PROVIDER_UNAVAILABLE", err)
+    bad = [r for r in rows if r.get("disposition") not in DISPOSITIONS]
+    if bad:
+        return None, fail(ROLE, fn, "MALFORMED_SOURCE",
+                          f"{len(bad)} record(s) carry a disposition outside {list(DISPOSITIONS)}: "
+                          f"{[b.get('disposition') for b in bad][:3]}")
+    return rows, None
+
+
+def get_decisions(kw):
+    wid, err = _guard("get_decisions", kw)
+    if err:
+        return err
+    rows, err = _rows("get_decisions", wid)
+    if err:
+        return err
+    if not rows:
+        # Absence is not failure: nothing was ever decided about this item.
+        return unknown(ROLE, "get_decisions",
+                       reason="NO_DECISION_RECORDED",
+                       detail=f"No decision has been recorded for {wid}. Absence of a prior "
+                              "decision is not permission; it means the question was never asked.",
+                       resolution="Proceed under current authority, or record a decision.",
+                       blocking=False)
+    return ok(ROLE, "get_decisions",
+              {"authority_id": wid, "decisions": rows, "count": len(rows)},
+              [cite("dolt", f"{DB_DIR}#decisions.{r['decision_id']}", "disposition") for r in rows])
+
+
+def get_disposition(kw):
+    """Most recent recorded disposition. SUPERSEDED records do not govern (INV-008)."""
+    wid, err = _guard("get_disposition", kw)
+    if err:
+        return err
+    rows, err = _rows("get_disposition", wid)
+    if err:
+        return err
+    live = [r for r in rows if r["disposition"] != "SUPERSEDED"]
+    if not live:
+        return unknown(ROLE, "get_disposition",
+                       reason="NO_DECISION_RECORDED",
+                       detail=f"No live decision for {wid}"
+                              + (f"; {len(rows)} superseded record(s) exist." if rows else "."),
+                       resolution="Record a decision, or proceed under current authority.",
+                       blocking=False)
+    latest = live[-1]
+    return ok(ROLE, "get_disposition",
+              {"authority_id": wid, "disposition": latest["disposition"],
+               "reason": latest.get("reason"), "superseded_count": len(rows) - len(live)},
+              [cite("dolt", f"{DB_DIR}#decisions.{latest['decision_id']}", "disposition")])
+
+
+def get_reversal_condition(kw):
+    """§39: rediscovered work stays CAPTURE_ONLY unless the condition is met."""
+    wid, err = _guard("get_reversal_condition", kw)
+    if err:
+        return err
+    rows, err = _rows("get_reversal_condition", wid)
+    if err:
+        return err
+    withheld = [r for r in rows if r["disposition"] in ("DEFERRED", "REJECTED")]
+    if not withheld:
+        return unknown(ROLE, "get_reversal_condition",
+                       reason="NO_DECISION_RECORDED",
+                       detail=f"{wid} has no DEFERRED or REJECTED decision, so no reversal "
+                              "condition applies.",
+                       resolution="None needed.",
+                       blocking=False)
+    latest = withheld[-1]
+    cond = latest.get("reversal_condition")
+    if not cond:
+        return unknown(ROLE, "get_reversal_condition",
+                       reason="NO_DECISION_RECORDED",
+                       detail=f"{wid} was {latest['disposition']} but recorded no reversal "
+                              "condition, so nothing can establish that it may be revisited.",
+                       resolution="Record a reversal_condition on the decision.",
+                       blocking=True)
+    return ok(ROLE, "get_reversal_condition",
+              {"authority_id": wid, "disposition": latest["disposition"],
+               "reversal_condition": cond, "satisfied": None,
+               "note": "Whether the condition is satisfied is a judgement this provider "
+                       "does not make. It reports the condition; the engine composes."},
+              [cite("dolt", f"{DB_DIR}#decisions.{latest['decision_id']}", "reversal_condition")])
+
+
+def get_provenance(kw):
+    """The chain is the store's. dolt_log carries hash, committer, timestamp."""
+    rows, err = _sql("SELECT commit_hash, committer, message FROM dolt_log ORDER BY date DESC LIMIT 20")
+    if err:
+        return fail(ROLE, "get_provenance", "PROVIDER_UNAVAILABLE", err)
+    total, terr = _sql("SELECT COUNT(*) AS n FROM decisions")
+    return ok(ROLE, "get_provenance",
+              {"source": "dolt", "path": str(DB_DIR),
+               "records": (total[0]["n"] if total and not terr else None),
+               "commits": len(rows),
+               "chain": "supplied by the store (dolt_log, dolt_history_decisions); "
+                        "not hand-rolled (ADR-019 rule 3)",
+               "recent": rows[:5]},
+              [cite("dolt", f"{DB_DIR}#dolt_log", "commit_hash")])
+
+
+def get_history(kw):
+    """Every revision of the records for one authority item."""
+    wid, err = _guard("get_history", kw)
+    if err:
+        return err
+    rows, err = _sql("SELECT decision_id, disposition, commit_hash FROM dolt_history_decisions "
+                     f"WHERE authority_id = '{wid}'")
+    if err:
+        return fail(ROLE, "get_history", "PROVIDER_UNAVAILABLE", err)
+    if not rows:
+        return unknown(ROLE, "get_history",
+                       reason="NO_DECISION_RECORDED",
+                       detail=f"No revision history for {wid}.",
+                       resolution="Record a decision, then commit it.",
+                       blocking=False)
+    return ok(ROLE, "get_history", {"authority_id": wid, "revisions": rows, "count": len(rows)},
+              [cite("dolt", f"{DB_DIR}#dolt_history_decisions", "commit_hash")])
+
+
+def _esc(v):
+    """Single-quote a value for a SQL literal, or NULL."""
+    if v is None or v == "":
+        return "NULL"
+    return "'" + str(v).replace("\\", "\\\\").replace("'", "''") + "'"
+
+
+def record_decision(kw):
+    """Append one decision record. The only write this adapter offers.
+
+    Writing does not commit. `dolt add`/`dolt commit` is a separate, human or
+    CI action, so a decision is staged and reviewable before it becomes part
+    of the chain -- the same shape as ADR-010's detection-proposes rule.
+    """
+    for req in ("decision_id", "authority_id", "disposition"):
+        if not kw.get(req):
+            return fail(ROLE, "record_decision", "BAD_REQUEST", f"missing required argument: {req}")
+    if kw["disposition"] not in DISPOSITIONS:
+        return fail(ROLE, "record_decision", "MALFORMED_SOURCE",
+                    f"disposition {kw['disposition']!r} is not in {list(DISPOSITIONS)}")
+    for field in ("decision_id", "authority_id"):
+        if not SAFE_ID.match(kw[field]):
+            return fail(ROLE, "record_decision", "BAD_REQUEST",
+                        f"{field}={kw[field]!r} contains characters that cannot appear in a query")
+
+    cols = ("decision_id", "authority_id", "disposition", "reason", "reversal_condition",
+            "engine_version", "manifest_hash", "snapshot_sha256", "typed_facts",
+            "redacted", "fields_redacted")
+    vals = [_esc(kw.get(c)) for c in cols[:8]]
+    vals.append(_esc(kw.get("typed_facts")))
+    vals.append("true" if str(kw.get("redacted", "")).lower() == "true" else "false")
+    vals.append(_esc(kw.get("fields_redacted")))
+    q = (f"INSERT INTO decisions ({', '.join(cols)}) VALUES ({', '.join(vals)}) "
+         "ON DUPLICATE KEY UPDATE disposition=VALUES(disposition), reason=VALUES(reason)")
+    rows, err = _sql(q)
+    if err:
+        return fail(ROLE, "record_decision", "PROVIDER_UNAVAILABLE", err)
+    return ok(ROLE, "record_decision",
+              {"decision_id": kw["decision_id"], "authority_id": kw["authority_id"],
+               "recorded": True, "committed": False,
+               "note": "Staged, not committed. `dolt commit` is a separate action so a "
+                       "decision is reviewable before it joins the chain."},
+              [cite("dolt", f"{DB_DIR}#decisions.{kw['decision_id']}", "disposition")])
+
+
+WRITERS = {"record_decision": record_decision}
+
+FUNCTIONS = {
+    "get_decisions": get_decisions,
+    "get_disposition": get_disposition,
+    "get_reversal_condition": get_reversal_condition,
+    "get_provenance": get_provenance,
+    "get_history": get_history,
+}
+
+PROPERTIES = {
+    "persistence": True,
+    # NOT portable, and the distinction is not academic. The store is a binary
+    # database git is told to ignore, on the reasoning that Dolt distributes it
+    # through remotes of its own. That is only true once a remote exists;
+    # without one the store is distributed by nothing, and a repository whose
+    # host is decommissioned loses the chain with no way to notice. Persistence
+    # is about surviving a process; this is about surviving a machine.
+    "portable": False,
+    "provenance_quality": "exact",
+    "chain_supplied_by_store": True,   # see ADR-019 rule 3
+    "vocabulary": list(DISPOSITIONS),
+}
+
+CAPABILITIES = {
+    "decisions": True,
+    "disposition": True,
+    "reversal_condition": True,
+    "provenance": True,
+    "revision_history": True,
+}
+
+if __name__ == "__main__":
+    sys.exit(main(ROLE, CAPABILITIES, FUNCTIONS,
+                  {"name": "decision-history-dolt",
+                   "permissions": {"read": True, "write": True}},
+                  properties=PROPERTIES, probe=_probe, writers=WRITERS,
+                  writers_probe=_writable, transports=TRANSPORTS))

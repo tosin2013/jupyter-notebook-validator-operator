@@ -1,9 +1,7 @@
 # ADR 041: Exit Code Validation and Developer Safety Framework
 
 ## Status
-Implemented
-
-> **Note**: Phase 1 (CRD API, validation levels, strictMode, failOnStderr, failOnWarnings, detectSilentFailures) is complete. Advanced features (pre-execution linting, runtime instrumentation, educational feedback) are available for future enhancement.
+Accepted
 
 ## Context
 

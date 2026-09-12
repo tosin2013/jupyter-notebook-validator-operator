@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+"""ChangeSignalProvider backed by a local JSON file (spec §15, §62).
+
+Surfaces ecosystem change. INV-006 is the whole point: a signal is not
+work. This adapter reports signal state and refuses to present anything
+as a required change — promotion to CHANGE_CANDIDATE happens in the
+maintenance lifecycle (§34), not here.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from _protocol import cite, fail, main, ok, unknown  # noqa: E402
+
+ROLE = "change_signals"
+SRC = Path(os.environ.get("REPO_GOVERNOR_SIGNALS", ".repo-governor/signals.json"))
+
+# Closed vocabulary (§15). CHANGE_CANDIDATE is reachable only via assessment,
+# so a provider may never emit it directly.
+STATES = ("SIGNAL", "IMPACT_ASSESSED", "WATCH", "NO_ACTION")
+
+
+def _probe():
+    return SRC.exists()
+
+
+def _load(fn):
+    if not _probe():
+        return None, fail(ROLE, fn, "PROVIDER_UNAVAILABLE", f"{str(SRC)!r} does not exist")
+    try:
+        data = json.loads(SRC.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        return None, fail(ROLE, fn, "MALFORMED_SOURCE", f"{SRC} is not valid JSON: {e}")
+    if not isinstance(data.get("signals"), list):
+        return None, fail(ROLE, fn, "MALFORMED_SOURCE", "expected an object with a 'signals' array")
+    bad = [s for s in data["signals"] if s.get("state") not in STATES]
+    if bad:
+        return None, fail(ROLE, fn, "MALFORMED_SOURCE",
+                          f"{len(bad)} signal(s) outside the closed state vocabulary {list(STATES)}")
+    return data["signals"], None
+
+
+def get_signals(kw):
+    sigs, err = _load("get_signals")
+    if err:
+        return err
+    out = [{**s, "is_authorized_work": False} for s in sigs]
+    return ok(ROLE, "get_signals",
+              {"signals": out, "count": len(out),
+               "note": "INV-006: a signal is evidence of external change, never authorized work."},
+              [cite("change-signals-file", f"{SRC}#signals.{s['id']}", "state") for s in sigs])
+
+
+def get_signal(kw):
+    sigs, err = _load("get_signal")
+    if err:
+        return err
+    sid = kw.get("id")
+    if not sid:
+        return fail(ROLE, "get_signal", "BAD_REQUEST", "missing required argument: id=<signal-id>")
+    for s in sigs:
+        if s.get("id") == sid:
+            return ok(ROLE, "get_signal", {**s, "is_authorized_work": False},
+                      [cite("change-signals-file", f"{SRC}#signals.{sid}", "state")])
+    return fail(ROLE, "get_signal", "NOT_FOUND", f"no signal {sid!r}")
+
+
+def get_impact(kw):
+    """Impact assessment is a judgement this provider does not make."""
+    sigs, err = _load("get_impact")
+    if err:
+        return err
+    sid = kw.get("id")
+    if not sid:
+        return fail(ROLE, "get_impact", "BAD_REQUEST", "missing required argument: id=<signal-id>")
+    if not any(s.get("id") == sid for s in sigs):
+        return fail(ROLE, "get_impact", "NOT_FOUND", f"no signal {sid!r}")
+    return unknown(ROLE, "get_impact",
+                   reason="IMPACT_NOT_ASSESSED",
+                   detail=f"{sid} carries no repository-specific impact assessment. "
+                          "Whether this change matters here is a judgement, not a fact the feed supplies.",
+                   resolution="Assess impact against repository evidence, then admit as a change candidate (§34).",
+                   blocking=False)
+
+
+FUNCTIONS = {
+    "get_signals": get_signals,
+    "get_signal": get_signal,
+    "get_impact": get_impact,
+}
+
+PROPERTIES = {"persistence": True, "provenance_quality": "exact"}
+
+CAPABILITIES = {
+    "signals": True,
+    "signal_lookup": True,
+    "source_dating": True,
+    "impact_assessment": False,   # honest: always UNKNOWN, by design
+}
+
+if __name__ == "__main__":
+    sys.exit(main(ROLE, CAPABILITIES, FUNCTIONS,
+                  {"name": "change-signals-file", "permissions": {"read": True, "write": False}},
+                  properties=PROPERTIES, probe=_probe))

@@ -1,0 +1,14 @@
+{
+  "$comment": "Update stale OCP 4.18/4.19 references in guide docs per ADR-056. Primary check: ARCHITECTURE_OVERVIEW no longer names 4.18 as primary platform.",
+  "authority_id": "49",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "! grep -q 'Primary Platform.*4\\.18' docs/architecture/ARCHITECTURE_OVERVIEW.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "! grep -q 'ACTIVE SUPPORT WINDOW.*4\\.19' docs/architecture/OPENSHIFT_SUPPORT_MATRIX_AND_STRATEGY.md"
+    }
+  ]
+}

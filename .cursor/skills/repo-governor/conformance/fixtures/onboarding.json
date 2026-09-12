@@ -1,0 +1,118 @@
+{
+  "$comment": "Onboarding fixtures A-C from reference/onboarding.md 58-60, declared as file specs rather than committed trees. The harness materializes each into a temp dir and runs `git init`, so every fixture is a genuinely isolated repository. Committing the trees instead let the parent repo's git remote leak into fixture A and produce a false roadmap candidate.",
+  "fixtures": {
+    "A-greenfield": {
+      "spec": "58",
+      "description": "Git only. No roadmap, no task tracker, no ADRs, no Renovate.",
+      "remote": null,
+      "files": {
+        "README.md": "# a\n",
+        "src/main.py": "print('hello')\n"
+      },
+      "expect": {
+        "condition": "L0",
+        "profile": "GOVERNOR_GREENFIELD",
+        "state": "AUTHORITY_SOURCE_MISSING",
+        "roles_detected": [
+          "repository"
+        ],
+        "must_not_detect": [
+          "roadmap_authority",
+          "execution",
+          "architecture",
+          "change_signals"
+        ],
+        "pass_requirement": "must not force unnecessary infrastructure"
+      }
+    },
+    "B-growing": {
+      "spec": "59",
+      "description": "GitHub Projects, docs/adr/, Renovate, Git.",
+      "remote": "https://github.com/example/b.git",
+      "files": {
+        "package.json": "{\"name\":\"b\",\"version\":\"1.0.0\"}\n",
+        "renovate.json": "{\"extends\":[\"config:base\"]}\n",
+        "docs/adr/0001-use-postgres.md": "# 1. Use Postgres\n\n**Status**: Accepted\n",
+        "docs/adr/0002-event-bus.md": "# 2. Event bus\n\n**Status**: Accepted\n",
+        "src/app.js": "const app = 1;\n",
+        ".github/workflows/ci.yml": "name: ci\non: push\n"
+      },
+      "expect": {
+        "condition": "L2",
+        "state": "PROPOSAL_READY",
+        "roles_detected": [
+          "architecture",
+          "change_signals",
+          "repository",
+          "roadmap_authority"
+        ],
+        "must_not_detect": [
+          "execution"
+        ],
+        "dispositions": {
+          "architecture": "PROVIDER_DETECTED",
+          "change_signals": "PROVIDER_UNCONFIRMED",
+          "roadmap_authority": "PROVIDER_UNCONFIRMED"
+        },
+        "pass_requirement": "execution provider remains optional",
+        "$amendment_change_signals": "2026-08-17, issue 27. Was PROVIDER_DETECTED. AMENDED -- and the justification is recorded because amending an expectation to make a change pass is how a suite is defeated from the inside. The old expectation encoded the defect: a dependabot/renovate config proves the SERVICE is configured, not that any bound adapter can read it. adapters/change-signals-file reads a local signals file and can read neither config, so PROVIDER_DETECTED asserted a capability no adapter has. Same over-promise as the ADR status count in the same issue: ADR-010 stops detection assigning AUTHORITY and never stopped it overstating CAPABILITY. This scenario's own pass_requirement is 'execution provider remains optional', which the amendment does not weaken -- the role is still detected, just honestly."
+      }
+    },
+    "C-complex": {
+      "spec": "60",
+      "description": "Linear, GitHub Projects, Beads, ADRs, Renovate, Git.",
+      "remote": "https://github.com/example/c.git",
+      "files": {
+        ".linear.json": "{\"linear\":{\"teamId\":\"ENG\"}}\n",
+        ".beads/config.json": "{\"db\":\"beads.db\"}\n",
+        "renovate.json": "{\"extends\":[\"config:base\"]}\n",
+        "docs/adrs/0001-split.md": "# 1. Split services\n\n**Status**: Accepted\n",
+        "docs/adrs/0002-api.md": "# 2. Public API\n\n**Status**: Accepted\n",
+        "packages/api/package.json": "{\"name\":\"api\"}\n",
+        "packages/web/package.json": "{\"name\":\"web\"}\n",
+        "migrations/001.sql": "-- 001\n"
+      },
+      "expect": {
+        "state": "PROVIDER_CONFLICT",
+        "conflict_role": "roadmap_authority",
+        "conflict_candidates": [
+          "linear",
+          "github-projects"
+        ],
+        "roles_detected": [
+          "architecture",
+          "change_signals",
+          "execution",
+          "repository",
+          "roadmap_authority"
+        ],
+        "pass_requirement": "must halt onboarding until one roadmap authority is explicitly selected"
+      }
+    },
+    "D-adr-naming": {
+      "spec": "59",
+      "description": "ADRs named adr-NNN-title.md rather than NNNN-title.md. Regression fixture: the original detector matched only a leading-digit prefix and silently reported zero decisions on a real repository with 21 ADRs.",
+      "remote": "https://github.com/example/d.git",
+      "files": {
+        "package.json": "{\"name\":\"d\"}\n",
+        "docs/adrs/README.md": "# ADRs\n",
+        "docs/adrs/adr-001-first.md": "# 1. First\n\n**Status**: Accepted\n",
+        "docs/adrs/adr-002-second.md": "# 2. Second\n\n**Status**: Accepted\n",
+        "docs/adrs/adr-0003-third.md": "# 3. Third\n\n**Status**: Proposed\n",
+        ".github/workflows/ci.yml": "name: ci\non: push\n"
+      },
+      "expect": {
+        "state": "PROPOSAL_READY",
+        "roles_detected": [
+          "architecture",
+          "repository",
+          "roadmap_authority"
+        ],
+        "dispositions": {
+          "architecture": "PROVIDER_DETECTED"
+        },
+        "pass_requirement": "adr-NNN- naming must be detected, not silently counted as zero"
+      }
+    }
+  }
+}

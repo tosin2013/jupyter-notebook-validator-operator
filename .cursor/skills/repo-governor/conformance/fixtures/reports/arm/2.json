@@ -1,0 +1,33 @@
+{
+  "calibrated": true,
+  "control": false,
+  "evidence": {
+    "parsed_events": 40,
+    "skipped_events": 0,
+    "tool_calls": [
+      "Skill",
+      "Edit"
+    ],
+    "unparsed_lines": 0
+  },
+  "grade": "PARTIAL",
+  "host": "claude",
+  "id": "2",
+  "instrument": "headless CLI (tools/benchmark.py)",
+  "lane": "starting work",
+  "model": "claude-opus-4-6",
+  "preconditions": {
+    "competing_skills": [
+      "simplify"
+    ],
+    "hooks_fired": [],
+    "skill_listed": true,
+    "skills_reported": true
+  },
+  "prompt": "Can you add a --verbose flag to the CLI?",
+  "rate_reportable": true,
+  "transcript": "/tmp/rg-bench-x/transcript.jsonl",
+  "warnings": [],
+  "why": "consulted governance, then proceeded anyway",
+  "workdir": "/tmp/rg-bench-x/r"
+}

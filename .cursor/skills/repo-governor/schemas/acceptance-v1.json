@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tosin2013/repo-governor/schemas/acceptance-v1.json",
+  "title": "Repo Governor acceptance bar, version 1",
+  "$comment": "One file per authority id, at .repo-governor/acceptance/<id>.json (ADR-017). The bar states WHAT must be true for work to stop; the repository provider measures WHETHER it is. This schema is the published contract: before it existed the shape lived only in the body of ADR-017, and a governed repository authored criteria with 'command' and 'description' keys that were never read (issue 214). Enforced by adapters/acceptance-file; conformance/acceptance.py asserts the two agree.",
+  "type": "object",
+  "required": [
+    "authority_id",
+    "criteria"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$comment": {
+      "type": "string"
+    },
+    "authority_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$",
+      "$comment": "Must equal the file's basename and the id the engine asks for. A bar that answers about a different authority is refused rather than silently used."
+    },
+    "criteria": {
+      "type": "array",
+      "$comment": "An EMPTY array is not a satisfied bar. It yields NO_CRITERIA_DECLARED, never STOP_COMPLETE (issue 58).",
+      "items": {
+        "$ref": "#/$defs/criterion"
+      }
+    },
+    "covers": {
+      "$ref": "#/$defs/covers"
+    },
+    "amendments": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/amendment"
+      }
+    },
+    "$examples": {
+      "type": "array",
+      "$comment": "Written by `engine/acceptance.py <id> --template` to show the criterion shape in the file the author is about to edit. Ignored by the engine -- only 'criteria' is read. Allowed here so the scaffold this project ships validates against the contract this project publishes.",
+      "items": {
+        "$ref": "#/$defs/criterion"
+      }
+    },
+    "$covers_if_partial": {
+      "type": "object",
+      "$comment": "Template scaffolding, offered unset. An author renames it to 'covers' if the bar deliberately leaves part of the item out. Ignored by the engine under this name -- which is the point: a partial bar must be declared deliberately, not inherited from a template.",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "criterion": {
+      "type": "object",
+      "$comment": "A criterion is exactly (check, target). Anything else is not read.",
+      "required": [
+        "check",
+        "target"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "$comment": {
+          "type": "string"
+        },
+        "check": {
+          "enum": [
+            "tests_pass",
+            "file_exists",
+            "command_exit"
+          ],
+          "$comment": "Closed vocabulary (ADR-017 rule 4). Growing it requires an ADR; the natural growth path ends at an expression language nobody planned."
+        },
+        "target": {
+          "type": "string",
+          "pattern": "\\S",
+          "$comment": "What the repository provider measures: a repo-relative path for file_exists, a shell command string for tests_pass and command_exit (adapters/git evaluate_check). Required. A criterion without it states nothing measurable."
+        }
+      }
+    },
+    "covers": {
+      "type": "object",
+      "$comment": "A bar that covers only part of its authority. Two issues once shipped that fact in a $comment and both read STOP_COMPLETE for the whole item, because nothing mechanical reads prose.",
+      "required": [
+        "declared",
+        "uncovered"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "$comment": {
+          "type": "string"
+        },
+        "declared": {
+          "type": "string",
+          "$comment": "The part this bar does check."
+        },
+        "uncovered": {
+          "type": "string",
+          "$comment": "The part it does NOT. Required: a bar that names what it covers but not what it omits has recorded a boast, not a limit."
+        },
+        "split_to": {
+          "type": "array",
+          "$comment": "Authority ids the uncovered half moved to. Absent means undischarged and completion stays blocked; an EMPTY array is deleting 'covers' with extra steps and is refused the same way.",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+$"
+          }
+        },
+        "split_note": {
+          "type": "string",
+          "$comment": "Why the split happened. Prose here is fine because it is not load-bearing; split_to is what the engine reads."
+        }
+      }
+    },
+    "amendment": {
+      "type": "object",
+      "$comment": "A bar edited after the fact must say so, citably. An un-cited amendment cannot be distinguished from editing the bar to fit the work, so the adapter refuses to serve the criteria at all.",
+      "required": [
+        "cites",
+        "effect"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "$comment": {
+          "type": "string"
+        },
+        "cites": {
+          "type": "array",
+          "$comment": "Verifiable references for why the bar changed -- file paths, section numbers, issue ids. Non-empty: the adapter refuses an amendment whose cites are falsy.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "effect": {
+          "enum": [
+            "added",
+            "removed",
+            "weakened",
+            "strengthened",
+            "corrected"
+          ],
+          "$comment": "Closed set. 'weakened' and 'removed' are the ones a reader is looking for."
+        },
+        "date": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "reason": {
+          "type": "string",
+          "$comment": "What changed and why, in prose. Read by humans; the cites are what make it checkable."
+        }
+      }
+    }
+  }
+}

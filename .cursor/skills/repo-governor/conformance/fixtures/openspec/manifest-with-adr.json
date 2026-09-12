@@ -1,0 +1,45 @@
+{
+  "$comment": "Fixture manifest for issue 155. adapters/adr over adrs-x (ADR-0001 Accepted, ADR-0003 Accepted) bound alongside adapters/openspec over collide/, whose ARCHIVED change is deliberately NAMED ADR-0001. If the OpenSpec adapter ever reports an archived change as superseded, the issue 154 union escalates this to ARCHITECTURE_REVIEW on evidence that does not exist. Never bound anywhere; reached only by conformance passing an explicit path to MF.load.",
+  "condition": {
+    "assessed": "L1",
+    "profile": "GOVERNOR_LITE"
+  },
+  "permissions": {
+    "architecture": {
+      "read": true,
+      "write": false
+    },
+    "repository": {
+      "read": true,
+      "write": false
+    }
+  },
+  "providers": {
+    "architecture": [
+      {
+        "adapter": "adapters/adr",
+        "contract_version": 1,
+        "path": "conformance/fixtures/union/adrs-x",
+        "type": "adr"
+      },
+      {
+        "adapter": "adapters/openspec",
+        "contract_version": 1,
+        "path": "conformance/fixtures/openspec/collide",
+        "type": "openspec"
+      }
+    ],
+    "repository": {
+      "adapter": "adapters/git",
+      "contract_version": 1,
+      "type": "git"
+    }
+  },
+  "repo_governor": {
+    "engine_min_version": "0.1.0",
+    "version": 1
+  },
+  "repository": {
+    "id": "tosin2013/repo-governor"
+  }
+}

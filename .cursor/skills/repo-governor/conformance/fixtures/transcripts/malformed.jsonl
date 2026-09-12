@@ -1,0 +1,11 @@
+{"type": "user", "message": "a bare string where a dict was assumed"}
+{"type": "assistant", "message": {"content": "a string where a list was assumed"}}
+{"type": "assistant", "message": {"content": ["a string where a block was assumed"]}}
+{"type": "assistant", "message": {"content": [{"type": "tool_use"}]}}
+{"type": "assistant", "message": {"content": [null]}}
+{"type": "assistant", "message": []}
+{"type": "system", "subtype": "init", "model": null, "skills": "not-a-list"}
+"a bare string where an event was assumed"
+123
+{"type": "assistant"}
+this line is not json at all

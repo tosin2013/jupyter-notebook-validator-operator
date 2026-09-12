@@ -1,0 +1,295 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tosin2013/repo-governor/schemas/manifest-v1.json",
+  "title": "Repo Governor governance manifest, version 1",
+  "$comment": "Canonical format is JSON (ADR-015). This schema is the specification; the YAML in reference/onboarding.md \u00a721 is illustration. The manifest binds providers to roles and states permissions. It must never carry provider state (\u00a721).",
+  "type": "object",
+  "required": [
+    "repo_governor",
+    "repository",
+    "condition",
+    "providers",
+    "permissions"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$comment": {
+      "type": "string"
+    },
+    "repo_governor": {
+      "type": "object",
+      "required": [
+        "version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "$comment": {
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "$comment": "Schema version. An engine encountering a version it does not implement refuses to evaluate rather than guessing (ADR-004 rule 4)."
+        },
+        "engine_min_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "enforcement": {
+          "enum": [
+            "advisory",
+            "blocking"
+          ],
+          "$comment": "ADR-029 decision 3: enforcement is opt-in PER REPOSITORY, and absent means advisory -- an un-onboarded repository is not a governed one, and blocking there would stop all editing wherever the manifest is absent. Read only by tools/hooks/governance-hook.py; the engine never reads it and gains no capability from it. AN ENUM, NOT A STRING, because the hook compares mode == \"blocking\": a typo would fall through to advisory and give a repository weaker governance than it declared, silently, which is exactly the defect issue 189 fixed one layer down. docs/installation.md documented this key while additionalProperties refused it, so following the instructions produced MANIFEST_INVALID and every verdict degraded to UNKNOWN (issue 198)."
+        }
+      }
+    },
+    "repository": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "$comment": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[^/]+/[^/]+$"
+        }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "required": [
+        "assessed",
+        "profile"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "$comment": {
+          "type": "string"
+        },
+        "assessed": {
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4"
+          ]
+        },
+        "profile": {
+          "enum": [
+            "GOVERNOR_GREENFIELD",
+            "GOVERNOR_LITE",
+            "GOVERNOR_STANDARD",
+            "GOVERNOR_FULL",
+            "GOVERNOR_HIGH_ASSURANCE"
+          ]
+        },
+        "floor_reason": {
+          "type": "string",
+          "$comment": "Set when an indicator raised the floor (ADR-006). A floor may not be overridden downward."
+        },
+        "override_active": {
+          "type": "boolean",
+          "$comment": "True when a human set a level above the floor. Surfaced in every decision record it affects."
+        }
+      }
+    },
+    "providers": {
+      "type": "object",
+      "required": [
+        "repository"
+      ],
+      "additionalProperties": false,
+      "$comment": "Cardinality per ADR-013: roles that answer 'is this authorized?' are single-valued; evidence roles accumulate.",
+      "properties": {
+        "$comment": {
+          "type": "string"
+        },
+        "roadmap_authority": {
+          "$ref": "#/$defs/binding"
+        },
+        "execution": {
+          "$ref": "#/$defs/binding"
+        },
+        "repository": {
+          "$ref": "#/$defs/binding"
+        },
+        "architecture": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/binding"
+          }
+        },
+        "change_signals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/binding"
+          }
+        },
+        "retirement": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/binding"
+          }
+        },
+        "acceptance_criteria": {
+          "$ref": "#/$defs/binding"
+        },
+        "decision_history": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/binding"
+          }
+        }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/permission"
+      },
+      "$comment": "Deny by default (ADR-005). An unlisted role, an unlisted verb, or a malformed block resolves to deny. There is no sensible-default branch.",
+      "properties": {
+        "$comment": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "binding": {
+      "type": "object",
+      "required": [
+        "type",
+        "adapter"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "$comment": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "adapter": {
+          "type": "string",
+          "pattern": "^[^/].*$",
+          "$comment": "Explicit path, repository-relative. Implicit adapter discovery would reintroduce the silent-binding problem INV-013 forbids (ADR-004 rule 6)."
+        },
+        "contract_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "transport": {
+          "$ref": "#/$defs/transport"
+        },
+        "path": {
+          "type": "string"
+        },
+        "project": {
+          "type": "string"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "$comment": "Adapter-specific configuration, passed verbatim to the adapter process (ADR-021). It exists so the ENGINE never has to know an adapter's variable names -- the alternative was `if adapter == 'adapters/linear'` in engine code, which is a binding decision made in code. Credentials must NOT appear here: the secret scan covers this object like any other, and ADR-005 rule 3 keeps credentials in the environment where the manifest cannot record them.",
+          "propertyNames": {
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          }
+        },
+        "admission": {
+          "$ref": "#/$defs/admission"
+        }
+      }
+    },
+    "transport": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false,
+      "$comment": "Declared, never inferred (ADR-016 rule 3). Defaulting to MCP because a server happens to be connected is INV-014 in a different costume.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "native",
+            "cli",
+            "mcp",
+            "file"
+          ]
+        },
+        "server": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        }
+      }
+    },
+    "permission": {
+      "type": "object",
+      "additionalProperties": false,
+      "$comment": "Closed verb set. 'execute' is reserved and rejected at v1 (ADR-005 rule 6) because listing it without semantics invites divergent interpretation.",
+      "properties": {
+        "read": {
+          "type": "boolean"
+        },
+        "write": {
+          "type": "boolean"
+        },
+        "create": {
+          "type": "boolean"
+        },
+        "update": {
+          "type": "boolean"
+        },
+        "archive": {
+          "type": "boolean"
+        },
+        "comment": {
+          "type": "boolean"
+        },
+        "transition": {
+          "type": "boolean"
+        },
+        "$comment": {
+          "type": "string"
+        }
+      }
+    },
+    "admission": {
+      "type": "object",
+      "required": [
+        "signal"
+      ],
+      "additionalProperties": false,
+      "$comment": "ADR-018: declared, never assumed. No fallback chain -- trying Projects then milestones then labels would be the adapter deciding what admission means in someone else's repository.",
+      "properties": {
+        "$comment": {
+          "type": "string"
+        },
+        "signal": {
+          "enum": [
+            "project_status",
+            "milestone",
+            "label",
+            "none"
+          ]
+        },
+        "admission_label": {
+          "type": "string"
+        },
+        "authorize_label": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

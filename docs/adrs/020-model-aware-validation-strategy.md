@@ -1,6 +1,6 @@
 # ADR-020: Model-Aware Validation Strategy
 
-**Status:** Implemented  
+**Status:** Accepted  
 **Date:** 2025-11-08  
 **Implemented:** 2026-01-25  
 **Decision Makers:** Architecture Team, Platform Team  
@@ -8,6 +8,9 @@
 **Category:** Validation Strategy, Platform Integration  
 
 ---
+
+## Status
+Accepted
 
 ## Implementation Summary
 

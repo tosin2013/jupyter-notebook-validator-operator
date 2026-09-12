@@ -1,9 +1,12 @@
 # ADR-043: Separate Build Status Monitoring by Strategy
 
 **Date**: 2025-11-24
-**Status**: Implemented
+**Status**: Accepted
 **Deciders**: Development Team
 **Technical Story**: Split build status monitoring into strategy-specific functions to handle naming differences
+
+## Status
+Accepted
 
 ## Context and Problem Statement
 

@@ -5,6 +5,9 @@
 **Authors**: Sophia (AI Assistant), Tosin Akinosho  
 **Related ADRs**: ADR-027 (S2I Build Strategy), ADR-028 (Tekton Task Strategy)
 
+## Status
+Accepted
+
 ## Context
 
 The Jupyter Notebook Validator Operator depends on multiple platform-specific APIs and base images that change across Kubernetes and OpenShift versions. Without a systematic dependency review process, operator upgrades can break when:

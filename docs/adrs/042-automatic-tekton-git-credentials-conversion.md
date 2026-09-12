@@ -1,8 +1,7 @@
 # ADR-042: Automatic Tekton Git Credentials Secret Conversion
 
 ## Status
-
-Implemented (2025-11-21)
+Accepted
 
 ## Context
 

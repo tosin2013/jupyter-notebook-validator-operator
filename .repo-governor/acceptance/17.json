@@ -1,0 +1,14 @@
+{
+  "$comment": "Criteria taken from issue #17 Acceptance Criteria (unit tests for the six-source fallback). Generator already lives at pkg/build/dockerfile_generator.go per ADR-038.",
+  "authority_id": "17",
+  "criteria": [
+    {
+      "check": "file_exists",
+      "target": "pkg/build/dockerfile_generator_test.go"
+    }
+  ],
+  "covers": {
+    "declared": "Unit tests for Dockerfile generation in pkg/build",
+    "uncovered": "E2E build with only requirements.txt and no Dockerfile (needs a cluster); issue also named internal/controller/dockerfile_generator.go which is not the path ADR-038 implemented"
+  }
+}

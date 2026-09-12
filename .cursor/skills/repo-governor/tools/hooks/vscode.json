@@ -1,0 +1,43 @@
+{
+  "$comment": "VS Code / GitHub Copilot hook config (ADR-029). Event names from code.visualstudio.com/docs/agent-customization/hooks -- the same set Claude Code uses, deliberately. NOT VERIFIED on a real VS Code host; see the tracking issue. Default location is .github/hooks/*.json; ~/.copilot/hooks also works. TWO DIFFERENCES THAT MATTER: tool properties are camelCase (filePath, not file_path), which governance-hook.py already reads; and matchers are PARSED BUT NOT APPLIED, so the write hook fires on every tool call. The script filters on tool_name itself rather than trusting the matcher below.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["RG_SKILL_DIR/tools/hooks/governance-hook.py", "prompt"],
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "create_file|insert_edit_into_file|replace_string_in_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["RG_SKILL_DIR/tools/hooks/governance-hook.py", "write"],
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "run_in_terminal",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["RG_SKILL_DIR/tools/hooks/governance-hook.py", "capture"],
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

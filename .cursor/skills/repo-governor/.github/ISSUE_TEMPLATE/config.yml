@@ -1,0 +1,17 @@
+blank_issues_enabled: true
+contact_links:
+  - name: A question, an argument, or a research finding
+    url: https://github.com/tosin2013/repo-governor/issues/new
+    about: >-
+      Open a blank issue. Most of the interesting ones here are questions rather
+      than requests, and a form would get in the way.
+  - name: How this project decides things
+    url: https://github.com/tosin2013/repo-governor/blob/main/docs/adrs/README.md
+    about: >-
+      27 architectural decisions. Filing an issue does not admit it -- only a
+      milestone does, and that is a human act (INV-002).
+  - name: Contributing
+    url: https://github.com/tosin2013/repo-governor/blob/main/CONTRIBUTING.md
+    about: >-
+      Read the closing-keyword trap and the vacuous-test warning before your
+      first PR. Both were learned here the hard way.

@@ -1,0 +1,2 @@
+{ "authority_id": "ENG-103",
+  "criteria": [ { "check": "file_exists", "target": "README.md" } ] }

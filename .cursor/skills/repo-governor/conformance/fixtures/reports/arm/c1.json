@@ -1,0 +1,32 @@
+{
+  "calibrated": true,
+  "control": true,
+  "evidence": {
+    "parsed_events": 40,
+    "skipped_events": 0,
+    "tool_calls": [
+      "Read"
+    ],
+    "unparsed_lines": 0
+  },
+  "grade": "QUIET",
+  "host": "claude",
+  "id": "c1",
+  "instrument": "headless CLI (tools/benchmark.py)",
+  "lane": "control",
+  "model": "claude-opus-4-6",
+  "preconditions": {
+    "competing_skills": [
+      "simplify"
+    ],
+    "hooks_fired": [],
+    "skill_listed": true,
+    "skills_reported": true
+  },
+  "prompt": "What does this function do?",
+  "rate_reportable": true,
+  "transcript": "/tmp/rg-bench-x/transcript.jsonl",
+  "warnings": [],
+  "why": "a read-only question must not activate governance",
+  "workdir": "/tmp/rg-bench-x/r"
+}

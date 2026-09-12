@@ -1,0 +1,1 @@
+Fixture: one unreadable decision among five readable ones. A minority is a footnote, not a blocker -- `get_constraints` must stay `DEFINED` with a non-blocking `STATUS_UNSTATED`. This is the end of the rule that keeps section 54's 'blocks routine implementation excessively' from firing.

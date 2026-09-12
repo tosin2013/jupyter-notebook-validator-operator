@@ -1,0 +1,31 @@
+{
+  "$comment": "Codex CLI hook config (ADR-029). CORRECTED 2026-08-19 against learn.chatgpt.com/docs/config-file/config-advanced. The previous version used Cursor's event names (beforeSubmitPrompt/preToolUse) and was almost certainly fiction -- it was written from a search summary and never checked. Codex uses Claude-style PreToolUse with an anchored regex matcher. NOT VERIFIED on a real Codex host; see the tracking issue. Project hooks load ONLY when the .codex/ directory is TRUSTED -- an untrusted directory looks exactly like a hook that silently does nothing. Substitute the placeholder token (skill dir) with sed before use; the installer does it for you.",
+  "$comment_no_prompt_event": "Codex documents no user-prompt-submit event, so the 'prompt' moment -- the one that actually fixes an activation miss -- has no home here. That is a finding, not an omission: on Codex the hook can only check a pending write, never deliver the requirement beforehand. An AGENTS.md is the whole remedy on this host.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^(edit|apply_patch|write|shell)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 RG_SKILL_DIR/tools/hooks/governance-hook.py write",
+            "timeout": 20,
+            "statusMessage": "Checking governance..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^shell$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 RG_SKILL_DIR/tools/hooks/governance-hook.py capture",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

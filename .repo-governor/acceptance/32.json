@@ -1,0 +1,26 @@
+{
+  "$comment": "Criteria taken from issue #32 Acceptance Criteria (GIT-URL and TIMEOUT printer columns; Phase/Age already exist).",
+  "authority_id": "32",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "grep -q 'printcolumn:name=\"GIT-URL\"' api/v1alpha1/notebookvalidationjob_types.go"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'printcolumn:name=\"TIMEOUT\"' api/v1alpha1/notebookvalidationjob_types.go"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'jsonPath: .spec.notebook.git.url' config/crd/bases/mlops.mlops.dev_notebookvalidationjobs.yaml"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'notebookvalidationjobs' docs/TESTING_GUIDE.md"
+    }
+  ],
+  "covers": {
+    "declared": "kubebuilder printcolumns for GIT-URL and TIMEOUT regenerated into the CRD, plus TESTING_GUIDE kubectl get note",
+    "uncovered": "Live kubectl get notebookvalidationjobs against a cluster"
+  }
+}

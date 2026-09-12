@@ -1,0 +1,41 @@
+# Auto-generated MCP server context (added automatically)
+.mcp-server-context.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Python (ADR-011 engine, once implemented)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Dolt decision store (ADR-019). Binary storage; git is the wrong distribution
+# mechanism for it and Dolt has its own remotes. This is a real change from
+# ADR-009, which wanted the log committed for review — recorded in ADR-019.
+.repo-governor/decisions-db/
+
+# Skill installs. `.agents/skills/` is the cross-vendor location (see
+# docs/installation.md), and Arm B of the activation protocol clones this
+# repository into its own `.agents/skills/repo-governor` so a host discovers it
+# the same way a user would. That nested clone must never be committed: it
+# would be a copy of the repository inside the repository, drifting from the
+# moment it lands.
+.agents/
+.claude/skills/repo-governor/
+.cursor/skills/
+.codex/skills/
+
+# Hook session state (ADR-029). Per-session, per-machine, never shared:
+# it records which authority a session established, which is a fact about
+# one conversation on one box and means nothing in another clone.
+.repo-governor/sessions/

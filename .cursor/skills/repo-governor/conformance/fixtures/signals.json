@@ -1,0 +1,12 @@
+{
+  "$comment": "Synthetic ChangeSignalProvider fixture (spec 62). INV-006: a signal is not work.",
+  "version": 1,
+  "signals": [
+    {"id": "SIG-1", "kind": "dependency_release", "subject": "python", "from": "3.11", "to": "3.14",
+     "state": "SIGNAL", "source": "python.org", "published": "2026-05-01"},
+    {"id": "SIG-2", "kind": "security_advisory", "subject": "example-lib", "severity": "high",
+     "state": "IMPACT_ASSESSED", "source": "GHSA-xxxx", "published": "2026-07-14"},
+    {"id": "SIG-3", "kind": "runtime_eol", "subject": "python 3.9", "state": "WATCH",
+     "source": "python.org", "published": "2025-10-31"}
+  ]
+}

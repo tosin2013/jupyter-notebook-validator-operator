@@ -1,10 +1,13 @@
 # ADR-030: Smart Error Messages and User Feedback
 
-**Status**: Implemented  
+**Status**: Accepted
 **Date**: 2025-11-09  
 **Last Updated**: 2026-01-25  
 **Deciders**: Development Team  
 **Related**: ADR-028 (Tekton Task Strategy), ADR-029 (Platform Version Dependency Review)
+
+## Status
+Accepted
 
 ## Context
 

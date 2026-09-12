@@ -1,0 +1,1 @@
+Fixture: the `yaml` status dialect. The SAME decision in four dialects must yield identical typed facts -- that is the portability claim, and it is a real test only because the four files are genuinely different documents.

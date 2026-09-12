@@ -1,0 +1,15 @@
+{
+  "$comment": "Cursor hook config (ADR-029). Event names and exit-2 semantics VERIFIED against cursor.com/docs/hooks, 2026-08-19. The stdin PAYLOAD FIELD NAMES are NOT verified -- the hook reads several spellings (cwd/workspace_root, tool_input/toolInput, session_id/sessionId) for that reason. Confirm on a real Cursor host before relying on the write moment. Project: <repo>/.cursor/hooks.json. User: ~/.cursor/hooks.json.",
+  "version": 1,
+  "hooks": {
+    "beforeSubmitPrompt": [
+      { "command": "python3 RG_SKILL_DIR/tools/hooks/governance-hook.py prompt" }
+    ],
+    "preToolUse": [
+      { "command": "python3 RG_SKILL_DIR/tools/hooks/governance-hook.py write" }
+    ],
+    "afterShellExecution": [
+      { "command": "python3 RG_SKILL_DIR/tools/hooks/governance-hook.py capture" }
+    ]
+  }
+}

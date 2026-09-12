@@ -27,12 +27,12 @@ This chart deploys the Jupyter Notebook Validator Operator on a Kubernetes or Op
 - ✅ **Git Integration**: Clone notebooks from Git repositories (HTTP/SSH)
 - ✅ **External Secrets**: Integrate with External Secrets Operator
 - ✅ **Prometheus Metrics**: Monitor validation jobs
-- ✅ **OpenShift Support**: Native OpenShift 4.18+ support
+- ✅ **OpenShift Support**: Native OpenShift 4.20+ support
 
 ## Prerequisites
 
 ### Required
-- Kubernetes 1.31+ or OpenShift 4.18+
+- Kubernetes 1.31+ or OpenShift 4.20+
 - Helm 3.8+
 - **cert-manager v1.13+** (required for webhook certificates)
 

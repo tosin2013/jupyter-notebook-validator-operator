@@ -1,0 +1,52 @@
+# Repo Governor governance manifest — reference example (spec 21 + ADR-004)
+repo_governor:
+  version: 1
+  engine_min_version: 0.1.0
+
+repository:
+  id: org/example-repo
+
+condition:
+  assessed: L3
+  profile: GOVERNOR_FULL
+
+providers:
+  roadmap_authority:
+    type: linear
+    project: ENG
+    contract_version: 1
+    adapter: adapters/linear
+
+  architecture:
+    - type: adr
+      path: docs/adr
+      contract_version: 1
+    - type: openspec
+      path: openspec/
+
+  execution:
+    type: beads
+    contract_version: 1
+
+  repository:
+    type: git
+
+  change_signals:
+    - type: renovate
+
+  retirement:
+    - type: repository_analysis
+
+  decision_history:
+    type: builtin
+
+permissions:
+  roadmap_authority:
+    read: true
+    write: false
+  architecture:
+    read: true
+    write: false
+  execution:
+    read: true
+    write: true

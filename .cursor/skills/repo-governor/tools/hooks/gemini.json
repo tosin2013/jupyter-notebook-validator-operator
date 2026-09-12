@@ -1,0 +1,44 @@
+{
+  "$comment": "Gemini CLI hook config (ADR-029). Event names and semantics from geminicli.com/docs/hooks/reference (hooks shipped in v0.26.0). NOT VERIFIED on a real Gemini host; see the tracking issue. Merge into .gemini/settings.json (project) or ~/.gemini/settings.json (user). Gemini spells the deny field 'decision', not 'permissionDecision' -- governance-hook.py emits all three spellings, so one script serves every host.",
+  "hooks": {
+    "BeforeAgent": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 RG_SKILL_DIR/tools/hooks/governance-hook.py prompt",
+            "name": "repo-governor-prompt",
+            "timeout": 20000,
+            "description": "Inject the governance requirement before planning"
+          }
+        ]
+      }
+    ],
+    "BeforeTool": [
+      {
+        "matcher": "edit|write_file|replace",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 RG_SKILL_DIR/tools/hooks/governance-hook.py write",
+            "name": "repo-governor-write",
+            "timeout": 20000
+          }
+        ]
+      }
+    ],
+    "AfterTool": [
+      {
+        "matcher": "run_shell_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 RG_SKILL_DIR/tools/hooks/governance-hook.py capture",
+            "name": "repo-governor-capture",
+            "timeout": 20000
+          }
+        ]
+      }
+    ]
+  }
+}

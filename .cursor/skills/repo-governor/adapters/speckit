@@ -1,0 +1,240 @@
+#!/usr/bin/env python3
+"""ArchitectureEvidenceProvider backed by a GitHub Spec Kit tree (spec §12, ADR-003).
+
+`docs/reference/provider-roles.md:52` named Spec Kit as a §12 implementation and
+`adapters/adr:316` points at it for specs. Neither existed (issue 156).
+
+THE LAYOUT IS MEASURED. A census on 2026-08-24 over 399 repositories carrying
+`.specify/memory/constitution.md`, with shape sampled at n=90:
+
+    specs/ present            98.9%
+    .specify/memory/          98.9%
+    .specify/templates/       94.4%
+    .specify/scripts/         93.3%
+
+and it overturned two things the documentation says.
+
+**`specs/` IS NOT A SPEC KIT MARKER.** Two selectors returned 399 and 230
+repositories with an overlap of 6. Testing the second for contamination found
+**35 of 70 -- 50% -- carry no `.specify/` at all**: `specs/` is an ordinary
+directory name. Detection keys on `.specify/` and never on `specs/`, because
+binding an architecture provider to a folder that happens to be called `specs`
+manufactures architectural authority from a directory name (§37).
+
+**FEATURES ARE OFTEN NOT NUMBERED.** The documentation describes `NNN-slug`
+directories. 23.6% of repositories use no numbering at all, so identity comes
+from the directory name as written and never from a parsed number.
+
+Three refusals this provider makes, all asserted in `conformance/layer1.py`
+rather than left as comments:
+
+1. **An unfilled template constitution is `UNKNOWN`, never `DEFINED`.** Spec
+   Kit ships a constitution whose Articles IV-VI are project-defined
+   placeholders, and **6 of 59 constitutions read (10.2%) are still templates**,
+   carrying named holes like `PRINCIPLE_2_NAME`. Reading those as binding
+   constraints would state an architecture from a file nobody wrote.
+
+2. **`tasks.md` completion never reaches a constraint or a decision.** Checkbox
+   state is *execution* state, it is trivially machine-readable, and
+   `references/integrations.md` names the failure in as many words -- *"This
+   task is marked Ready, so I should work on it."* That is INV-002, and this
+   adapter does not read `tasks.md` at all.
+
+3. **Spec Kit supplies no decision ledger.** `get_active_decisions` and
+   `get_superseded_decisions` return empty WITH a note, the mirror image of
+   `adapters/adr::get_specs`. Returning empty silently would report "no
+   architectural decisions" as a fact about the repository.
+
+A caveat this adapter reports and does not solve: `specs/` is populated per
+feature branch, so what it answers depends on which branch is checked out.
+`adapters/adr` reads a directory that does not move underneath it. Whether a
+governance provider may return different architecture per branch is not settled
+here; `get_provenance` names the branch so a reader can see it.
+"""
+
+from __future__ import annotations
+
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from _protocol import cite, configured, fail, main, ok, unknown  # noqa: E402
+
+ROLE = "architecture"
+# `.specify` is the Spec Kit marker. The BINDING may override it (#27).
+ROOT_DIR = Path(configured("REPO_GOVERNOR_SPECKIT_DIR", "path", ".specify"))
+CONSTITUTION = ROOT_DIR / "memory" / "constitution.md"
+# Spec Kit writes specs/ at the repository root, beside .specify/ rather than
+# inside it. Derived from ROOT_DIR so an overridden binding stays coherent.
+SPECS = ROOT_DIR.parent / "specs"
+
+# Named holes in the shipped template. Measured on 10.2% of real constitutions.
+# A NAMED placeholder, not any bracketed text: prose legitimately contains
+# brackets, and treating those as template markers would report authored
+# constitutions as unwritten.
+TEMPLATE_HOLE = re.compile(r"\b(PRINCIPLE_\d+_NAME|PROJECT_NAME|SECTION_\d+_NAME|"
+                           r"RATIFICATION_DATE|CONSTITUTION_VERSION)\b")
+HEADING = re.compile(r"^##\s+(.+?)\s*$", re.M)
+
+
+def _guard(fn):
+    if not ROOT_DIR.exists():
+        return fail(ROLE, fn, "PROVIDER_UNAVAILABLE",
+                    f"Spec Kit directory {str(ROOT_DIR)!r} does not exist")
+    if not ROOT_DIR.is_dir():
+        return fail(ROLE, fn, "PROVIDER_UNAVAILABLE", f"{str(ROOT_DIR)!r} is not a directory")
+    return None
+
+
+def _constitution():
+    """Return (text, state) where state is AUTHORED, TEMPLATE or ABSENT."""
+    if not CONSTITUTION.is_file():
+        return None, "ABSENT"
+    try:
+        text = CONSTITUTION.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return None, "ABSENT"
+    return text, ("TEMPLATE" if TEMPLATE_HOLE.search(text) else "AUTHORED")
+
+
+def _spec_dirs():
+    """Every spec directory, numbered or not.
+
+    NO `NNN-` FILTER. The documentation says features are numbered; 23.6% of
+    real repositories do not number them, and a filter here would silently
+    report those repositories as having no specs at all.
+    """
+    if not SPECS.is_dir():
+        return []
+    return sorted(p for p in SPECS.iterdir() if p.is_dir())
+
+
+def get_constraints(kw):
+    """Architecture state per §37. An unwritten template is not a constraint."""
+    err = _guard("get_constraints")
+    if err:
+        return err
+    text, state = _constitution()
+    if state == "ABSENT":
+        return unknown(ROLE, "get_constraints",
+                       reason="NO_ARCHITECTURE_EVIDENCE",
+                       detail=f"{str(CONSTITUTION)!r} does not exist.",
+                       resolution="Run the constitution step, bind another architecture "
+                                  "provider, or accept UNKNOWN.",
+                       blocking=False)
+    if state == "TEMPLATE":
+        # §37. The file exists and nobody has written it. Measured at 10.2%.
+        return unknown(ROLE, "get_constraints",
+                       reason="STATUS_TEMPLATE_UNFILLED",
+                       detail=f"{str(CONSTITUTION)!r} still carries the shipped template's "
+                              "named placeholders, so its articles state nothing. Reading "
+                              "them as constraints would assert an architecture from a file "
+                              "nobody has written.",
+                       resolution="Fill in the constitution, or accept UNKNOWN.",
+                       blocking=False)
+    headings = HEADING.findall(text or "")
+    if not headings:
+        return unknown(ROLE, "get_constraints",
+                       reason="NO_ARCHITECTURE_EVIDENCE",
+                       detail="The constitution carries no '##' sections to address.",
+                       resolution="Structure the constitution with headings, or accept UNKNOWN.",
+                       blocking=False)
+    return ok(ROLE, "get_constraints",
+              {"state": "DEFINED",
+               "constraints": [{"id": h, "path": str(CONSTITUTION)} for h in headings],
+               "count": len(headings)},
+              [cite("speckit", str(CONSTITUTION), "'##' section headings")])
+
+
+def get_specs(kw):
+    err = _guard("get_specs")
+    if err:
+        return err
+    dirs = _spec_dirs()
+    if not dirs:
+        return unknown(ROLE, "get_specs",
+                       reason="NO_ARCHITECTURE_EVIDENCE",
+                       detail=f"{str(SPECS)!r} holds no feature directories.",
+                       resolution="Run the specify step, or accept UNKNOWN.",
+                       blocking=False)
+    return ok(ROLE, "get_specs",
+              {"specs": [{"id": p.name, "path": str(p),
+                          "numbered": bool(re.match(r"^\d{3,}[-_]", p.name))}
+                         for p in dirs],
+               "count": len(dirs)},
+              [cite("speckit", str(SPECS), "feature directory names")])
+
+
+def _no_ledger(fn):
+    return ok(ROLE, fn, {"decisions": [], "count": 0,
+                         "note": "Spec Kit records specifications, not architectural "
+                                 "decisions. It has no decision ledger and no supersession "
+                                 "concept; bind adapters/adr for decisions."},
+              [cite("speckit", str(ROOT_DIR))])
+
+
+def get_active_decisions(kw):
+    """ALWAYS EMPTY, with the reason stated. The mirror of adapters/adr::get_specs."""
+    err = _guard("get_active_decisions")
+    return err or _no_ledger("get_active_decisions")
+
+
+def get_superseded_decisions(kw):
+    err = _guard("get_superseded_decisions")
+    return err or _no_ledger("get_superseded_decisions")
+
+
+def get_provenance(kw):
+    err = _guard("get_provenance")
+    if err:
+        return err
+    _text, state = _constitution()
+    dirs = _spec_dirs()
+    # The branch is REPORTED because specs/ is populated per feature branch, so
+    # this provider can answer differently on two checkouts of one repository.
+    # adapters/adr reads a directory that does not move underneath it.
+    head = ROOT_DIR.parent / ".git" / "HEAD"
+    branch = None
+    if head.is_file():
+        ref = head.read_text(errors="ignore").strip()
+        branch = ref.split("/")[-1] if ref.startswith("ref:") else "DETACHED"
+    return ok(ROLE, "get_provenance",
+              {"source": "speckit-directory", "path": str(ROOT_DIR),
+               "constitution": state, "spec_directories": len(dirs),
+               "unnumbered_spec_directories":
+                   sum(1 for p in dirs if not re.match(r"^\d{3,}[-_]", p.name)),
+               "branch": branch,
+               "caveat": "specs/ is populated per feature branch; this answer depends on "
+                         "the checkout"},
+              [cite("speckit", str(ROOT_DIR))])
+
+
+def _probe():
+    # `.specify/` and NEVER `specs/`. 50% of repositories matching
+    # `specs/**/plan.md` carry no `.specify/` at all.
+    return ROOT_DIR.is_dir()
+
+
+FUNCTIONS = {
+    "get_active_decisions": get_active_decisions,
+    "get_superseded_decisions": get_superseded_decisions,
+    "get_constraints": get_constraints,
+    "get_provenance": get_provenance,
+    "get_specs": get_specs,
+}
+
+PROPERTIES = {"persistence": True, "provenance_quality": "exact"}
+
+CAPABILITIES = {
+    "active_decisions": False,      # honest: Spec Kit has no decision ledger
+    "superseded_decisions": False,
+    "constraints": True,
+    "specs": True,
+    "provenance": True,
+}
+
+if __name__ == "__main__":
+    sys.exit(main(ROLE, CAPABILITIES, FUNCTIONS,
+                  {"name": "speckit", "permissions": {"read": True, "write": False}},
+                  properties=PROPERTIES, probe=_probe))

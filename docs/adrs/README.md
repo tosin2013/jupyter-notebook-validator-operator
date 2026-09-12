@@ -17,7 +17,8 @@ Architectural Decision Records document important architectural decisions made d
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
 | [001](001-operator-framework-and-sdk-version.md) | Operator Framework and SDK Version | Accepted | 2025-11-07 |
-| [002](002-platform-version-support-strategy.md) | Platform Version Support Strategy | Accepted | 2025-11-07 |
+| [002](002-platform-version-support-strategy.md) | Platform Version Support Strategy | Superseded | 2025-11-07 |
+| [056](056-openshift-support-window-4.20-4.22.md) | OpenShift Support Window 4.20–4.22 | Accepted | 2026-09-12 |
 | [003](003-crd-schema-design-and-versioning.md) | CRD Schema Design and Versioning | Accepted | 2025-11-07 |
 | [004](004-deployment-and-packaging-strategy.md) | Deployment and Packaging Strategy | Accepted | 2025-11-07 |
 | [005](005-rbac-and-service-account-model.md) | RBAC and Service Account Model | Accepted | 2025-11-07 |
@@ -45,71 +46,75 @@ Architectural Decision Records document important architectural decisions made d
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
-| [020](020-model-aware-validation-strategy.md) | Model-Aware Validation Strategy | Implemented | 2025-11-08 |
+| [020](020-model-aware-validation-strategy.md) | Model-Aware Validation Strategy | Accepted | 2025-11-08 |
 
 ### Observability Enhancement ADRs (NEW - 2025-11-08)
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
-| [021](021-openshift-native-dashboard-strategy.md) | OpenShift-Native Dashboard Strategy | Proposed | 2025-11-08 |
-| [022](022-community-observability-contributions.md) | Community Observability Contributions | Proposed | 2025-11-08 |
+| [021](021-openshift-native-dashboard-strategy.md) | OpenShift-Native Dashboard Strategy | Accepted | 2025-11-08 |
+| [022](022-community-observability-contributions.md) | Community Observability Contributions | Accepted | 2025-11-08 |
 
 ### Build Integration ADRs (NEW - 2025-11-09)
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
-| [023](023-s2i-build-integration-openshift.md) | S2I Build Integration for OpenShift | Archived | 2025-11-08 |
+| [023](023-s2i-build-integration-openshift.md) | S2I Build Integration for OpenShift | Superseded | 2025-11-08 |
 | [024](024-fallback-strategy-missing-requirements.md) | Fallback Strategy for Missing Requirements | Accepted | 2025-11-08 |
 | [025](025-community-build-methods-extension-framework.md) | Community Build Methods Extension Framework | Accepted | 2025-11-08 |
-| [026](026-smart-validation-pod-recovery.md) | Smart Validation Pod Recovery and Build Strategy Selection | Implemented | 2025-11-09 |
+| [026](026-smart-validation-pod-recovery.md) | Smart Validation Pod Recovery and Build Strategy Selection | Accepted | 2025-11-09 |
 | [027](027-s2i-build-strategy-for-git-integration.md) | S2I Build Strategy for Git Integration | Superseded | 2025-11-09 |
-| [028](028-tekton-task-strategy-custom-vs-cluster-tasks.md) | Tekton Task Strategy - Custom vs Cluster Tasks | Implemented | 2025-11-09 |
-| [031](031-tekton-build-dockerfile-vs-base-image.md) | Tekton Build Strategy - Dockerfile vs Base Image | Implemented | 2025-11-09 |
-| [037](037-build-validation-sequencing-and-state-machine.md) | Build-Validation Sequencing and State Machine | Implemented | 2025-11-10 |
-| [039](039-automatic-scc-management-for-tekton-builds.md) | Automatic SCC Management for Tekton Builds | Implemented | 2025-11-21 |
-| [040](040-unique-build-pvcs-for-concurrent-tekton-builds.md) | Unique Build PVCs for Concurrent Tekton Builds | Implemented | 2025-11-24 |
-| [042](042-automatic-tekton-git-credentials-conversion.md) | Automatic Tekton Git Credentials Conversion | Implemented | 2025-11-21 |
-| [050](050-fix-s2i-build-status-monitoring.md) | Fix S2I Build Status Monitoring | Proposed | 2025-11-24 |
-| [051](051-git-init-image-compatibility.md) | Git Init Container Image Compatibility | Implemented | 2025-11-21 |
-| [052](052-resource-conflict-error-handling.md) | Resource Conflict Error Handling | Implemented | 2025-11-24 |
-| [053](053-volume-and-pvc-support-for-validation-pods.md) | Volume and PVC Support for Validation Pods | Implemented | 2025-11-29 |
-| [054](054-pod-scheduling-support-tolerations-nodeselector-affinity.md) | Pod Scheduling Support (Tolerations, NodeSelector, Affinity) | Implemented | 2026-01-28 |
+| [028](028-tekton-task-strategy-custom-vs-cluster-tasks.md) | Tekton Task Strategy - Custom vs Cluster Tasks | Accepted | 2025-11-09 |
+| [029](029-platform-version-dependency-review-process.md) | Platform Version Dependency Review Process | Accepted | 2025-11-09 |
+| [030](030-smart-error-messages-and-user-feedback.md) | Smart Error Messages and User Feedback | Accepted | 2025-11-09 |
+| [031](031-tekton-build-dockerfile-vs-base-image.md) | Tekton Build Strategy - Dockerfile vs Base Image | Accepted | 2025-11-09 |
+| [037](037-build-validation-sequencing-and-state-machine.md) | Build-Validation Sequencing and State Machine | Accepted | 2025-11-10 |
+| [038](038-requirements-auto-detection-and-dockerfile-generation.md) | Requirements Auto-Detection and Dockerfile Generation | Accepted | 2025-11-20 |
+| [039](039-automatic-scc-management-for-tekton-builds.md) | Automatic SCC Management for Tekton Builds | Accepted | 2025-11-21 |
+| [040](040-unique-build-pvcs-for-concurrent-tekton-builds.md) | Unique Build PVCs for Concurrent Tekton Builds | Accepted | 2025-11-24 |
+| [041](041-exit-code-validation-and-developer-safety-framework.md) | Exit Code Validation and Developer Safety Framework | Accepted | 2025-11-20 |
+| [042](042-automatic-tekton-git-credentials-conversion.md) | Automatic Tekton Git Credentials Conversion | Accepted | 2025-11-21 |
+| [043](043-separate-build-status-monitoring-by-strategy.md) | Separate Build Status Monitoring by Strategy | Accepted | 2025-11-24 |
+| [044](044-s2i-strategy-enhancements-parity-with-tekton.md) | S2I Strategy Enhancements - Parity with Tekton | Accepted | 2025-11-24 |
+| [050](050-fix-s2i-build-status-monitoring.md) | Fix S2I Build Status Monitoring | Accepted | 2025-11-24 |
+| [051](051-git-init-image-compatibility.md) | Git Init Container Image Compatibility | Accepted | 2025-11-21 |
+| [052](052-resource-conflict-error-handling.md) | Resource Conflict Error Handling | Accepted | 2025-11-24 |
+| [053](053-volume-and-pvc-support-for-validation-pods.md) | Volume and PVC Support for Validation Pods | Accepted | 2025-11-29 |
+| [054](054-pod-scheduling-support-tolerations-nodeselector-affinity.md) | Pod Scheduling Support (Tolerations, NodeSelector, Affinity) | Accepted | 2026-01-28 |
 
 ### Testing & Validation ADRs (NEW - 2025-11-12)
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
-| [032](032-github-actions-ci-testing-kubernetes-version.md) | GitHub Actions CI Testing Against Kubernetes 1.31.10 | Implemented | 2025-11-09 |
+| [032](032-github-actions-ci-testing-kubernetes-version.md) | GitHub Actions CI Testing Against Kubernetes 1.31.10 | Accepted | 2025-11-09 |
 | [033](033-e2e-testing-live-openshift-cluster.md) | End-to-End Testing Against Live OpenShift Cluster | Accepted | 2025-11-09 |
-| [034](034-dual-testing-strategy-kind-openshift.md) | Dual Testing Strategy with Kind and OpenShift | Implemented | 2025-11-11 |
+| [034](034-dual-testing-strategy-kind-openshift.md) | Dual Testing Strategy with Kind and OpenShift | Accepted | 2025-11-11 |
+| [035](035-test-tier-organization-and-scope.md) | Test Tier Organization and Scope | Accepted | 2025-11-11 |
+| [036](036-private-test-repository-strategy.md) | Private Test Repository Strategy | Accepted | 2025-11-11 |
 | [048](048-pre-submission-validation-test-rig-strategy.md) | Pre-Submission Validation Test Rig Strategy | Accepted | 2025-11-12 |
 
 ### ArgoCD Integration ADRs (NEW - 2026-01-24)
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
-| [049](049-argocd-integration-strategy.md) | ArgoCD Integration Strategy for GitOps Workflows | Implemented | 2026-01-24 |
+| [049](049-argocd-integration-strategy.md) | ArgoCD Integration Strategy for GitOps Workflows | Accepted | 2026-01-24 |
 
-### Planned ADRs
+### Deployment & Bundle Strategy ADRs
 
-The following ADRs are planned for future documentation:
-
-#### Medium Priority (Production Readiness)
-- **ADR 021**: Configuration Management and Feature Flags
-- **ADR 022**: Performance Optimization and Scalability
-
-#### Low Priority (Enterprise Features)
-- **ADR 022**: Upgrade and Migration Strategy
-- **ADR 023**: Disaster Recovery and Backup
+| ADR | Title | Status | Date |
+|-----|-------|--------|------|
+| [045](045-long-term-strategic-deployment-plan.md) | Long-Term Strategic Deployment Plan | Accepted | 2025-12-03 |
+| [046](046-multi-version-bundle-strategy-and-upgrade-chain.md) | Multi-Version Bundle Strategy and Upgrade Chain | Accepted | 2025-12-03 |
+| [047](047-fix-bundle-versioning-consecutive-upgrade-chain.md) | Fix Bundle Versioning for Consecutive Upgrade Chain | Superseded | 2025-12-03 |
+| [055](055-operatorhub-submission-lessons-learned.md) | OperatorHub Submission Lessons Learned (v1.0.8) | Accepted | 2026-04-22 |
+| [057](057-upgrade-from-published-v1.0.3-ocp4.19.md) | Upgrade from Published v1.0.3-ocp4.19 | Accepted | 2026-01-25 |
 
 ## ADR Status Definitions
 
 - **Proposed**: ADR is under discussion and review
-- **Accepted**: ADR has been approved and is being implemented
-- **Implemented**: ADR has been fully implemented in the codebase
+- **Accepted**: ADR has been approved and guides implementation
 - **Deprecated**: ADR is no longer recommended but kept for historical reference
 - **Superseded**: ADR has been replaced by a newer decision (link to new ADR)
-- **Archived**: ADR is a duplicate or has been consolidated into another ADR
 
 ## ADR Template
 
@@ -175,6 +180,22 @@ When creating new ADRs, use the following structure:
 - **Permissions**: Least privilege principle
 - **Pod Security**: Non-root, dropped capabilities, read-only root filesystem
 
+## Changing ADRs
+
+Accepted decisions are architecture. Editing an Accepted ADR in place to change the decision makes the ledger fiction.
+
+Before changing any ADR:
+
+1. Identify the GitHub issue and run `python3 .cursor/skills/repo-governor/engine/completion.py <issue-number>` from the operator repository root (not from the skill directory). Proceed only on `CONTINUE`.
+2. If the natural change collides with an Accepted ADR, treat it as an **architecture review candidate**. Do not implement around the decision and do not rewrite the Accepted file.
+3. Capture a new decision as a **Proposed** ADR (next unused number). **Proposed is not architecture anyone may rely on.**
+4. **Accepted** and **Superseded** are human ratification. An agent must not flip those statuses unless the assignee explicitly directed that ratification in the authorized issue.
+5. The ADR MCP server (`mcp-adr-analysis-server`, project `.cursor/mcp.json`, `ADR_DIRECTORY=docs/adrs`) may analyze drift and suggest text. It does not ratify. Repo Governor’s architecture provider remains `adapters/adr` over this directory.
+
+First window candidate: issue #44 (Proposed ADR-056 superseding ADR-002). Related drift **not** rewritten in that issue: ADR-006’s 4.18-first phases; ADR-046’s 4.18/4.19/4.20 bundle table.
+
+New ADRs still follow the steps below.
+
 ## Contributing to ADRs
 
 When proposing a new ADR:
@@ -208,6 +229,14 @@ The following ADRs were renumbered to resolve duplicate numbering:
 
 **Note**: ADR-042 (Automatic Tekton Git Credentials Conversion) remains the canonical ADR-042.
 ADR-045 (Long-Term Strategic Deployment Plan) remains the canonical ADR-045.
+
+### 2026-09-12: Resolved Duplicate ADR-048
+
+| Original | New | Description |
+|----------|-----|-------------|
+| 048-upgrade-from-published-v1.0.3-ocp4.19 | 057-upgrade-from-published-v1.0.3-ocp4.19 | Upgrade from Published v1.0.3-ocp4.19 |
+
+**Note**: ADR-048 (Pre-Submission Validation Test Rig Strategy) remains the canonical ADR-048.
 
 ## References
 

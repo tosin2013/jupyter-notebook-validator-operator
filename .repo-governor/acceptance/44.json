@@ -1,0 +1,35 @@
+{
+  "$comment": "Ratified bar for #44. ADR-056 Accepted, ADR-002 Superseded, window 4.20-4.22, drops 4.18. OLM/CSV work split to #16.",
+  "authority_id": "44",
+  "criteria": [
+    {
+      "check": "file_exists",
+      "target": "docs/adrs/056-openshift-support-window-4.20-4.22.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q '^Accepted$' docs/adrs/056-openshift-support-window-4.20-4.22.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q '^Superseded$' docs/adrs/002-platform-version-support-strategy.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q '4.20' docs/adrs/056-openshift-support-window-4.20-4.22.md && grep -q '4.21' docs/adrs/056-openshift-support-window-4.20-4.22.md && grep -q '4.22' docs/adrs/056-openshift-support-window-4.20-4.22.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -qi 'drop' docs/adrs/056-openshift-support-window-4.20-4.22.md && grep -q '4.18' docs/adrs/056-openshift-support-window-4.20-4.22.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -qi 'supersede' docs/adrs/056-openshift-support-window-4.20-4.22.md && grep -q 'ADR-002' docs/adrs/056-openshift-support-window-4.20-4.22.md"
+    }
+  ],
+  "covers": {
+    "declared": "Ratified ADR-056 (Accepted) superseding ADR-002 (Superseded); certified window 4.20-4.22; drops 4.18. README/support docs updated in #47/#49.",
+    "uncovered": "CSV description and com.redhat.openshift.versions annotation updates",
+    "split_to": ["16"]
+  }
+}

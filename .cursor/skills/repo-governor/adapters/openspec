@@ -1,0 +1,267 @@
+#!/usr/bin/env python3
+"""ArchitectureEvidenceProvider backed by an OpenSpec directory (spec §12, ADR-003).
+
+`docs/reference/provider-roles.md:52` named OpenSpec as a §12 implementation and
+`adapters/adr:316` returns empty specs with the note *"bind OpenSpec/Spec Kit for
+specs"*. Both pointed at a provider that did not exist (issue 155).
+
+THE LAYOUT IS MEASURED, NOT READ OFF THE DOCUMENTATION. A census on 2026-08-24
+found ≥895 public repositories carrying an `openspec/` tree, and it corrected the
+issue that commissioned it twice:
+
+    changes/            84.3%   the durable marker
+    specs/              58.3%   ABSENT IN 4 REPOSITORIES IN 10
+    project.md          20.7%   under an independent selector; 97.8% was a
+                                selection artifact -- the sample had been found
+                                by searching for project.md
+    changes/archive/    60.1%   of repositories that have changes/
+    openspec/archive/    4.5%   the path this adapter was first specified against
+
+Two rules follow, and both are the kind that are cheap now and expensive later.
+
+**specs/ absent is UNKNOWN, never an empty success.** Four repositories in ten
+use OpenSpec delta-only. "This repository has no specs" and "this repository
+records specs elsewhere" are different facts (ADR-003 rule 6, INV-012).
+
+**An archived change is COMPLETED, not superseded.** `get_superseded_decisions`
+returns empty by declaration. OpenSpec has no supersession concept; archiving
+means the change landed. Mapping it onto supersession would be wrong on its own
+terms, and it would fabricate cross-provider contradictions through the evidence
+union (issue 154): ADR-013 rule 3 escalates precisely "active in one provider,
+superseded in another", so an ADR sharing an id with an archived change would
+produce an ARCHITECTURE_REVIEW that nothing real is behind. A false escalation is
+worse than a missing adapter -- §54 names over-escalation as a failure condition.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from _protocol import cite, configured, fail, main, ok, unknown  # noqa: E402
+
+ROLE = "architecture"
+# Where the tree lives is the BINDING's business (#27). `openspec` is the
+# convention the CLI creates and the fallback only when nobody said otherwise.
+ROOT_DIR = Path(configured("REPO_GOVERNOR_OPENSPEC_DIR", "path", "openspec"))
+CHANGES = ROOT_DIR / "changes"
+SPECS = ROOT_DIR / "specs"
+ARCHIVE = CHANGES / "archive"
+
+
+def _scan_changes():
+    """Return (active, archived, skipped). Skipped is reported, never dropped.
+
+    11.2% of measured repositories keep loose files beside the change
+    directories. Dropping them silently reports a smaller change set as though
+    it were the whole one -- the defect `_completeness` fixed in `adapters/adr`
+    (issue 25), reached by a different route.
+    """
+    if not CHANGES.is_dir():
+        return [], [], []
+    active, skipped = [], []
+    for p in sorted(CHANGES.iterdir()):
+        if p.name == "archive":
+            continue
+        (active if p.is_dir() else skipped).append(p)
+    archived = sorted(p for p in ARCHIVE.iterdir() if p.is_dir()) if ARCHIVE.is_dir() else []
+    return active, archived, skipped
+
+
+def _rec(p, state):
+    return {"id": p.name, "status": state, "path": str(p)}
+
+
+def _guard(fn):
+    if not ROOT_DIR.exists():
+        return fail(ROLE, fn, "PROVIDER_UNAVAILABLE",
+                    f"OpenSpec directory {str(ROOT_DIR)!r} does not exist")
+    if not ROOT_DIR.is_dir():
+        return fail(ROLE, fn, "PROVIDER_UNAVAILABLE", f"{str(ROOT_DIR)!r} is not a directory")
+    if not CHANGES.is_dir() and not SPECS.is_dir():
+        # The directory exists and holds neither half of the layout. That is a
+        # malformed source rather than an empty one: something created
+        # `openspec/` and this adapter cannot say what it contains.
+        return fail(ROLE, fn, "MALFORMED_SOURCE",
+                    f"{str(ROOT_DIR)!r} has neither 'changes/' nor 'specs/'; "
+                    "not a layout this adapter can read")
+    return None
+
+
+def _skipped_note(fn, skipped, read):
+    """Loose entries beside the change directories, reported rather than dropped.
+
+    The reason and the blocking rule are BORROWED, not invented. The closed
+    vocabulary in `engine/vocabulary.py` says in as many words that a provider
+    may not invent reasons, and the first draft of this function emitted a
+    `SOURCE_PARTIALLY_READ` that does not exist -- caught by
+    `conformance/vocabulary.py`, which scans adapters for emitted reasons.
+
+    Dominance decides blocking, exactly as `adapters/adr::_completeness` does:
+    when more entries could not be read than were, the answer is dominated by
+    what was not read. Two loose files among fifty changes is a footnote and
+    lives in `get_provenance` as `unreadable_entries`; forty-nine among two is
+    not the same fact at a different size.
+    """
+    if not skipped or len(skipped) <= read:
+        return None
+    return {"reason": "ARCHITECTURE_PARTIALLY_READ",
+            "detail": f"{len(skipped)} entr(y/ies) in {str(CHANGES)!r} are not change "
+                      f"directories and were not read; {read} were",
+            "resolution": "Move loose files out of changes/, or accept a partial read.",
+            "blocking": True}
+
+
+def get_active_decisions(kw):
+    """Active changes. A change in flight is a decision in progress, not a ruling."""
+    err = _guard("get_active_decisions")
+    if err:
+        return err
+    active, _archived, skipped = _scan_changes()
+    return ok(ROLE, "get_active_decisions",
+              {"decisions": [_rec(p, "Active") for p in active], "count": len(active)},
+              [cite("openspec", str(CHANGES), "directory names")],
+              _skipped_note("get_active_decisions", skipped, len(active)))
+
+
+def get_superseded_decisions(kw):
+    """ALWAYS EMPTY, and the reason is the point.
+
+    OpenSpec archives a change when it LANDS. That is completion, and completion
+    is not supersession. Reporting archived changes here would make every
+    finished change look like a withdrawn decision, and through the multi-valued
+    union (issue 154) it would escalate any ADR sharing an id to
+    ARCHITECTURE_REVIEW on evidence that does not exist.
+    """
+    err = _guard("get_superseded_decisions")
+    if err:
+        return err
+    _active, archived, _skipped = _scan_changes()
+    return ok(ROLE, "get_superseded_decisions",
+              {"decisions": [], "count": 0,
+               "note": f"OpenSpec has no supersession concept. {len(archived)} archived "
+                       "change(s) are COMPLETED, not superseded, and are reported by "
+                       "get_completed_changes rather than here."},
+              [cite("openspec", str(ARCHIVE), "archived change count")])
+
+
+def get_completed_changes(kw):
+    """Archived changes, under a name that says what they are.
+
+    Not part of §12. Advertised as an extension so the information is available
+    without being smuggled into a contract function that means something else.
+    """
+    err = _guard("get_completed_changes")
+    if err:
+        return err
+    _active, archived, _skipped = _scan_changes()
+    return ok(ROLE, "get_completed_changes",
+              {"changes": [_rec(p, "Completed") for p in archived], "count": len(archived)},
+              [cite("openspec", str(ARCHIVE), "directory names")])
+
+
+def get_specs(kw):
+    """Current requirements. Absent for four repositories in ten, and it matters."""
+    err = _guard("get_specs")
+    if err:
+        return err
+    if not SPECS.is_dir():
+        active, _a, _s = _scan_changes()
+        return unknown(ROLE, "get_specs",
+                       reason="NO_ARCHITECTURE_EVIDENCE",
+                       detail=f"{str(SPECS)!r} does not exist. This repository uses "
+                              f"OpenSpec delta-only: {len(active)} active change(s) and "
+                              "no accumulated specification. Measured across public "
+                              "repositories, 41.7% are in this state.",
+                       resolution="Archive a change to populate specs/, bind another "
+                                  "architecture provider, or accept UNKNOWN.",
+                       blocking=False)
+    items = sorted(p for p in SPECS.iterdir() if p.is_dir() or p.suffix == ".md")
+    return ok(ROLE, "get_specs",
+              {"specs": [{"id": p.stem if p.is_file() else p.name, "path": str(p)}
+                         for p in items],
+               "count": len(items)},
+              [cite("openspec", str(SPECS), "directory entries")])
+
+
+def get_constraints(kw):
+    """Architecture state per §37. Never manufactures authority.
+
+    `specs/` holds what the system must currently satisfy, so it is DEFINED.
+    Active changes are proposals in flight, so they are INFERRED at most --
+    the same shape `adapters/adr` uses for Proposed-only ledgers.
+    """
+    err = _guard("get_constraints")
+    if err:
+        return err
+    active, _archived, skipped = _scan_changes()
+    specs = sorted(p for p in SPECS.iterdir() if p.is_dir() or p.suffix == ".md") \
+        if SPECS.is_dir() else []
+    if specs:
+        state, items, src = "DEFINED", specs, SPECS
+    elif active:
+        state, items, src = "INFERRED", active, CHANGES
+    else:
+        return unknown(ROLE, "get_constraints",
+                       reason="NO_ARCHITECTURE_EVIDENCE",
+                       detail=f"{str(ROOT_DIR)!r} holds no specs and no active changes.",
+                       resolution="Add a change or a spec, bind another architecture "
+                                  "provider, or accept UNKNOWN.",
+                       blocking=False)
+    return ok(ROLE, "get_constraints",
+              {"state": state,
+               "constraints": [{"id": p.stem if p.is_file() else p.name, "path": str(p)}
+                               for p in items],
+               "count": len(items)},
+              [cite("openspec", str(src), "directory entries")],
+              _skipped_note("get_constraints", skipped, len(items)))
+
+
+def get_provenance(kw):
+    err = _guard("get_provenance")
+    if err:
+        return err
+    active, archived, skipped = _scan_changes()
+    return ok(ROLE, "get_provenance",
+              {"source": "openspec-directory", "path": str(ROOT_DIR),
+               "active_changes": len(active), "completed_changes": len(archived),
+               "unreadable_entries": len(skipped),
+               "specs_present": SPECS.is_dir()},
+              [cite("openspec", str(ROOT_DIR))])
+
+
+def _probe():
+    # Keys on the DIRECTORY plus one half of the layout, never on project.md --
+    # which the corrected census puts at 20.7%, not the 97.8% a self-selecting
+    # sample first reported.
+    return ROOT_DIR.is_dir() and (CHANGES.is_dir() or SPECS.is_dir())
+
+
+FUNCTIONS = {
+    "get_active_decisions": get_active_decisions,
+    "get_superseded_decisions": get_superseded_decisions,
+    "get_completed_changes": get_completed_changes,
+    "get_constraints": get_constraints,
+    "get_provenance": get_provenance,
+    "get_specs": get_specs,
+}
+
+PROPERTIES = {
+    "persistence": True,
+    "provenance_quality": "exact",
+}
+
+CAPABILITIES = {
+    "active_decisions": True,
+    "superseded_decisions": False,   # honest: OpenSpec has no such concept
+    "completed_changes": True,
+    "constraints": True,
+    "specs": True,
+    "provenance": True,
+}
+
+if __name__ == "__main__":
+    sys.exit(main(ROLE, CAPABILITIES, FUNCTIONS,
+                  {"name": "openspec", "permissions": {"read": True, "write": False}},
+                  properties=PROPERTIES, probe=_probe))

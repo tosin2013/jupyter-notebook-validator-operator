@@ -1,0 +1,2 @@
+{"type": "system", "subtype": "init", "model": "claude-opus-4-6", "skills": ["repo-governor"], "tools": ["Bash", "Edit"]}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Read", "input": {"file_path": "README.md"}}]}}

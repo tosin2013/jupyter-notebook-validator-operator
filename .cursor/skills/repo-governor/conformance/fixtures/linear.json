@@ -1,0 +1,30 @@
+{
+  "$comment": "SYNTHETIC. Shaped to Linear's GraphQL schema (issues.nodes[].state.{name,type}) but not captured from a live workspace — no credentials were available. Every node is synthetic. Replace with a recorded response before treating Layer 2 results from this provider as strong evidence.",
+  "data": {
+    "issues": {
+      "nodes": [
+        { "identifier": "ENG-100", "title": "Filed but not yet admitted",
+          "state": { "name": "Triage", "type": "triage" },
+          "project": null, "parent": null, "labels": { "nodes": [] } },
+        { "identifier": "ENG-101", "title": "Admitted, not scheduled",
+          "state": { "name": "Backlog", "type": "backlog" },
+          "project": { "name": "Governance" }, "parent": null, "labels": { "nodes": [] } },
+        { "identifier": "ENG-102", "title": "Scheduled and ready to start",
+          "state": { "name": "Todo", "type": "unstarted" },
+          "project": { "name": "Governance" }, "parent": null, "labels": { "nodes": [] } },
+        { "identifier": "ENG-103", "title": "In progress",
+          "state": { "name": "In Progress", "type": "started" },
+          "project": { "name": "Governance" }, "parent": null, "labels": { "nodes": [] } },
+        { "identifier": "ENG-104", "title": "Authority withdrawn",
+          "state": { "name": "Canceled", "type": "canceled" },
+          "project": { "name": "Governance" }, "parent": null, "labels": { "nodes": [] } },
+        { "identifier": "ENG-105", "title": "Finished",
+          "state": { "name": "Done", "type": "completed" },
+          "project": { "name": "Governance" }, "parent": null, "labels": { "nodes": [] } },
+        { "identifier": "ENG-106", "title": "Custom workflow state name, standard type",
+          "state": { "name": "Shipping It", "type": "started" },
+          "project": { "name": "Governance" }, "parent": null, "labels": { "nodes": [] } }
+      ]
+    }
+  }
+}

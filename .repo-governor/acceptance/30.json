@@ -1,0 +1,22 @@
+{
+  "$comment": "Criteria taken from issue #30 Acceptance Criteria (named sample CRs and AWS Integration heading).",
+  "authority_id": "30",
+  "criteria": [
+    {
+      "check": "file_exists",
+      "target": "config/samples/mlops_v1alpha1_notebookvalidationjob_aws_secrets_manager.yaml"
+    },
+    {
+      "check": "file_exists",
+      "target": "config/samples/mlops_v1alpha1_notebookvalidationjob_irsa.yaml"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'AWS Integration' docs/NOTEBOOK_CREDENTIALS_GUIDE.md"
+    }
+  ],
+  "covers": {
+    "declared": "Named AWS Secrets Manager and IRSA sample CRs plus AWS Integration heading in NOTEBOOK_CREDENTIALS_GUIDE.md",
+    "uncovered": "docs/TODO.md ADR-014 checklist marked complete; human review of examples against current ESO v1beta1 API"
+  }
+}

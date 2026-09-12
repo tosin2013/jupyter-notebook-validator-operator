@@ -1,0 +1,18 @@
+{
+  "$comment": "Criteria taken from issue #38 Acceptance Criteria (Grafana JSON export directory and docs section).",
+  "authority_id": "38",
+  "criteria": [
+    {
+      "check": "file_exists",
+      "target": "config/monitoring/grafana/json"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'Non-OpenShift' docs/OBSERVABILITY.md"
+    }
+  ],
+  "covers": {
+    "declared": "config/monitoring/grafana/json/ and OBSERVABILITY.md Non-OpenShift section",
+    "uncovered": "Metric-for-metric parity with OpenShift Console dashboards; helm-sync copying JSON into the chart; helm-lint of new files"
+  }
+}

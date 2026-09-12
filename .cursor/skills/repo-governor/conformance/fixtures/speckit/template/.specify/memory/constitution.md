@@ -1,0 +1,10 @@
+# [PROJECT_NAME] Constitution
+
+## Article I: [PRINCIPLE_1_NAME]
+[PRINCIPLE_1_DESCRIPTION]
+
+## Article II: [PRINCIPLE_2_NAME]
+[PRINCIPLE_2_DESCRIPTION]
+
+## Governance
+**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE]

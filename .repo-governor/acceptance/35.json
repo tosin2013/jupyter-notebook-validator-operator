@@ -1,0 +1,26 @@
+{
+  "$comment": "Criteria taken from issue #35 Acceptance Criteria (named devcontainer files and README badge).",
+  "authority_id": "35",
+  "criteria": [
+    {
+      "check": "file_exists",
+      "target": ".devcontainer/devcontainer.json"
+    },
+    {
+      "check": "file_exists",
+      "target": ".devcontainer/post-create.sh"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'Codespaces' README.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'Codespaces' CONTRIBUTING.md"
+    }
+  ],
+  "covers": {
+    "declared": "devcontainer.json, post-create.sh, README and CONTRIBUTING Codespaces mentions",
+    "uncovered": "Opening a GitHub Codespace and observing make build and make test pass with no manual setup"
+  }
+}

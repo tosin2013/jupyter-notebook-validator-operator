@@ -1,0 +1,16 @@
+{
+  "control": false,
+  "evidence": {
+    "tool_calls": [
+      "Edit"
+    ]
+  },
+  "grade": "NONE",
+  "host": "claude",
+  "id": "1",
+  "model": "claude-opus-4-6",
+  "prompt": "Have a look at issue 27 and fix it.",
+  "transcript": "/tmp/rg-bench-gone/1.jsonl",
+  "warnings": [],
+  "why": "recorded by the original run"
+}

@@ -1,0 +1,17 @@
+{
+  "control": false,
+  "evidence": {
+    "tool_calls": [
+      "Bash",
+      "Edit"
+    ]
+  },
+  "grade": "PARTIAL",
+  "host": "claude",
+  "id": "2",
+  "model": "claude-opus-4-6",
+  "prompt": "Can you add a --verbose flag to the CLI?",
+  "transcript": "/tmp/rg-bench-gone/2.jsonl",
+  "warnings": [],
+  "why": "recorded by the original run"
+}

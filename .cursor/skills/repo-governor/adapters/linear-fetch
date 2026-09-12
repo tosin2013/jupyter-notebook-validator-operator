@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""Transport half of the Linear adapter — issue #18 option C.
+
+Does I/O and nothing else. Emits raw provider output on stdout, unmodified.
+This is the "receiver" in the OpenTelemetry sense: it knows how to obtain
+bytes and knows nothing about what they mean.
+
+    $ ./adapters/linear-fetch            # -> raw Linear GraphQL response
+    $ ./adapters/linear-fetch | ./adapters/linear query roadmap_authority \
+          get_authority id=ENG-102 --input -
+
+Replaceable. An agent holding an MCP connection can produce the same raw
+payload without running this at all, which is the point of option C: the
+transport problem moves outside the adapter, and normalization stays
+mechanical.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+ENDPOINT = "https://api.linear.app/graphql"
+FIXTURE = os.environ.get("REPO_GOVERNOR_LINEAR_FIXTURE")
+API_KEY = os.environ.get("LINEAR_API_KEY")
+
+QUERY = """
+query {
+  issues(first: 50) {
+    nodes {
+      identifier title
+      state { name type }
+      project { name }
+      parent { identifier }
+      labels(first: 10) { nodes { name } }
+    }
+  }
+}
+"""
+
+
+def die(etype, message):
+    json.dump({"ok": False, "error": {"type": etype, "message": message}}, sys.stdout)
+    sys.stdout.write("\n")
+    sys.exit(0)
+
+
+def main():
+    if FIXTURE:
+        p = Path(FIXTURE)
+        if not p.exists():
+            die("PROVIDER_UNAVAILABLE", f"fixture {FIXTURE!r} does not exist")
+        sys.stdout.write(p.read_text())
+        return
+    if not API_KEY:
+        die("PROVIDER_UNAVAILABLE", "LINEAR_API_KEY is not set and no fixture was provided")
+    req = urllib.request.Request(
+        ENDPOINT,
+        data=json.dumps({"query": QUERY}).encode(),
+        headers={"Content-Type": "application/json", "Authorization": API_KEY},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            sys.stdout.write(r.read().decode())
+    except urllib.error.HTTPError as e:
+        die("PROVIDER_UNAVAILABLE", f"Linear API HTTP {e.code}")
+    except urllib.error.URLError as e:
+        die("PROVIDER_UNAVAILABLE", f"Linear API unreachable: {e.reason}")
+
+
+if __name__ == "__main__":
+    main()

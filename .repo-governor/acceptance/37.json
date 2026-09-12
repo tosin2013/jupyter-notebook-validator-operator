@@ -1,0 +1,22 @@
+{
+  "$comment": "Criteria taken from issue #37 Acceptance Criteria (githubStatus CRD block and sample).",
+  "authority_id": "37",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "grep -q 'githubStatus' api/v1alpha1/notebookvalidationjob_types.go"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'githubStatus' config/crd/bases/mlops.mlops.dev_notebookvalidationjobs.yaml"
+    },
+    {
+      "check": "command_exit",
+      "target": "ls config/samples/*github* >/dev/null 2>&1"
+    }
+  ],
+  "covers": {
+    "declared": "githubStatus on the CRD and a sample CR under config/samples",
+    "uncovered": "Controller posting pending/success/failure commit statuses; unit test mocking the GitHub API"
+  }
+}

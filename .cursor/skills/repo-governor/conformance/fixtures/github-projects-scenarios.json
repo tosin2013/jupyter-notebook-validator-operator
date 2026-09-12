@@ -1,0 +1,595 @@
+{
+  "data": {
+    "repository": {
+      "issues": {
+        "nodes": [
+          {
+            "number": 1,
+            "title": "Open question: does cross-provider semantic normalization actually work?",
+            "state": "OPEN",
+            "stateReason": null,
+            "labels": {
+              "nodes": [
+                {
+                  "name": "open-question"
+                },
+                {
+                  "name": "thesis-risk"
+                }
+              ]
+            },
+            "milestone": null,
+            "projectItems": {
+              "nodes": [
+                {
+                  "project": {
+                    "number": 5,
+                    "title": "repo-governor"
+                  },
+                  "fieldValues": {
+                    "nodes": [
+                      {},
+                      {},
+                      {},
+                      {
+                        "name": "Backlog",
+                        "field": {
+                          "name": "Status"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "number": 2,
+            "title": "Open question: how thin are compiled ScopeEnvelopes on real roadmap items?",
+            "state": "OPEN",
+            "stateReason": null,
+            "labels": {
+              "nodes": [
+                {
+                  "name": "open-question"
+                },
+                {
+                  "name": "thesis-risk"
+                }
+              ]
+            },
+            "milestone": null,
+            "projectItems": {
+              "nodes": [
+                {
+                  "project": {
+                    "number": 5,
+                    "title": "repo-governor"
+                  },
+                  "fieldValues": {
+                    "nodes": [
+                      {},
+                      {},
+                      {},
+                      {
+                        "name": "Backlog",
+                        "field": {
+                          "name": "Status"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "number": 3,
+            "title": "Decide manifest canonical format: JSON or vendored YAML subset",
+            "state": "CLOSED",
+            "stateReason": "COMPLETED",
+            "labels": {
+              "nodes": [
+                {
+                  "name": "open-question"
+                }
+              ]
+            },
+            "milestone": null,
+            "projectItems": {
+              "nodes": [
+                {
+                  "project": {
+                    "number": 5,
+                    "title": "repo-governor"
+                  },
+                  "fieldValues": {
+                    "nodes": [
+                      {},
+                      {},
+                      {},
+                      {
+                        "name": "Done",
+                        "field": {
+                          "name": "Status"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "number": 4,
+            "title": "Decide decision-record redaction default for public repositories",
+            "state": "OPEN",
+            "stateReason": null,
+            "labels": {
+              "nodes": [
+                {
+                  "name": "open-question"
+                }
+              ]
+            },
+            "milestone": null,
+            "projectItems": {
+              "nodes": [
+                {
+                  "project": {
+                    "number": 5,
+                    "title": "repo-governor"
+                  },
+                  "fieldValues": {
+                    "nodes": [
+                      {},
+                      {},
+                      {},
+                      {
+                        "name": "Backlog",
+                        "field": {
+                          "name": "Status"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "number": 5,
+            "title": "Measure skill activation reliability across agent hosts",
+            "state": "OPEN",
+            "stateReason": null,
+            "labels": {
+              "nodes": [
+                {
+                  "name": "open-question"
+                }
+              ]
+            },
+            "milestone": null,
+            "projectItems": {
+              "nodes": [
+                {
+                  "project": {
+                    "number": 5,
+                    "title": "repo-governor"
+                  },
+                  "fieldValues": {
+                    "nodes": [
+                      {},
+                      {},
+                      {},
+                      {
+                        "name": "Backlog",
+                        "field": {
+                          "name": "Status"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "number": 6,
+            "title": "Monorepo / per-package governance (deferred past v1)",
+            "state": "OPEN",
+            "stateReason": null,
+            "labels": {
+              "nodes": [
+                {
+                  "name": "open-question"
+                }
+              ]
+            },
+            "milestone": null,
+            "projectItems": {
+              "nodes": [
+                {
+                  "project": {
+                    "number": 5,
+                    "title": "repo-governor"
+                  },
+                  "fieldValues": {
+                    "nodes": [
+                      {},
+                      {},
+                      {},
+                      {
+                        "name": "Backlog",
+                        "field": {
+                          "name": "Status"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "number": 7,
+            "title": "Gate 1: onboarding simulation passes",
+            "state": "OPEN",
+            "stateReason": null,
+            "labels": {
+              "nodes": [
+                {
+                  "name": "gate"
+                }
+              ]
+            },
+            "milestone": {
+              "title": "RG-SIM-ONBOARDING-v0.1"
+            },
+            "projectItems": {
+              "nodes": [
+                {
+                  "project": {
+                    "number": 5,
+                    "title": "repo-governor"
+                  },
+                  "fieldValues": {
+                    "nodes": [
+                      {},
+                      {},
+                      {},
+                      {},
+                      {
+                        "name": "Backlog",
+                        "field": {
+                          "name": "Status"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "number": 8,
+            "title": "Gate 2: provider conflicts handled deterministically",
+            "state": "OPEN",
+            "stateReason": null,
+            "labels": {
+              "nodes": [
+                {
+                  "name": "gate"
+                }
+              ]
+            },
+            "milestone": {
+              "title": "RG-SIM-ONBOARDING-v0.1"
+            },
+            "projectItems": {
+              "nodes": [
+                {
+                  "project": {
+                    "number": 5,
+                    "title": "repo-governor"
+                  },
+                  "fieldValues": {
+                    "nodes": [
+                      {},
+                      {},
+                      {},
+                      {},
+                      {
+                        "name": "Backlog",
+                        "field": {
+                          "name": "Status"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "number": 9,
+            "title": "Gate 3: low-complexity repositories operate without unnecessary providers",
+            "state": "OPEN",
+            "stateReason": null,
+            "labels": {
+              "nodes": [
+                {
+                  "name": "gate"
+                }
+              ]
+            },
+            "milestone": {
+              "title": "RG-SIM-ONBOARDING-v0.1"
+            },
+            "projectItems": {
+              "nodes": [
+                {
+                  "project": {
+                    "number": 5,
+                    "title": "repo-governor"
+                  },
+                  "fieldValues": {
+                    "nodes": [
+                      {},
+                      {},
+                      {},
+                      {},
+                      {
+                        "name": "Backlog",
+                        "field": {
+                          "name": "Status"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "number": 10,
+            "title": "Gate 4: provider detection does not assign authority",
+            "state": "OPEN",
+            "stateReason": null,
+            "labels": {
+              "nodes": [
+                {
+                  "name": "gate"
+                }
+              ]
+            },
+            "milestone": {
+              "title": "RG-SIM-ONBOARDING-v0.1"
+            },
+            "projectItems": {
+              "nodes": [
+                {
+                  "project": {
+                    "number": 5,
+                    "title": "repo-governor"
+                  },
+                  "fieldValues": {
+                    "nodes": [
+                      {},
+                      {},
+                      {},
+                      {},
+                      {
+                        "name": "Backlog",
+                        "field": {
+                          "name": "Status"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "number": 11,
+            "title": "Gate 5: manifest semantics stable enough for implementation",
+            "state": "OPEN",
+            "stateReason": null,
+            "labels": {
+              "nodes": [
+                {
+                  "name": "gate"
+                }
+              ]
+            },
+            "milestone": {
+              "title": "RG-SIM-ONBOARDING-v0.1"
+            },
+            "projectItems": {
+              "nodes": [
+                {
+                  "project": {
+                    "number": 5,
+                    "title": "repo-governor"
+                  },
+                  "fieldValues": {
+                    "nodes": [
+                      {},
+                      {},
+                      {},
+                      {},
+                      {
+                        "name": "Backlog",
+                        "field": {
+                          "name": "Status"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "number": 12,
+            "title": "Gate 6: one viable adapter per required core role",
+            "state": "OPEN",
+            "stateReason": null,
+            "labels": {
+              "nodes": [
+                {
+                  "name": "gate"
+                }
+              ]
+            },
+            "milestone": {
+              "title": "RG-SIM-ONBOARDING-v0.1"
+            },
+            "projectItems": {
+              "nodes": [
+                {
+                  "project": {
+                    "number": 5,
+                    "title": "repo-governor"
+                  },
+                  "fieldValues": {
+                    "nodes": [
+                      {},
+                      {},
+                      {},
+                      {},
+                      {
+                        "name": "Backlog",
+                        "field": {
+                          "name": "Status"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "number": 13,
+            "title": "Gate 7: UNKNOWN and failure behavior defined",
+            "state": "OPEN",
+            "stateReason": null,
+            "labels": {
+              "nodes": [
+                {
+                  "name": "gate"
+                }
+              ]
+            },
+            "milestone": {
+              "title": "RG-SIM-ONBOARDING-v0.1"
+            },
+            "projectItems": {
+              "nodes": [
+                {
+                  "project": {
+                    "number": 5,
+                    "title": "repo-governor"
+                  },
+                  "fieldValues": {
+                    "nodes": [
+                      {},
+                      {},
+                      {},
+                      {},
+                      {
+                        "name": "Backlog",
+                        "field": {
+                          "name": "Status"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "number": 101,
+            "title": "Cancelled work (authority withdrawn)",
+            "state": "CLOSED",
+            "stateReason": "NOT_PLANNED",
+            "labels": {
+              "nodes": []
+            },
+            "milestone": null,
+            "projectItems": {
+              "nodes": [
+                {
+                  "project": {
+                    "number": 5,
+                    "title": "repo-governor"
+                  },
+                  "fieldValues": {
+                    "nodes": [
+                      {
+                        "name": "Backlog",
+                        "field": {
+                          "name": "Status"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "$synthetic": "Not recorded from the live repo. Added to cover a state GitHub does not currently exhibit."
+          },
+          {
+            "number": 102,
+            "title": "Authorized and executing",
+            "state": "OPEN",
+            "stateReason": null,
+            "labels": {
+              "nodes": []
+            },
+            "milestone": null,
+            "projectItems": {
+              "nodes": [
+                {
+                  "project": {
+                    "number": 5,
+                    "title": "repo-governor"
+                  },
+                  "fieldValues": {
+                    "nodes": [
+                      {
+                        "name": "In progress",
+                        "field": {
+                          "name": "Status"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "$synthetic": "Not recorded from the live repo. Added to cover a state GitHub does not currently exhibit."
+          },
+          {
+            "number": 103,
+            "title": "Issue not on any board",
+            "state": "OPEN",
+            "stateReason": null,
+            "labels": {
+              "nodes": []
+            },
+            "milestone": null,
+            "projectItems": {
+              "nodes": []
+            },
+            "$synthetic": "Not recorded from the live repo. Added to cover a state GitHub does not currently exhibit."
+          }
+        ]
+      }
+    }
+  },
+  "$comment": "Recorded from tosin2013/repo-governor 2026-08-17, plus synthetic nodes 101-103 marked with $synthetic for states not present live."
+}

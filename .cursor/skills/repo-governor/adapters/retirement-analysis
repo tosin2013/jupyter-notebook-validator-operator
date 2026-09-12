@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+"""RetirementEvidenceProvider by repository analysis (spec §16, §36, §62).
+
+Real analysis, not a fixture: reference counting via `git grep`.
+
+INV-007 governs everything here. Unused-code detection is retirement
+EVIDENCE, never deletion authority. This adapter reports what it can see
+and is explicit about what it cannot — dynamic loading, plugin
+registration, generated consumers and runtime usage are all invisible to
+static grep, so they are advertised false and returned as blocking
+unknowns rather than as zero.
+
+Reporting "0 static references" as if it meant "safe to delete" is the
+exact failure §36 exists to prevent.
+"""
+
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from _protocol import cite, fail, main, ok, unknown  # noqa: E402
+
+ROLE = "retirement"
+ROOT = os.environ.get("REPO_GOVERNOR_REPO", ".")
+
+
+def _git(*args):
+    try:
+        p = subprocess.run(["git", "-C", ROOT, *args],
+                           capture_output=True, text=True, timeout=60)
+        return p.returncode, p.stdout
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return 127, ""
+
+
+def _probe():
+    rc, _ = _git("rev-parse", "--git-dir")
+    return rc == 0
+
+
+def _asset(fn, kw):
+    if not _probe():
+        return None, fail(ROLE, fn, "PROVIDER_UNAVAILABLE",
+                          f"{ROOT!r} is not a git repository, or git is missing")
+    a = kw.get("asset")
+    if not a:
+        return None, fail(ROLE, fn, "BAD_REQUEST", "missing required argument: asset=<path-or-symbol>")
+    return a, None
+
+
+def static_references(kw):
+    asset, err = _asset("static_references", kw)
+    if err:
+        return err
+    needle = Path(asset).stem if "/" in asset or asset.endswith(".py") else asset
+    rc, out = _git("grep", "-n", "--", needle)
+    hits = [l for l in out.splitlines() if l.strip()]
+    # A file referencing only itself is not a reference.
+    external = [h for h in hits if not h.startswith(f"{asset}:")]
+    return ok(ROLE, "static_references",
+              {"asset": asset, "needle": needle,
+               "references": len(external), "self_references": len(hits) - len(external),
+               "sample": external[:5],
+               "note": "INV-007: reference count is evidence, not deletion authority."},
+              [cite("retirement-analysis", f"git grep {needle}", "matches")])
+
+
+def tests(kw):
+    asset, err = _asset("tests", kw)
+    if err:
+        return err
+    needle = Path(asset).stem
+    rc, out = _git("grep", "-ln", "--", needle)
+    files = [f for f in out.splitlines() if f]
+    testish = [f for f in files if "test" in f.lower() or "conformance" in f.lower()]
+    return ok(ROLE, "tests",
+              {"asset": asset, "test_files": testish, "count": len(testish)},
+              [cite("retirement-analysis", f"git grep -l {needle}", "test-paths")])
+
+
+def architecture_references(kw):
+    asset, err = _asset("architecture_references", kw)
+    if err:
+        return err
+    needle = Path(asset).stem
+    rc, out = _git("grep", "-ln", "--", needle, "--", "docs/")
+    docs = [f for f in out.splitlines() if f]
+    return ok(ROLE, "architecture_references",
+              {"asset": asset, "documents": docs, "count": len(docs),
+               "note": "A decision referencing this asset may impose a retirement obligation."},
+              [cite("retirement-analysis", f"git grep -l {needle} -- docs/", "doc-paths")])
+
+
+def _blind(fn, what, why):
+    def impl(kw):
+        asset, err = _asset(fn, kw)
+        if err:
+            return err
+        return unknown(ROLE, fn,
+                       reason="NOT_VISIBLE_TO_STATIC_ANALYSIS",
+                       detail=f"{what} for {asset!r} cannot be determined by grep. {why}",
+                       resolution="Bind a language-aware analyzer, telemetry, or declare the obligation explicitly.",
+                       blocking=True)
+    return impl
+
+
+dynamic_references = _blind("dynamic_references", "Dynamic references",
+                            "Reflection, importlib, plugin registries and string-built names are invisible.")
+runtime_usage = _blind("runtime_usage", "Runtime usage",
+                       "Requires telemetry; the repository cannot say what actually executes.")
+public_contracts = _blind("public_contracts", "Public contract exposure",
+                          "Requires knowing published API surface and consumer builds.")
+migration_obligations = _blind("migration_obligations", "Migration obligations",
+                               "Requires knowing which released versions must still upgrade through this.")
+
+
+def obligation_check(kw):
+    """§36. Any unresolved dimension forces RETIREMENT_REVIEW, never removal."""
+    asset, err = _asset("obligation_check", kw)
+    if err:
+        return err
+    resolved, unresolved = {}, []
+    for name, fn in (("static_references", static_references),
+                     ("tests", tests),
+                     ("architecture_references", architecture_references)):
+        r = fn(kw)
+        if r.get("ok") and r.get("value") is not None:
+            resolved[name] = r["value"].get("references", r["value"].get("count"))
+        else:
+            unresolved.append(name)
+    for name in ("dynamic_references", "runtime_usage", "public_contracts", "migration_obligations"):
+        unresolved.append(name)
+
+    blocking = [k for k, v in resolved.items() if v]
+    disposition = "RETIREMENT_REVIEW" if (unresolved or blocking) else "REMOVAL_READY"
+    return ok(ROLE, "obligation_check",
+              {"asset": asset, "resolved": resolved, "unresolved": unresolved,
+               "disposition": disposition,
+               "note": "REMOVAL_READY requires every dimension resolved and clear. "
+                       "Static analysis alone can never reach it (INV-007)."},
+              [cite("retirement-analysis", f"obligation_check:{asset}", "disposition")])
+
+
+FUNCTIONS = {
+    "static_references": static_references,
+    "dynamic_references": dynamic_references,
+    "tests": tests,
+    "architecture_references": architecture_references,
+    "runtime_usage": runtime_usage,
+    "public_contracts": public_contracts,
+    "migration_obligations": migration_obligations,
+    "obligation_check": obligation_check,
+}
+
+PROPERTIES = {"persistence": False, "provenance_quality": "exact"}
+
+CAPABILITIES = {
+    "static_references": True,
+    "tests": True,
+    "architecture_references": True,
+    "obligation_check": True,
+    "dynamic_references": False,
+    "runtime_usage": False,
+    "public_contracts": False,
+    "migration_obligations": False,
+    "autonomous_deletion": False,   # never. §50 conformance test 6.
+}
+
+if __name__ == "__main__":
+    sys.exit(main(ROLE, CAPABILITIES, FUNCTIONS,
+                  {"name": "retirement-analysis", "permissions": {"read": True, "write": False}},
+                  properties=PROPERTIES, probe=_probe))

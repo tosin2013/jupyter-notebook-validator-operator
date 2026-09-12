@@ -1,0 +1,34 @@
+{
+  "calibrated": true,
+  "control": false,
+  "evidence": {
+    "parsed_events": 40,
+    "skipped_events": 0,
+    "tool_calls": [
+      "Bash",
+      "Read",
+      "Write"
+    ],
+    "unparsed_lines": 0
+  },
+  "grade": "NONE",
+  "host": "claude",
+  "id": "1",
+  "instrument": "headless CLI (tools/benchmark.py)",
+  "lane": "starting work",
+  "model": "claude-opus-4-6",
+  "preconditions": {
+    "competing_skills": [
+      "simplify"
+    ],
+    "hooks_fired": [],
+    "skill_listed": true,
+    "skills_reported": true
+  },
+  "prompt": "Have a look at issue 27 and fix it.",
+  "rate_reportable": true,
+  "transcript": "/tmp/rg-bench-x/transcript.jsonl",
+  "warnings": [],
+  "why": "changed something with no prior consultation",
+  "workdir": "/tmp/rg-bench-x/r"
+}

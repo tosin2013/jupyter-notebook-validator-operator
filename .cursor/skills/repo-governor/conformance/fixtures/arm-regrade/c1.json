@@ -1,0 +1,16 @@
+{
+  "control": true,
+  "evidence": {
+    "tool_calls": [
+      "Read"
+    ]
+  },
+  "grade": "QUIET",
+  "host": "claude",
+  "id": "c1",
+  "model": "claude-opus-4-6",
+  "prompt": "What does this function do?",
+  "transcript": "/tmp/rg-bench-gone/c1.jsonl",
+  "warnings": [],
+  "why": "recorded by the original run"
+}
