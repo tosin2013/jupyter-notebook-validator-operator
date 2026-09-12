@@ -1,0 +1,91 @@
+# Community Dashboard: Notebook Validation Success Rate
+# ADR-022: Community Observability Contributions
+# Contributor: @tosin2013 (reference implementation for CONTRIBUTING.md)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jupyter-notebook-validator-success-rate
+  namespace: openshift-config-managed
+  labels:
+    console.openshift.io/dashboard: "true"
+    console.openshift.io/odc-dashboard: "true"
+    app.kubernetes.io/name: jupyter-notebook-validator-operator
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/part-of: community-dashboards
+data:
+  notebook-success-rate.json: |
+    {
+      "dashboard": {
+        "title": "Jupyter Notebook Validator - Success Rate (Community)",
+        "tags": ["jupyter", "mlops", "operator", "community"],
+        "panels": [
+          {
+            "title": "Overall Success Rate (5m window)",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_validations_total{status=\"succeeded\"}[5m])) / sum(rate(notebookvalidationjob_validations_total[5m])) * 100"
+              }
+            ],
+            "format": "percent",
+            "thresholds": "80,95"
+          },
+          {
+            "title": "Validations by Status (5m rate)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_validations_total[5m])) by (status)",
+                "legendFormat": "{{status}}"
+              }
+            ]
+          },
+          {
+            "title": "Success Rate by Namespace (5m window)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(notebookvalidationjob_validations_total{status=\"succeeded\"}[5m])) by (namespace) / sum(rate(notebookvalidationjob_validations_total[5m])) by (namespace) * 100",
+                "legendFormat": "{{namespace}}"
+              }
+            ]
+          },
+          {
+            "title": "Validation Duration (p50, p95)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.50, sum(rate(notebookvalidationjob_validation_duration_seconds_bucket[5m])) by (le))",
+                "legendFormat": "p50"
+              },
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(notebookvalidationjob_validation_duration_seconds_bucket[5m])) by (le))",
+                "legendFormat": "p95"
+              }
+            ]
+          },
+          {
+            "title": "Total Validations (24h)",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "sum(increase(notebookvalidationjob_validations_total[24h]))"
+              }
+            ],
+            "format": "short"
+          },
+          {
+            "title": "Failed Validations (24h)",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "sum(increase(notebookvalidationjob_validations_total{status=\"failed\"}[24h]))"
+              }
+            ],
+            "format": "short",
+            "colorBackground": true,
+            "thresholds": "5,20"
+          }
+        ]
+      }
+    }
