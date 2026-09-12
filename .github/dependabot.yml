@@ -20,14 +20,22 @@ updates:
       - "go"
     commit-message:
       prefix: "deps"
+    groups:
+      # Group k8s.io packages so they stay in sync (api, apimachinery,
+      # client-go, apiextensions-apiserver must share the same version).
+      k8s-io:
+        patterns:
+          - "k8s.io/*"
+      # Group sigs.k8s.io packages together.
+      sigs-k8s-io:
+        patterns:
+          - "sigs.k8s.io/*"
     ignore:
       # Platform-critical: block major bumps only (ADR-056, ADR-058)
       # Minor bumps are allowed but require manual OpenShift E2E before merge.
       - dependency-name: "k8s.io/*"
         update-types: ["version-update:semver-major"]
-      - dependency-name: "k8s.io/apiextensions-apiserver"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "sigs.k8s.io/controller-runtime"
+      - dependency-name: "sigs.k8s.io/*"
         update-types: ["version-update:semver-major"]
       # OpenShift API: pinned to specific commit for OCP 4.20
       - dependency-name: "github.com/openshift/api"
