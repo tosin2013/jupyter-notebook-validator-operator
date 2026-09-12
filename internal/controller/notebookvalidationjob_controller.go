@@ -194,7 +194,7 @@ func (r *NotebookValidationJobReconciler) Reconcile(ctx context.Context, req ctr
 
 			// Force fetch from etcd (bypass cache)
 			freshJob := &mlopsv1alpha1.NotebookValidationJob{}
-			if err := r.Client.Get(ctx, req.NamespacedName, freshJob); err != nil {
+			if err := r.Get(ctx, req.NamespacedName, freshJob); err != nil {
 				logger.Error(err, "Failed to re-fetch job from etcd")
 				return ctrl.Result{}, err
 			}
@@ -1057,15 +1057,16 @@ func (r *NotebookValidationJobReconciler) updateJobPhase(ctx context.Context, jo
 		LastTransitionTime: metav1.Now(),
 	}
 
-	if phase == PhaseSucceeded {
+	switch phase {
+	case PhaseSucceeded:
 		condition.Status = metav1.ConditionTrue
 		condition.Reason = ReasonValidationComplete
 		condition.Message = message
-	} else if phase == PhaseFailed {
+	case PhaseFailed:
 		condition.Status = metav1.ConditionFalse
 		condition.Reason = ReasonPodFailed
 		condition.Message = message
-	} else {
+	default:
 		condition.Status = metav1.ConditionUnknown
 		condition.Reason = ReasonPodRunning
 		condition.Message = message

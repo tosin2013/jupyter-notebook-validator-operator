@@ -71,6 +71,9 @@ make lint      # Linter (golangci-lint)
 make lint-fix  # Auto-fix linting issues
 ```
 
+The linter config (`.golangci.yml`) uses golangci-lint **v2** schema.
+Do not add linters under the removed v1 keys (`linters-settings`, `issues.exclude-rules`, `disable-all`).
+
 ### Regenerate CRDs and DeepCopy
 
 If you modify API types in `api/v1alpha1/`, regenerate the manifests:
