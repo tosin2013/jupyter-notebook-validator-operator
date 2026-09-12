@@ -8,6 +8,7 @@ rules:
   - ""
   resources:
   - configmaps
+  - pods/log
   verbs:
   - get
   - list
@@ -23,17 +24,6 @@ rules:
   - ""
   resources:
   - persistentvolumeclaims
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
   - pods
   verbs:
   - create
@@ -46,13 +36,6 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - pods/log
-  verbs:
-  - get
-  - list
-- apiGroups:
-  - ""
-  resources:
   - pods/status
   verbs:
   - get
@@ -62,14 +45,6 @@ rules:
   - ""
   resources:
   - secrets
-  verbs:
-  - create
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
   - serviceaccounts
   verbs:
   - create

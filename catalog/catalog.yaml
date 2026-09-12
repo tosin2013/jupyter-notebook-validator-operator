@@ -24,6 +24,7 @@ entries:
   - name: jupyter-notebook-validator-operator.v1.0.7
     skipRange: ">=1.0.2 <1.0.7"
   - name: jupyter-notebook-validator-operator.v1.0.8
+    replaces: jupyter-notebook-validator-operator.v1.0.7
     skipRange: ">=1.0.2 <1.0.8"
 
 ---

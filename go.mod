@@ -1,8 +1,6 @@
 module github.com/tosin2013/jupyter-notebook-validator-operator
 
-go 1.24
-
-toolchain go1.24.10
+go 1.25.0
 
 require (
 	github.com/go-logr/logr v1.4.4

@@ -111,7 +111,7 @@ func (t *TektonStrategy) ensureBuildPVC(ctx context.Context, namespace, pvcName 
 			Name:      pvcName,
 			Namespace: namespace,
 			Labels: map[string]string{
-				"app.kubernetes.io/managed-by":     "jupyter-notebook-validator-operator",
+				LabelManagedBy:                     LabelManagedByValue,
 				"app.kubernetes.io/component":      "tekton-build",
 				"mlops.redhat.com/build-workspace": "true",
 			},
@@ -159,7 +159,7 @@ func (t *TektonStrategy) ensureTasksInNamespace(ctx context.Context, namespace s
 
 		if err == nil {
 			// Task exists, check if it's managed by us
-			if existingTask.Labels["app.kubernetes.io/managed-by"] == "jupyter-notebook-validator-operator" {
+			if existingTask.Labels[LabelManagedBy] == LabelManagedByValue {
 				logger.V(1).Info("Task already exists and is managed by operator", "task", taskName, "namespace", namespace)
 				// TODO: Check version and update if needed (Phase 3 of ADR-028)
 			} else {
@@ -190,7 +190,7 @@ func (t *TektonStrategy) ensureTasksInNamespace(ctx context.Context, namespace s
 				Name:      taskName,
 				Namespace: namespace,
 				Labels: map[string]string{
-					"app.kubernetes.io/managed-by":  "jupyter-notebook-validator-operator",
+					LabelManagedBy:                  LabelManagedByValue,
 					"mlops.redhat.com/task-type":    taskName,
 					"mlops.redhat.com/task-version": "1.0.0", // Version for future updates
 					"mlops.redhat.com/copied-from":  sourceNamespace,
@@ -223,8 +223,8 @@ func (t *TektonStrategy) ensurePipelineServiceAccount(ctx context.Context, names
 	sccHelper := NewSCCHelper(t.client, t.apiReader)
 
 	labels := map[string]string{
-		"app.kubernetes.io/managed-by": "jupyter-notebook-validator-operator",
-		"app.kubernetes.io/component":  "tekton-build",
+		LabelManagedBy:                LabelManagedByValue,
+		"app.kubernetes.io/component": "tekton-build",
 	}
 
 	return sccHelper.EnsureBuildServiceAccountWithSCC(ctx, namespace, "pipeline", "pipelines-scc", labels)
@@ -247,7 +247,7 @@ func (t *TektonStrategy) ensureTektonGitCredentials(ctx context.Context, namespa
 
 	if err == nil {
 		// Secret exists, check if it's managed by us
-		if existingSecret.Labels["app.kubernetes.io/managed-by"] == "jupyter-notebook-validator-operator" {
+		if existingSecret.Labels[LabelManagedBy] == LabelManagedByValue {
 			logger.V(1).Info("Tekton Git credentials secret already exists", "secret", tektonSecretName, "namespace", namespace)
 			// TODO: Check if source secret has changed and update if needed
 		} else {
@@ -304,7 +304,7 @@ func (t *TektonStrategy) ensureTektonGitCredentials(ctx context.Context, namespa
 			Name:      tektonSecretName,
 			Namespace: namespace,
 			Labels: map[string]string{
-				"app.kubernetes.io/managed-by":   "jupyter-notebook-validator-operator",
+				LabelManagedBy:                   LabelManagedByValue,
 				"app.kubernetes.io/component":    "tekton-build",
 				"mlops.redhat.com/secret-type":   "git-credentials",
 				"mlops.redhat.com/source-secret": sourceSecretName,
@@ -512,7 +512,7 @@ func (t *TektonStrategy) createBuildPipeline(job *mlopsv1alpha1.NotebookValidati
 				{Name: "notebook-path", Type: tektonv1.ParamTypeString, Default: &tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: ""}},
 			},
 			Workspaces: []tektonv1.PipelineWorkspaceDeclaration{
-				{Name: "shared-workspace"},
+				{Name: LabelSharedWorkspace},
 				{Name: "git-credentials", Optional: true},
 			},
 			Tasks: []tektonv1.PipelineTask{
@@ -530,7 +530,7 @@ func (t *TektonStrategy) createBuildPipeline(job *mlopsv1alpha1.NotebookValidati
 						{Name: "REVISION", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: "$(params.git-revision)"}},
 					},
 					Workspaces: []tektonv1.WorkspacePipelineTaskBinding{
-						{Name: "output", Workspace: "shared-workspace"},
+						{Name: "output", Workspace: LabelSharedWorkspace},
 						// ADR-031: Use basic-auth workspace for HTTPS authentication
 						// git-clone Task expects .gitconfig and .git-credentials files for HTTPS
 						{Name: "basic-auth", Workspace: "git-credentials"},
@@ -677,7 +677,7 @@ cat $(workspaces.source.path)/Dockerfile
 						{Name: "NOTEBOOK_PATH", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: "$(params.notebook-path)"}},
 					},
 					Workspaces: []tektonv1.WorkspacePipelineTaskBinding{
-						{Name: "source", Workspace: "shared-workspace"},
+						{Name: "source", Workspace: LabelSharedWorkspace},
 					},
 				},
 				{
@@ -695,7 +695,7 @@ cat $(workspaces.source.path)/Dockerfile
 						{Name: "CONTEXT", Value: tektonv1.ParamValue{Type: tektonv1.ParamTypeString, StringVal: "."}},
 					},
 					Workspaces: []tektonv1.WorkspacePipelineTaskBinding{
-						{Name: "source", Workspace: "shared-workspace"},
+						{Name: "source", Workspace: LabelSharedWorkspace},
 					},
 				},
 			},
@@ -722,8 +722,8 @@ func (t *TektonStrategy) createPipelineRun(job *mlopsv1alpha1.NotebookValidation
 			Name:      buildName,
 			Namespace: job.Namespace,
 			Labels: map[string]string{
-				"app":                                  job.Name,
-				"mlops.redhat.com/notebook-validation": "true",
+				"app":                   job.Name,
+				LabelNotebookValidation: "true",
 			},
 		},
 		Spec: tektonv1.PipelineRunSpec{
@@ -751,7 +751,7 @@ func (t *TektonStrategy) createPipelineRun(job *mlopsv1alpha1.NotebookValidation
 			Workspaces: func() []tektonv1.WorkspaceBinding {
 				workspaces := []tektonv1.WorkspaceBinding{
 					{
-						Name: "shared-workspace",
+						Name: LabelSharedWorkspace,
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 							// ADR-040: Use unique PVC per build to avoid workspace contention
 							ClaimName: pvcName,
@@ -786,7 +786,7 @@ func (t *TektonStrategy) GetBuildStatus(ctx context.Context, buildName string) (
 
 	// List all PipelineRuns with our label
 	pipelineRunList := &tektonv1.PipelineRunList{}
-	if err := t.client.List(ctx, pipelineRunList, client.MatchingLabels{"mlops.redhat.com/notebook-validation": "true"}); err != nil {
+	if err := t.client.List(ctx, pipelineRunList, client.MatchingLabels{LabelNotebookValidation: "true"}); err != nil {
 		// ADR-030 Phase 1: Provide context about what failed
 		return nil, fmt.Errorf("failed to list pipelineruns (check RBAC permissions for pipelineruns.tekton.dev): %w", err)
 	}
@@ -801,7 +801,7 @@ func (t *TektonStrategy) GetBuildStatus(ctx context.Context, buildName string) (
 
 	// Try TaskRuns
 	taskRunList := &tektonv1.TaskRunList{}
-	if err := t.client.List(ctx, taskRunList, client.MatchingLabels{"mlops.redhat.com/notebook-validation": "true"}); err != nil {
+	if err := t.client.List(ctx, taskRunList, client.MatchingLabels{LabelNotebookValidation: "true"}); err != nil {
 		// ADR-030 Phase 1: Provide context about what failed
 		return nil, fmt.Errorf("failed to list taskruns (check RBAC permissions for taskruns.tekton.dev): %w", err)
 	}
@@ -947,8 +947,8 @@ func (t *TektonStrategy) GetLatestBuild(ctx context.Context, pipelineName string
 	// List all PipelineRuns for this Pipeline
 	pipelineRunList := &tektonv1.PipelineRunList{}
 	if err := t.client.List(ctx, pipelineRunList, client.MatchingLabels{
-		"tekton.dev/pipeline":                  pipelineName,
-		"mlops.redhat.com/notebook-validation": "true",
+		"tekton.dev/pipeline":   pipelineName,
+		LabelNotebookValidation: "true",
 	}); err != nil {
 		return nil, fmt.Errorf("failed to list pipelineruns: %w", err)
 	}
@@ -997,8 +997,8 @@ func (t *TektonStrategy) CleanupOldBuilds(ctx context.Context, pipelineName stri
 	// List all PipelineRuns for this Pipeline
 	pipelineRunList := &tektonv1.PipelineRunList{}
 	if err := t.client.List(ctx, pipelineRunList, client.MatchingLabels{
-		"tekton.dev/pipeline":                  pipelineName,
-		"mlops.redhat.com/notebook-validation": "true",
+		"tekton.dev/pipeline":   pipelineName,
+		LabelNotebookValidation: "true",
 	}); err != nil {
 		return fmt.Errorf("failed to list pipelineruns: %w", err)
 	}
@@ -1057,7 +1057,7 @@ func (t *TektonStrategy) GetBuildLogs(ctx context.Context, buildName string) (st
 func (t *TektonStrategy) DeleteBuild(ctx context.Context, buildName string) error {
 	// List and delete PipelineRuns
 	pipelineRunList := &tektonv1.PipelineRunList{}
-	if err := t.client.List(ctx, pipelineRunList, client.MatchingLabels{"mlops.redhat.com/notebook-validation": "true"}); err != nil {
+	if err := t.client.List(ctx, pipelineRunList, client.MatchingLabels{LabelNotebookValidation: "true"}); err != nil {
 		return fmt.Errorf("failed to list pipelineruns: %w", err)
 	}
 
@@ -1071,7 +1071,7 @@ func (t *TektonStrategy) DeleteBuild(ctx context.Context, buildName string) erro
 
 	// List and delete TaskRuns
 	taskRunList := &tektonv1.TaskRunList{}
-	if err := t.client.List(ctx, taskRunList, client.MatchingLabels{"mlops.redhat.com/notebook-validation": "true"}); err != nil {
+	if err := t.client.List(ctx, taskRunList, client.MatchingLabels{LabelNotebookValidation: "true"}); err != nil {
 		return fmt.Errorf("failed to list taskruns: %w", err)
 	}
 
@@ -1085,7 +1085,7 @@ func (t *TektonStrategy) DeleteBuild(ctx context.Context, buildName string) erro
 
 	// List and delete Pipelines
 	pipelineList := &tektonv1.PipelineList{}
-	if err := t.client.List(ctx, pipelineList, client.MatchingLabels{"mlops.redhat.com/notebook-validation": "true"}); err != nil {
+	if err := t.client.List(ctx, pipelineList, client.MatchingLabels{LabelNotebookValidation: "true"}); err != nil {
 		return fmt.Errorf("failed to list pipelines: %w", err)
 	}
 

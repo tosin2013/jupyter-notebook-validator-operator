@@ -798,7 +798,7 @@ func (r *NotebookValidationJobReconciler) createValidationPod(ctx context.Contex
 				"notebookvalidationjob":        job.Name,
 				"app.kubernetes.io/name":       "jupyter-notebook-validator-operator",
 				"app.kubernetes.io/component":  "validation-pod",
-				"app.kubernetes.io/managed-by": "jupyter-notebook-validator-operator",
+				"app.kubernetes.io/managed-by": build.LabelManagedByValue,
 			},
 		},
 		Spec: corev1.PodSpec{

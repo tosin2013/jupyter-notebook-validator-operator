@@ -89,8 +89,8 @@ func (s *S2IStrategy) ensureBuildServiceAccount(ctx context.Context, namespace s
 	sccHelper := NewSCCHelper(s.client, s.apiReader)
 
 	labels := map[string]string{
-		"app.kubernetes.io/managed-by": "jupyter-notebook-validator-operator",
-		"app.kubernetes.io/component":  "s2i-build",
+		LabelManagedBy:                LabelManagedByValue,
+		"app.kubernetes.io/component": "s2i-build",
 	}
 
 	// SECURITY: Use pipelines-scc (not anyuid) for better security posture
@@ -165,8 +165,8 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 			Name:      buildName,
 			Namespace: job.Namespace,
 			Labels: map[string]string{
-				"app":                                  job.Name,
-				"mlops.redhat.com/notebook-validation": "true",
+				"app":                   job.Name,
+				LabelNotebookValidation: "true",
 			},
 		},
 	}
@@ -187,8 +187,8 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 			Name:      buildName,
 			Namespace: job.Namespace,
 			Labels: map[string]string{
-				"app":                                  job.Name,
-				"mlops.redhat.com/notebook-validation": "true",
+				"app":                   job.Name,
+				LabelNotebookValidation: "true",
 			},
 		},
 		Spec: buildv1.BuildConfigSpec{
@@ -297,9 +297,9 @@ func (s *S2IStrategy) CreateBuild(ctx context.Context, job *mlopsv1alpha1.Notebo
 				GenerateName: fmt.Sprintf("%s-", buildName),
 				Namespace:    job.Namespace,
 				Labels: map[string]string{
-					"app":                                  job.Name,
-					"buildconfig":                          buildName,
-					"mlops.redhat.com/notebook-validation": "true",
+					"app":                   job.Name,
+					"buildconfig":           buildName,
+					LabelNotebookValidation: "true",
 				},
 				Annotations: map[string]string{
 					"openshift.io/build-config.name": buildName,
@@ -554,7 +554,7 @@ func (s *S2IStrategy) TriggerBuild(ctx context.Context, buildName string) error 
 	// List all builds to find the one we want
 	buildList := &buildv1.BuildList{}
 	if err := s.client.List(ctx, buildList, client.MatchingLabels{
-		"mlops.redhat.com/notebook-validation": "true",
+		LabelNotebookValidation: "true",
 	}); err != nil {
 		return fmt.Errorf("failed to list builds: %w", err)
 	}
@@ -626,7 +626,7 @@ func (s *S2IStrategy) GetImageFromImageStream(ctx context.Context, imageStreamNa
 	// Get the ImageStream
 	imageStreamList := &imagev1.ImageStreamList{}
 	if err := s.client.List(ctx, imageStreamList, client.MatchingLabels{
-		"mlops.redhat.com/notebook-validation": "true",
+		LabelNotebookValidation: "true",
 	}); err != nil {
 		return "", fmt.Errorf("failed to list ImageStreams: %w", err)
 	}
@@ -689,8 +689,8 @@ func (s *S2IStrategy) CleanupOldBuilds(ctx context.Context, buildConfigName stri
 	// List all builds for this BuildConfig
 	buildList := &buildv1.BuildList{}
 	if err := s.client.List(ctx, buildList, client.MatchingLabels{
-		"buildconfig":                          buildConfigName,
-		"mlops.redhat.com/notebook-validation": "true",
+		"buildconfig":           buildConfigName,
+		LabelNotebookValidation: "true",
 	}); err != nil {
 		return fmt.Errorf("failed to list builds: %w", err)
 	}
@@ -743,7 +743,7 @@ func (s *S2IStrategy) GetBuildLogs(ctx context.Context, buildName string) (strin
 func (s *S2IStrategy) DeleteBuild(ctx context.Context, buildName string) error {
 	// List all builds with this name
 	buildList := &buildv1.BuildList{}
-	if err := s.client.List(ctx, buildList, client.MatchingLabels{"mlops.redhat.com/notebook-validation": "true"}); err != nil {
+	if err := s.client.List(ctx, buildList, client.MatchingLabels{LabelNotebookValidation: "true"}); err != nil {
 		return fmt.Errorf("failed to list builds: %w", err)
 	}
 
@@ -759,7 +759,7 @@ func (s *S2IStrategy) DeleteBuild(ctx context.Context, buildName string) error {
 
 	// List and delete BuildConfigs
 	buildConfigList := &buildv1.BuildConfigList{}
-	if err := s.client.List(ctx, buildConfigList, client.MatchingLabels{"mlops.redhat.com/notebook-validation": "true"}); err != nil {
+	if err := s.client.List(ctx, buildConfigList, client.MatchingLabels{LabelNotebookValidation: "true"}); err != nil {
 		return fmt.Errorf("failed to list buildconfigs: %w", err)
 	}
 

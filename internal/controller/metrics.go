@@ -21,10 +21,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
-// Boolean string constants for metrics labels
+// Metrics label constants
 const (
-	boolTrue  = "true"
-	boolFalse = "false"
+	boolTrue       = "true"
+	boolFalse      = "false"
+	labelNamespace = "namespace"
 )
 
 var (
@@ -36,7 +37,7 @@ var (
 			Help:    "Duration of NotebookValidationJob reconciliation in seconds",
 			Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 30, 60},
 		},
-		[]string{"namespace", "result"},
+		[]string{labelNamespace, "result"},
 	)
 
 	// Validation job counters
@@ -46,7 +47,7 @@ var (
 			Name: "notebookvalidationjob_validations_total",
 			Help: "Total number of notebook validations",
 		},
-		[]string{"namespace", "status"},
+		[]string{labelNamespace, "status"},
 	)
 
 	// Git clone duration histogram
@@ -57,7 +58,7 @@ var (
 			Help:    "Duration of Git clone operations in seconds",
 			Buckets: []float64{1, 5, 10, 30, 60, 120},
 		},
-		[]string{"namespace", "auth_type"},
+		[]string{labelNamespace, "auth_type"},
 	)
 
 	// Active pod gauge
@@ -67,7 +68,7 @@ var (
 			Name: "notebookvalidationjob_active_pods",
 			Help: "Number of active validation pods",
 		},
-		[]string{"namespace", "phase"},
+		[]string{labelNamespace, "phase"},
 	)
 
 	// Reconciliation errors counter
@@ -77,7 +78,7 @@ var (
 			Name: "notebookvalidationjob_reconciliation_errors_total",
 			Help: "Total number of reconciliation errors",
 		},
-		[]string{"namespace", "error_type"},
+		[]string{labelNamespace, "error_type"},
 	)
 
 	// Pod creation counter
@@ -87,7 +88,7 @@ var (
 			Name: "notebookvalidationjob_pod_creations_total",
 			Help: "Total number of validation pod creation attempts",
 		},
-		[]string{"namespace", "result"},
+		[]string{labelNamespace, "result"},
 	)
 
 	// Model validation metrics (ADR-020: Model-Aware Validation)
@@ -98,7 +99,7 @@ var (
 			Help:    "Duration of model validation operations in seconds",
 			Buckets: []float64{0.5, 1, 2, 5, 10, 30, 60},
 		},
-		[]string{"namespace", "platform", "result"},
+		[]string{labelNamespace, "platform", "result"},
 	)
 
 	// Model health checks counter
@@ -108,7 +109,7 @@ var (
 			Name: "notebookvalidationjob_model_health_checks_total",
 			Help: "Total number of model health checks",
 		},
-		[]string{"namespace", "platform", "status"},
+		[]string{labelNamespace, "platform", "status"},
 	)
 
 	// Prediction validations counter
@@ -118,7 +119,7 @@ var (
 			Name: "notebookvalidationjob_prediction_validations_total",
 			Help: "Total number of prediction validations",
 		},
-		[]string{"namespace", "platform", "result"},
+		[]string{labelNamespace, "platform", "result"},
 	)
 
 	// Platform detection duration histogram
@@ -129,7 +130,7 @@ var (
 			Help:    "Duration of platform detection operations in seconds",
 			Buckets: []float64{0.1, 0.5, 1, 2, 5, 10},
 		},
-		[]string{"namespace", "platform", "detected"},
+		[]string{labelNamespace, "platform", "detected"},
 	)
 )
 
