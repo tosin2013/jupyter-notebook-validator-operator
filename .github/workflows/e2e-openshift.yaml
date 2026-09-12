@@ -103,7 +103,7 @@ jobs:
     if: needs.check-trigger.outputs.should_run == 'true' && needs.check-cluster.outputs.cluster_available == 'true'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Go
         uses: actions/setup-go@v6
