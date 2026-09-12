@@ -1,3 +1,0 @@
-{ "authority_id": "DONE-1",
-  "criteria": [ { "check": "file_exists", "target": "README.md" },
-                { "check": "file_exists", "target": "adapters/git" } ] }

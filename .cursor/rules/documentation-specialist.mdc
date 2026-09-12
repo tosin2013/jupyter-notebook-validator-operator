@@ -1,6 +1,0 @@
----
-description: Professional software documentation (SRS, PRD, DESIGN_DOC.md, architecture, OpenAPI, audits, diagrams). Use when creating, reverse-engineering, or reviewing docs.
-alwaysApply: false
----
-
-When creating or auditing software documentation, follow the project skill at `.cursor/skills/documentation-specialist/SKILL.md` (Documentation Specialist v3.3.0).

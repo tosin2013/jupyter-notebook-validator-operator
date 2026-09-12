@@ -22,10 +22,12 @@ go.work
 # editor and IDE paraphernalia
 .idea
 .vscode
-.cursor/
 *.swp
 *.swo
 *~
+
+# Cursor IDE (hooks, skills, rules, MCP config are local tooling)
+.cursor/
 
 # Environment variables and secrets
 .env
