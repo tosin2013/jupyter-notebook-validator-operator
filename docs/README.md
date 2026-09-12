@@ -29,6 +29,7 @@ Navigation index for the Jupyter Notebook Validator Operator documentation.
 
 | Document | Description |
 |---|---|
+| [Design Document](../DESIGN_DOC.md) | arc42 SDD: goals, building blocks, runtime, deployment |
 | [Architecture Overview](architecture/ARCHITECTURE_OVERVIEW.md) | System design and component overview |
 | [Platform Compatibility](architecture/PLATFORM-COMPATIBILITY.md) | Supported Kubernetes and OpenShift versions |
 | [OpenShift Support Matrix](architecture/OPENSHIFT_SUPPORT_MATRIX_AND_STRATEGY.md) | OCP version support strategy and matrix |
