@@ -40,6 +40,10 @@ test-notebooks/
 
 # MCP server context (auto-generated, contains session state)
 .mcp-server-context.md
+.mcp-adr-cache/
+
+# Repo Governor hook session cache (per-machine, not shared)
+.repo-governor/sessions/
 
 # Test results (local testing artifacts)
 test-results.yaml

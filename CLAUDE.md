@@ -8,6 +8,10 @@ The Jupyter Notebook Validator Operator is a Kubernetes-native operator that aut
 
 **Key Technologies**: Go 1.22+, Operator SDK v1.37.0, controller-runtime, OpenShift 4.18+, Kubernetes 1.31+
 
+## Repo Governor
+
+This repository is governed. Follow [AGENTS.md](AGENTS.md): run `python3 .cursor/skills/repo-governor/engine/completion.py <issue-number>` before implementing GitHub issue work. Admission is milestone membership. Cursor hooks in `.cursor/hooks.json` are advisory.
+
 ## Common Development Commands
 
 ### Building and Testing

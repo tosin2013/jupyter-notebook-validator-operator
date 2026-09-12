@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeSubmitPrompt": [
+      {
+        "command": "python3 .cursor/skills/repo-governor/tools/hooks/governance-hook.py prompt"
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "python3 .cursor/skills/repo-governor/tools/hooks/governance-hook.py write"
+      }
+    ],
+    "afterShellExecution": [
+      {
+        "command": "python3 .cursor/skills/repo-governor/tools/hooks/governance-hook.py capture"
+      }
+    ]
+  }
+}
