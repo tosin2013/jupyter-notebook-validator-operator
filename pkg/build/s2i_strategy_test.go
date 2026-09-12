@@ -546,6 +546,122 @@ func TestS2IStrategyGetLatestBuild(t *testing.T) {
 	}
 }
 
+// TestBuildInfoFromBuild_OutputDockerImageReference verifies that buildInfoFromBuild
+// uses OutputDockerImageReference as the primary image source (ADR-050).
+func TestBuildInfoFromBuild_OutputDockerImageReference(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = buildv1.AddToScheme(scheme)
+	_ = imagev1.AddToScheme(scheme)
+	_ = mlopsv1alpha1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	strategy := NewS2IStrategy(fakeClient, fakeClient, scheme)
+
+	now := metav1.Now()
+	earlier := metav1.NewTime(now.Add(-60_000_000_000)) // 60s earlier
+
+	tests := []struct {
+		name                       string
+		phase                      buildv1.BuildPhase
+		outputDockerImageReference string
+		outputToDigest             string
+		expectedStatus             BuildStatus
+		expectedImageRef           string
+		expectStartTime            bool
+		expectCompletionTime       bool
+	}{
+		{
+			name:                       "Pending build has no image reference",
+			phase:                      buildv1.BuildPhasePending,
+			outputDockerImageReference: "",
+			expectedStatus:             BuildStatusPending,
+			expectedImageRef:           "",
+		},
+		{
+			name:                       "Running build has no image reference",
+			phase:                      buildv1.BuildPhaseRunning,
+			outputDockerImageReference: "",
+			expectedStatus:             BuildStatusRunning,
+			expectedImageRef:           "",
+			expectStartTime:            true,
+		},
+		{
+			name:                       "Complete build uses OutputDockerImageReference",
+			phase:                      buildv1.BuildPhaseComplete,
+			outputDockerImageReference: "image-registry.openshift-image-registry.svc:5000/test-ns/test-image@sha256:abc123",
+			outputToDigest:             "sha256:abc123",
+			expectedStatus:             BuildStatusComplete,
+			expectedImageRef:           "image-registry.openshift-image-registry.svc:5000/test-ns/test-image@sha256:abc123",
+			expectStartTime:            true,
+			expectCompletionTime:       true,
+		},
+		{
+			name:                       "Complete build falls back to getFullImageReference when OutputDockerImageReference is empty",
+			phase:                      buildv1.BuildPhaseComplete,
+			outputDockerImageReference: "",
+			outputToDigest:             "sha256:fallback456",
+			expectedStatus:             BuildStatusComplete,
+			expectStartTime:            true,
+			expectCompletionTime:       true,
+		},
+		{
+			name:                       "Failed build has no image reference",
+			phase:                      buildv1.BuildPhaseFailed,
+			outputDockerImageReference: "",
+			expectedStatus:             BuildStatusFailed,
+			expectedImageRef:           "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			build := &buildv1.Build{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-build-1",
+					Namespace: "default",
+				},
+				Status: buildv1.BuildStatus{
+					Phase:                      tt.phase,
+					OutputDockerImageReference: tt.outputDockerImageReference,
+					Message:                    "test message",
+				},
+			}
+
+			if tt.outputToDigest != "" {
+				build.Status.Output.To = &buildv1.BuildStatusOutputTo{
+					ImageDigest: tt.outputToDigest,
+				}
+			}
+			if tt.expectStartTime {
+				build.Status.StartTimestamp = &earlier
+			}
+			if tt.expectCompletionTime {
+				build.Status.CompletionTimestamp = &now
+			}
+
+			info := strategy.buildInfoFromBuild(build)
+
+			if info.Status != tt.expectedStatus {
+				t.Errorf("Status = %v, want %v", info.Status, tt.expectedStatus)
+			}
+
+			if tt.expectedImageRef != "" && info.ImageReference != tt.expectedImageRef {
+				t.Errorf("ImageReference = %q, want %q", info.ImageReference, tt.expectedImageRef)
+			}
+
+			if tt.expectedImageRef == "" && tt.phase != buildv1.BuildPhaseComplete && info.ImageReference != "" {
+				t.Errorf("ImageReference should be empty for %v phase, got %q", tt.phase, info.ImageReference)
+			}
+
+			if tt.expectStartTime && info.StartTime == nil {
+				t.Error("StartTime should not be nil")
+			}
+			if tt.expectCompletionTime && info.CompletionTime == nil {
+				t.Error("CompletionTime should not be nil")
+			}
+		})
+	}
+}
+
 // contains checks if a string contains a substring
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||

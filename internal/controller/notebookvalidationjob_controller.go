@@ -472,7 +472,20 @@ func (r *NotebookValidationJobReconciler) handleBuildStatus(
 	switch buildInfo.Status {
 	case build.BuildStatusComplete:
 		// Build completed successfully
-		logger.Info("Build completed successfully", "image", buildInfo.ImageReference, "duration", duration, "strategy", strategyName)
+		// ADR-050: ImageReference is populated from build.Status.OutputDockerImageReference
+		logger.Info("Build completed successfully",
+			"image", buildInfo.ImageReference,
+			"outputDockerImageReference", buildInfo.ImageReference,
+			"duration", duration, "strategy", strategyName)
+
+		// Compute duration from the build's own timestamps when available
+		completionTime := &metav1.Time{Time: time.Now()}
+		if buildInfo.CompletionTime != nil {
+			completionTime = &metav1.Time{Time: *buildInfo.CompletionTime}
+		}
+		if buildInfo.StartTime != nil && buildInfo.CompletionTime != nil {
+			duration = buildInfo.CompletionTime.Sub(*buildInfo.StartTime).Round(time.Second).String()
+		}
 
 		// Update build status with completion details
 		originalBuildStatus := job.Status.BuildStatus
@@ -483,7 +496,7 @@ func (r *NotebookValidationJobReconciler) handleBuildStatus(
 			Strategy:       strategyName,
 			ImageReference: buildInfo.ImageReference,
 			StartTime:      job.Status.BuildStatus.StartTime,
-			CompletionTime: &metav1.Time{Time: time.Now()},
+			CompletionTime: completionTime,
 			Duration:       duration,
 		}
 		if err := r.Status().Update(ctx, job); err != nil {
