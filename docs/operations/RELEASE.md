@@ -304,112 +304,53 @@ git push origin v${VERSION}
 Monitor the **Release** workflow in GitHub Actions to confirm images are built
 and the GitHub Release is created.
 
-### Step 8 — Sync your community-operators fork
+### Step 8 — Submit to OperatorHub (automated)
 
-Repeat this for both fork repos before opening PRs.
+Use `scripts/submit-to-operatorhub.sh` to automate fork sync, branch creation,
+bundle copy, DCO commit, and PR opening for both upstream repos.
 
-```bash
-# community-operators-prod fork
-cd ~/forks/community-operators-prod
-git fetch upstream
-git checkout main
-git rebase upstream/main
-git push origin main
-
-# community-operators fork
-cd ~/forks/community-operators
-git fetch upstream
-git checkout main
-git rebase upstream/main
-git push origin main
-```
-
-### Step 9 — Submit to `redhat-openshift-ecosystem/community-operators-prod`
-
-**One bundle per PR. Do NOT include multiple versions in a single PR.**
+**Dry run first** to verify what will happen:
 
 ```bash
-cd ~/forks/community-operators-prod
-
-OPERATOR=jupyter-notebook-validator-operator
-
-# Create a branch for this version
-git checkout -b add-${OPERATOR}-${VERSION}
-
-# Copy the bundle
-mkdir -p operators/${OPERATOR}/${VERSION}
-cp -r ~/jupyter-notebook-validator-operator/bundle/manifests \
-       operators/${OPERATOR}/${VERSION}/
-cp -r ~/jupyter-notebook-validator-operator/bundle/metadata \
-       operators/${OPERATOR}/${VERSION}/
-
-# Ensure ci.yaml exists in the operator directory
-# (copy from a previous version if it exists)
-ls operators/${OPERATOR}/ci.yaml || \
-  cp operators/${OPERATOR}/$(ls operators/${OPERATOR}/ | head -1)/ci.yaml \
-     operators/${OPERATOR}/ci.yaml 2>/dev/null || true
-
-git add operators/${OPERATOR}/
-git commit -s -m "operator ${OPERATOR} (${VERSION})"
-git push origin add-${OPERATOR}-${VERSION}
-
-# Open PR — title must match exactly
-gh pr create \
-  --repo redhat-openshift-ecosystem/community-operators-prod \
-  --title "operator ${OPERATOR} (${VERSION})" \
-  --body "Adding ${OPERATOR} version ${VERSION}."
+scripts/submit-to-operatorhub.sh ${VERSION} --dry-run
 ```
+
+**Submit to both repos:**
+
+```bash
+scripts/submit-to-operatorhub.sh ${VERSION} --target both
+```
+
+Or submit to each repo individually:
+
+```bash
+# community-operators-prod first
+scripts/submit-to-operatorhub.sh ${VERSION} --target community-operators-prod
+
+# After the prod PR merges, submit to community-operators
+scripts/submit-to-operatorhub.sh ${VERSION} --target community-operators
+```
+
+The script is idempotent: running it twice will detect existing branches and
+PRs and skip them. It validates prerequisites (gh auth, git DCO config),
+bundle metadata (provider, maintainer, containerImage), and checks for
+existing open PRs before submitting.
 
 > **OperatorHub requires exactly one commit per PR.** If you need to amend
 > after pushing, squash before force-pushing — never add a second commit:
 > ```bash
 > git add -A
 > git commit --amend -s --no-edit
-> git push --force origin add-${OPERATOR}-${VERSION}
+> git push --force origin add-jupyter-notebook-validator-operator-${VERSION}
 > ```
 > If you already have multiple commits, squash them first:
 > ```bash
 > git reset --soft HEAD~N   # N = number of commits to collapse
-> git commit -s -m "operator ${OPERATOR} (${VERSION})"
-> git push --force origin add-${OPERATOR}-${VERSION}
+> git commit -s -m "operator jupyter-notebook-validator-operator (${VERSION})"
+> git push --force origin add-jupyter-notebook-validator-operator-${VERSION}
 > ```
 
-Wait for the PR to pass all automated checks and be reviewed/merged before
-proceeding to Step 10.
-
-### Step 10 — Submit to `k8s-operatorhub/community-operators`
-
-Only after the `community-operators-prod` PR from Step 9 has **merged**:
-
-```bash
-cd ~/forks/community-operators
-
-OPERATOR=jupyter-notebook-validator-operator
-
-git checkout -b add-${OPERATOR}-${VERSION}
-
-mkdir -p operators/${OPERATOR}/${VERSION}
-cp -r ~/jupyter-notebook-validator-operator/bundle/manifests \
-       operators/${OPERATOR}/${VERSION}/
-cp -r ~/jupyter-notebook-validator-operator/bundle/metadata \
-       operators/${OPERATOR}/${VERSION}/
-
-ls operators/${OPERATOR}/ci.yaml || \
-  cp operators/${OPERATOR}/$(ls operators/${OPERATOR}/ | head -1)/ci.yaml \
-     operators/${OPERATOR}/ci.yaml 2>/dev/null || true
-
-git add operators/${OPERATOR}/
-git commit -s -m "operator ${OPERATOR} (${VERSION})"
-git push origin add-${OPERATOR}-${VERSION}
-
-gh pr create \
-  --repo k8s-operatorhub/community-operators \
-  --title "operator ${OPERATOR} (${VERSION})" \
-  --body "Adding ${OPERATOR} version ${VERSION}."
-```
-
-> **OperatorHub requires exactly one commit per PR.** Apply the same
-> squash procedure described in Step 9 if any amendments are needed.
+Wait for each PR to pass all automated checks before proceeding.
 
 ---
 
