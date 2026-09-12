@@ -21,16 +21,17 @@ updates:
     commit-message:
       prefix: "deps"
     ignore:
-      # Platform-critical: K8s 1.31 = v0.31.x (ADR-056: OCP 4.20-4.22)
+      # Platform-critical: block major bumps only (ADR-056, ADR-058)
+      # Minor bumps are allowed but require manual OpenShift E2E before merge.
       - dependency-name: "k8s.io/*"
-        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+        update-types: ["version-update:semver-major"]
       - dependency-name: "k8s.io/apiextensions-apiserver"
-        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+        update-types: ["version-update:semver-major"]
       - dependency-name: "sigs.k8s.io/controller-runtime"
-        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+        update-types: ["version-update:semver-major"]
       # OpenShift API: pinned to specific commit for OCP 4.20
       - dependency-name: "github.com/openshift/api"
-        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+        update-types: ["version-update:semver-major"]
       # Tekton: pinned to match cluster version
       - dependency-name: "github.com/tektoncd/pipeline"
-        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+        update-types: ["version-update:semver-major"]

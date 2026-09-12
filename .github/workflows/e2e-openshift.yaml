@@ -3,13 +3,17 @@ name: E2E - OpenShift Cluster Tests (All Tiers)
 # ADR-033: End-to-End Testing Against Live OpenShift Cluster
 # ADR-034: Dual Testing Strategy with Kind and OpenShift
 # ADR-035: Test Tier Organization and Scope
-# This workflow runs complete E2E tests on a live OpenShift 4.18 cluster,
-# validating the full operator workflow including Tekton builds, notebook validation,
-# and complex integrations (KServe, credentials, MLflow).
+# ADR-058: OpenShift E2E is manual/release-only (not a push-to-main gate)
+#
+# This workflow runs E2E tests on a live OpenShift cluster. It is triggered:
+# - Manually via workflow_dispatch
+# - On push to release-* branches (release certification)
+# - On PRs with the 'e2e-test' label
+# Day-to-day CI on main uses Kind (e2e-kind.yaml) for Tier 1 tests.
 
 on:
   push:
-    branches: [ main, 'release-*' ]
+    branches: [ 'release-*' ]
   pull_request:
     branches: [ main, 'release-*' ]
     types: [ labeled, opened, synchronize, reopened ]
@@ -81,7 +85,7 @@ jobs:
     outputs:
       cluster_available: ${{ steps.check.outputs.cluster_available }}
     steps:
-      - name: Check if OpenShift cluster is configured
+      - name: Check if OpenShift cluster is reachable
         id: check
         env:
           OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
@@ -91,9 +95,16 @@ jobs:
             echo "cluster_available=false" >> $GITHUB_OUTPUT
             echo "No OpenShift cluster configured - E2E tests will be skipped"
             echo "To enable: set OPENSHIFT_SERVER and OPENSHIFT_TOKEN in repository secrets"
-          else
+            exit 0
+          fi
+          # Verify the cluster is actually reachable (not just configured)
+          if curl -sk --max-time 5 "${OPENSHIFT_SERVER}/.well-known/oauth-authorization-server" > /dev/null 2>&1; then
             echo "cluster_available=true" >> $GITHUB_OUTPUT
-            echo "OpenShift cluster configured - E2E tests will run"
+            echo "OpenShift cluster is reachable at ${OPENSHIFT_SERVER}"
+          else
+            echo "cluster_available=false" >> $GITHUB_OUTPUT
+            echo "OpenShift cluster configured but unreachable (DNS/network) - skipping E2E"
+            echo "Server: ${OPENSHIFT_SERVER}"
           fi
 
   openshift-e2e:
