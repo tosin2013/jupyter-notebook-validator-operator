@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Check if CRDs are in sync
         run: |
@@ -64,10 +64,10 @@ jobs:
     needs: helm-sync-check
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Helm
-        uses: azure/setup-helm@v3
+        uses: azure/setup-helm@v5
         with:
           version: ${{ env.HELM_VERSION }}
 
@@ -94,10 +94,10 @@ jobs:
             values: "--set tekton.enabled=false --set prometheus.enabled=false"
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Helm
-        uses: azure/setup-helm@v3
+        uses: azure/setup-helm@v5
         with:
           version: ${{ env.HELM_VERSION }}
 
@@ -122,7 +122,7 @@ jobs:
           fi
 
       - name: Upload rendered manifests
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: rendered-manifests-${{ matrix.scenario.name }}
           path: rendered-${{ matrix.scenario.name }}.yaml
@@ -134,15 +134,15 @@ jobs:
     needs: [helm-lint, helm-template]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Helm
-        uses: azure/setup-helm@v3
+        uses: azure/setup-helm@v5
         with:
           version: ${{ env.HELM_VERSION }}
 
       - name: Create Kind Cluster
-        uses: helm/kind-action@v1.10.0
+        uses: helm/kind-action@v1.15.0
         with:
           cluster_name: helm-test
           kubectl_version: ${{ env.KUBECTL_VERSION }}
@@ -174,15 +174,15 @@ jobs:
     needs: helm-install-dry-run
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Helm
-        uses: azure/setup-helm@v3
+        uses: azure/setup-helm@v5
         with:
           version: ${{ env.HELM_VERSION }}
 
       - name: Create Kind Cluster
-        uses: helm/kind-action@v1.10.0
+        uses: helm/kind-action@v1.15.0
         with:
           cluster_name: helm-test
           kubectl_version: ${{ env.KUBECTL_VERSION }}
@@ -206,6 +206,13 @@ jobs:
           kind load docker-image jupyter-notebook-validator-operator:helm-test --name helm-test
           echo "✅ Operator image loaded successfully"
 
+      - name: Pre-pull images for Kind
+        run: |
+          echo "📦 Pre-pulling images used by Helm hooks..."
+          docker pull bitnami/kubectl:latest
+          kind load docker-image bitnami/kubectl:latest --name helm-test
+          echo "✅ Images pre-loaded into Kind"
+
       - name: Install Chart
         run: |
           echo "📦 Installing Helm chart..."
@@ -215,8 +222,9 @@ jobs:
             --set image.repository=jupyter-notebook-validator-operator \
             --set image.tag=helm-test \
             --set image.pullPolicy=Never \
+            --set operator.metrics.authProxy.enabled=false \
             --wait \
-            --timeout 5m
+            --timeout 8m
           echo "✅ Chart installed successfully"
 
       - name: Verify Installation
@@ -234,11 +242,26 @@ jobs:
           kubectl wait --for=condition=ready pod \
             -l control-plane=controller-manager \
             -n jupyter-validator-system \
-            --timeout=300s || true
+            --timeout=120s || true
           kubectl describe pods -n jupyter-validator-system
           kubectl logs -n jupyter-validator-system \
             -l control-plane=controller-manager \
             --tail=50 || true
+
+      - name: Diagnose Failures
+        if: failure()
+        run: |
+          echo "🔍 Diagnosing Helm install failure..."
+          echo "=== Events ==="
+          kubectl get events -n jupyter-validator-system --sort-by='.lastTimestamp' | tail -30
+          echo "=== Pod Descriptions ==="
+          kubectl describe pods -n jupyter-validator-system
+          echo "=== Secrets (webhook cert) ==="
+          kubectl get secrets -n jupyter-validator-system
+          echo "=== Certificates ==="
+          kubectl get certificates -n jupyter-validator-system 2>/dev/null || echo "No certificates found"
+          echo "=== cert-manager logs ==="
+          kubectl logs -n cert-manager -l app=cert-manager --tail=20 2>/dev/null || true
 
   helm-upgrade-test:
     name: Helm Upgrade Test
@@ -246,15 +269,15 @@ jobs:
     needs: helm-install-test
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Helm
-        uses: azure/setup-helm@v3
+        uses: azure/setup-helm@v5
         with:
           version: ${{ env.HELM_VERSION }}
 
       - name: Create Kind Cluster
-        uses: helm/kind-action@v1.10.0
+        uses: helm/kind-action@v1.15.0
         with:
           cluster_name: helm-test
           kubectl_version: ${{ env.KUBECTL_VERSION }}
@@ -278,6 +301,13 @@ jobs:
           kind load docker-image jupyter-notebook-validator-operator:helm-test --name helm-test
           echo "✅ Operator image loaded successfully"
 
+      - name: Pre-pull images for Kind
+        run: |
+          echo "📦 Pre-pulling images used by Helm hooks..."
+          docker pull bitnami/kubectl:latest
+          kind load docker-image bitnami/kubectl:latest --name helm-test
+          echo "✅ Images pre-loaded into Kind"
+
       - name: Install Chart (Initial)
         run: |
           echo "📦 Installing Helm chart (initial)..."
@@ -287,8 +317,9 @@ jobs:
             --set image.repository=jupyter-notebook-validator-operator \
             --set image.tag=helm-test \
             --set image.pullPolicy=Never \
+            --set operator.metrics.authProxy.enabled=false \
             --wait \
-            --timeout 5m
+            --timeout 8m
 
       - name: Upgrade Chart
         run: |
@@ -298,8 +329,9 @@ jobs:
             --set image.repository=jupyter-notebook-validator-operator \
             --set image.tag=helm-test \
             --set image.pullPolicy=Never \
+            --set operator.metrics.authProxy.enabled=false \
             --wait \
-            --timeout 5m
+            --timeout 8m
           echo "✅ Chart upgraded successfully"
 
       - name: Verify Upgrade
@@ -316,10 +348,10 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/release-4.18'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Helm
-        uses: azure/setup-helm@v3
+        uses: azure/setup-helm@v5
         with:
           version: ${{ env.HELM_VERSION }}
 
@@ -342,7 +374,7 @@ jobs:
           ls -lh dist/*.tgz
 
       - name: Upload Chart Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: helm-chart
           path: dist/*.tgz

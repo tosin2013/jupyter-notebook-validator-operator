@@ -1,0 +1,10 @@
+{
+  "$comment": "golangci-lint v2 rejects typecheck as a linter. Config must not list it.",
+  "authority_id": "51",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "! grep -q '^\\s*- typecheck' .golangci.yml"
+    }
+  ]
+}

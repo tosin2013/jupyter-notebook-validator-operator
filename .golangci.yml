@@ -9,56 +9,13 @@ run:
   timeout: 5m
   allow-parallel-runners: true
 
-linters-settings:
-  goconst:
-    min-len: 3
-    min-occurrences: 5  # Increased from default 3 to reduce false positives
-    ignore-tests: true  # Ignore test files
-    match-constant: false  # Don't match against existing constants
-    numbers: false  # Don't check for repeated numbers
-    min: 3
-    max: 3
-  lll:
-    line-length: 200  # Increased to accommodate detailed error messages, URLs, and function signatures
-    tab-width: 1
-
-issues:
-  # don't skip warning about doc comments
-  # don't exclude the default set of lint
-  exclude-use-default: false
-  # restore some of the defaults
-  # (fill in the rest as needed)
-  exclude-rules:
-    - path: "api/*"
-      linters:
-        - lll
-    - path: "internal/*"
-      linters:
-        - dupl
-    # Exclude lll for webhook files (kubebuilder annotations are very long)
-    - path: "_webhook\\.go$"
-      linters:
-        - lll
-    # Exclude lll for test files (test data can be long)
-    - path: "_test\\.go$"
-      linters:
-        - lll
-    # Suppress typecheck false positives for Kubernetes generated code that
-    # golangci-lint v2.11.4 occasionally mis-resolves in multi-module workspaces.
-    # go build ./... passes cleanly; these exclusions cover lint-cache artefacts only.
-    - linters:
-        - typecheck
-      text: "could not import k8s.io"
 linters:
-  disable-all: true
+  default: none
   enable:
     - dupl
     - errcheck
     - goconst
     - gocyclo
-    - gofmt
-    - goimports
-    - gosimple
     - govet
     - ineffassign
     - lll
@@ -66,7 +23,44 @@ linters:
     - nakedret
     - prealloc
     - staticcheck
-    - typecheck
     - unconvert
     - unparam
     - unused
+    # typecheck: built into the v2 runner, cannot be listed
+    # gosimple: merged into staticcheck in v2
+  settings:
+    goconst:
+      min-len: 3
+      min-occurrences: 5  # Increased from default 3 to reduce false positives
+      match-constant: false  # Don't match against existing constants
+      numbers: false  # Don't check for repeated numbers
+      min: 3
+      max: 3
+    lll:
+      line-length: 200  # Increased to accommodate detailed error messages, URLs, and function signatures
+      tab-width: 1
+  exclusions:
+    # No presets — we define all exclusion rules explicitly
+    rules:
+      - path: "api/*"
+        linters:
+          - lll
+      - path: "internal/*"
+        linters:
+          - dupl
+      # Exclude lll for webhook files (kubebuilder annotations are very long)
+      - path: "_webhook\\.go$"
+        linters:
+          - lll
+      # Exclude lll for test files (test data can be long)
+      - path: "_test\\.go$"
+        linters:
+          - lll
+      # Suppress k8s.io import noise across all linters
+      - text: "could not import k8s.io"
+        path: ".*\\.go"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

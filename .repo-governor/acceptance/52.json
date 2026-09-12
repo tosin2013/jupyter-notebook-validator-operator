@@ -1,0 +1,14 @@
+{
+  "$comment": "Helm Install Test (Real) times out: kube-rbac-proxy pull + 5m too tight. Fix: disable auth proxy in CI, increase timeout to 8m, pre-pull hook images, add diagnostics.",
+  "authority_id": "52",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "grep -q 'authProxy.enabled=false' .github/workflows/helm-validation.yaml"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'timeout 8m' .github/workflows/helm-validation.yaml"
+    }
+  ]
+}
