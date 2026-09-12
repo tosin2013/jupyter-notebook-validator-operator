@@ -722,6 +722,13 @@ type ValidationConfigSpec struct {
 	// +optional
 	VerifyAssertions bool `json:"verifyAssertions,omitempty"`
 
+	// EducationalMode enables detailed educational feedback in status
+	// ADR-041: When true, produces actionable suggestions and code examples
+	// Automatically enabled for "learning" level; optional for other levels
+	// +kubebuilder:default=false
+	// +optional
+	EducationalMode bool `json:"educationalMode,omitempty"`
+
 	// ExpectedOutputs specifies expected output types and values for specific cells
 	// ADR-041: Enables post-execution validation of cell outputs
 	// +optional
@@ -927,6 +934,36 @@ type NotebookValidationJobStatus struct {
 	// BuildStatus contains the build status (Phase 4.5: S2I Build Integration)
 	// +optional
 	BuildStatus *BuildStatus `json:"buildStatus,omitempty"`
+
+	// EducationalFeedback contains actionable messages and best-practice code examples
+	// ADR-041: Populated when validation level is "learning" or "development"
+	// +optional
+	EducationalFeedback []EducationalFeedbackItem `json:"educationalFeedback,omitempty"`
+}
+
+// EducationalFeedbackItem contains a single piece of educational feedback
+// ADR-041: Provides actionable guidance to notebook authors
+type EducationalFeedbackItem struct {
+	// Cell is the zero-based index of the cell this feedback relates to (-1 for global)
+	Cell int `json:"cell"`
+
+	// Severity indicates the importance: info, warning, error
+	// +kubebuilder:validation:Enum=info;warning;error
+	Severity string `json:"severity"`
+
+	// Category classifies the feedback (e.g., "silent-failure", "missing-assertion", "type-mismatch")
+	Category string `json:"category"`
+
+	// Message is a human-readable description of the issue
+	Message string `json:"message"`
+
+	// Suggestion provides a recommended fix or best practice
+	// +optional
+	Suggestion string `json:"suggestion,omitempty"`
+
+	// CodeExample shows corrected code (if applicable)
+	// +optional
+	CodeExample string `json:"codeExample,omitempty"`
 }
 
 // BuildStatus represents the status of a container image build
