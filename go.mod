@@ -11,7 +11,7 @@ require (
 	github.com/openshift/api v0.0.0-20250124155635-5dd0bcfcbb79
 	github.com/prometheus/client_golang v1.19.1
 	github.com/stretchr/testify v1.10.0
-	github.com/tektoncd/pipeline v0.68.0
+	github.com/tektoncd/pipeline v0.68.1
 	k8s.io/api v0.31.14
 	k8s.io/apimachinery v0.31.14
 	k8s.io/client-go v0.31.10
