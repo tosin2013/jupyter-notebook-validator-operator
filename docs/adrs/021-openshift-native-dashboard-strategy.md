@@ -1,7 +1,7 @@
 # ADR 021: OpenShift-Native Dashboard Strategy
 
 ## Status
-Accepted
+Accepted / Verified
 
 ## Context
 
@@ -188,4 +188,5 @@ data:
 | Date       | Author | Description |
 |------------|--------|-------------|
 | 2025-11-08 | Team   | Initial OpenShift-native dashboard strategy |
+| 2026-09-12 | Team   | Verified: 5 ConfigMap dashboards confirmed in config/monitoring/openshift-console/ and helm/dashboards/. Kustomization overlay references all 5. Helm chart includes matching dashboard files. OBSERVABILITY.md created with prerequisites. Live cluster validation (Console rendering, Grafana Operator CR acceptance) deferred to cluster-available E2E. |
 
