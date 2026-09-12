@@ -1,10 +1,13 @@
 # ADR-052: Resource Conflict Error Handling in Reconciliation Loop
 
-**Status**: Implemented
+**Status**: Accepted
 **Date**: 2025-11-24
 **Updated**: 2026-01-24
 **Related**: ADR-011 (Error Handling and Retry Strategy), ADR-037 (Build-Validation Sequencing)
 **Supersedes**: Previously numbered as ADR-042 (renumbered to resolve duplicate)
+
+## Status
+Accepted
 
 ## Context
 

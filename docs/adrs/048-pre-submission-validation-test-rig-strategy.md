@@ -5,6 +5,9 @@
 **Authors**: Sophia (AI Assistant), User Feedback  
 **Related**: ADR-032 (CI Testing), ADR-033 (E2E Testing), ADR-034 (Dual Testing Strategy), ADR-006 (Version Support Roadmap)
 
+## Status
+Accepted
+
 ## Context
 
 The Community Operators pipeline is strict, and waiting for their CI to fail is frustrating. Developers need a way to validate operator bundles locally before submission to catch issues early and avoid the slow feedback loop of Community Operators CI.

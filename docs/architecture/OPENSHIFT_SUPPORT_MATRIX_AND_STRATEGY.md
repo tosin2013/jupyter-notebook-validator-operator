@@ -7,7 +7,7 @@
 
 Based on the official Red Hat OpenShift lifecycle data (updated April 2026 — OCP 4.21 is now GA):
 
-**🎯 ACTIVE SUPPORT WINDOW: OCP 4.19 / 4.20 / 4.21 (rolling 3-version window; 4.18 moved to Maintenance-only)**
+**🎯 CERTIFIED SUPPORT WINDOW (ADR-056): OCP 4.20 / 4.21 / 4.22. OCP 4.18 dropped (maintenance ended 2026-08-25). OCP 4.19 best-effort.**
 
 ## Current OpenShift Landscape (April 2026)
 

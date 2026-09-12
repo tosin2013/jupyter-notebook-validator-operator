@@ -1,0 +1,18 @@
+{
+  "$comment": "Criteria taken from issue #43 (Governor + ADR MCP process; do not edit Accepted ADRs in place). Criterion 3 accepts Superseded because ADR-002 was legitimately superseded by ADR-056 under #44.",
+  "authority_id": "43",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "grep -q '^## Changing ADRs$' docs/adrs/README.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'Changing ADRs' CONTRIBUTING.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -A1 '^## Status$' docs/adrs/002-platform-version-support-strategy.md | grep -qE '^(Accepted|Superseded)$'"
+    }
+  ]
+}

@@ -231,7 +231,7 @@ gh secret set OPENSHIFT_TOKEN --body "$NEW_TOKEN"
 
 ## See Also
 
-- [docs/GITHUB_SECRETS_SETUP.md](GITHUB_SECRETS_SETUP.md) — full secrets inventory for all CI workflows
+- [GITHUB_SECRETS_SETUP.md](GITHUB_SECRETS_SETUP.md) — full secrets inventory for all CI workflows
 - [.github/workflows/e2e-openshift.yaml](../.github/workflows/e2e-openshift.yaml) — `check-cluster` job implementation
 - [ADR-033](adrs/033-e2e-testing-against-live-openshift-cluster.md) — E2E testing decision
 - [ADR-034](adrs/034-dual-testing-strategy-kind-and-openshift.md) — dual testing strategy

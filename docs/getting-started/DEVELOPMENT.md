@@ -504,8 +504,8 @@ chore: Update dependencies
 - [Kubebuilder Book](https://book.kubebuilder.io/)
 - [Kind Documentation](https://kind.sigs.k8s.io/)
 - [ADR Documentation](docs/adrs/)
-- [Integration Testing Guide](docs/INTEGRATION_TESTING.md)
-- [E2E Testing Guide](docs/E2E_TESTING.md)
+- [Integration Testing Guide](docs/testing/INTEGRATION_TESTING.md)
+- [E2E Testing Guide](docs/testing/E2E_TESTING.md)
 
 ---
 

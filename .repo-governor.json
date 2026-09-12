@@ -1,0 +1,94 @@
+{
+  "$comment": "Reviewed binding for tosin2013/jupyter-notebook-validator-operator. Detection (2026-09-12) found git, docs/adrs, and an unconfirmed GitHub remote. Roles not bound -- execution, change_signals -- have no provider on disk (no Beads export, no Renovate/Dependabot, no signals file). Credentials do not imply permission (ADR-005, INV-014).",
+  "repo_governor": {
+    "version": 1,
+    "engine_min_version": "0.1.0",
+    "enforcement": "advisory"
+  },
+  "repository": {
+    "id": "tosin2013/jupyter-notebook-validator-operator"
+  },
+  "condition": {
+    "assessed": "L4",
+    "profile": "GOVERNOR_HIGH_ASSURANCE",
+    "floor_reason": "floor raised by public_api_surface — compatibility obligations exist",
+    "$comment": "Assessed by engine/onboard.py. Floor may not be overridden downward (ADR-006). execution remains unbound on purpose: no Beads/execution-file exists, and fabricating one would be silent infrastructure (INV-013)."
+  },
+  "permissions": {
+    "$comment": "Deny by default (ADR-005). Unlisted roles and verbs are deny. The only write grant is decision_history so envelope.py --record can persist CAPTURE_ONLY. The engine still rules; this grant does not change the repository product.",
+    "repository": {
+      "read": true,
+      "write": false
+    },
+    "roadmap_authority": {
+      "read": true,
+      "write": false
+    },
+    "acceptance_criteria": {
+      "read": true,
+      "write": false
+    },
+    "decision_history": {
+      "read": true,
+      "write": true
+    },
+    "architecture": {
+      "read": true,
+      "write": false
+    },
+    "retirement": {
+      "read": true,
+      "write": false
+    }
+  },
+  "providers": {
+    "repository": {
+      "type": "git",
+      "adapter": "adapters/git",
+      "contract_version": 1
+    },
+    "roadmap_authority": {
+      "type": "github-projects",
+      "adapter": "adapters/github-projects",
+      "contract_version": 1,
+      "admission": {
+        "signal": "milestone"
+      },
+      "transport": {
+        "kind": "cli",
+        "command": "gh"
+      },
+      "env": {
+        "REPO_GOVERNOR_GH_REPO": "tosin2013/jupyter-notebook-validator-operator",
+        "REPO_GOVERNOR_GH_ADMISSION": "milestone"
+      }
+    },
+    "acceptance_criteria": {
+      "type": "acceptance-file",
+      "adapter": "adapters/acceptance-file",
+      "contract_version": 1
+    },
+    "decision_history": [
+      {
+        "type": "decision-history-file",
+        "adapter": "adapters/decision-history-file",
+        "contract_version": 1
+      }
+    ],
+    "architecture": [
+      {
+        "type": "adr",
+        "adapter": "adapters/adr",
+        "contract_version": 1,
+        "path": "docs/adrs"
+      }
+    ],
+    "retirement": [
+      {
+        "type": "retirement-analysis",
+        "adapter": "adapters/retirement-analysis",
+        "contract_version": 1
+      }
+    ]
+  }
+}

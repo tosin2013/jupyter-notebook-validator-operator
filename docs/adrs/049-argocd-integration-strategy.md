@@ -1,10 +1,13 @@
 # ADR-049: ArgoCD Integration Strategy for GitOps Workflows
 
-**Status**: Implemented
+**Status**: Accepted
 **Date**: 2026-01-24
 **Updated**: 2026-01-24
 **Deciders**: Tosin Akinosho
 **Context**: GitOps Workflow Coordination and Model Serving Integration
+
+## Status
+Accepted
 
 ## Context and Problem Statement
 

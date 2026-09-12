@@ -1,0 +1,22 @@
+{
+  "$comment": "Criteria taken from issue #39 Acceptance Criteria (named submission script and dry-run).",
+  "authority_id": "39",
+  "criteria": [
+    {
+      "check": "file_exists",
+      "target": "scripts/submit-to-operatorhub.sh"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q '\\--dry-run' scripts/submit-to-operatorhub.sh"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'submit-to-operatorhub.sh' docs/RELEASE.md"
+    }
+  ],
+  "covers": {
+    "declared": "scripts/submit-to-operatorhub.sh with --dry-run and RELEASE.md documentation",
+    "uncovered": "Idempotent live PRs to both OperatorHub upstreams; DCO/gh auth; first real use on the v1.0.9 submission"
+  }
+}

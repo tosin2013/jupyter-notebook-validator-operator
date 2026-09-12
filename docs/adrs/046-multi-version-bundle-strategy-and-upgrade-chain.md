@@ -1,9 +1,12 @@
 # ADR-046: Multi-Version Bundle Strategy and Upgrade Chain
 
-**Status**: Accepted (Superseded by ADR-047 for versioning fix)  
+**Status**: Accepted
 **Date**: 2025-12-03  
 **Deciders**: Tosin Akinosho, Community Operators Maintainer Feedback  
 **Context**: Operator Hub Bundle Submission, Multi-OpenShift Version Support
+
+## Status
+Accepted
 
 ## Context and Problem Statement
 

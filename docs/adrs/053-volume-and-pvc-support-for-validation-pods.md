@@ -1,11 +1,14 @@
 # ADR-053: Volume and PVC Support for Validation Pods
 
 **Date**: 2025-11-29
-**Status**: Implemented
+**Status**: Accepted
 **Updated**: 2026-01-24
 **Deciders**: Development Team, User Community
 **Technical Story**: Enable notebooks to persist trained models and access shared datasets via PVC volumes
 **Supersedes**: Previously numbered as ADR-045 (renumbered to resolve duplicate)
+
+## Status
+Accepted
 
 ## Context and Problem Statement
 

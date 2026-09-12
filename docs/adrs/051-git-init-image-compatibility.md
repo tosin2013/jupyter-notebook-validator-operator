@@ -1,11 +1,7 @@
 # ADR-051: Git Init Container Image Compatibility
 
 ## Status
-Implemented
-
-**Date**: 2025-11-21
-**Updated**: 2026-01-24
-**Supersedes**: Previously numbered as ADR-042 (renumbered to resolve duplicate)
+Accepted
 
 ## Context
 The operator uses a git-clone init container to fetch notebooks from Git repositories before validation. The choice of git init image affects compatibility with OpenShift's security context constraints and different execution modes.

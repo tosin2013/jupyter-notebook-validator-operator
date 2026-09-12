@@ -6,6 +6,9 @@
 **Authors**: Sophia (AI Assistant), User Feedback
 **Related**: ADR-032 (CI Testing), ADR-034 (Dual Testing), ADR-035 (Test Tier Organization), ADR-036 (Private Test Repository)
 
+## Status
+Accepted
+
 ## Context
 
 Beyond local KinD tests (ADR-032), we need E2E tests against a real OpenShift cluster to validate the complete operator workflow including Tekton builds, validation pods, and notebook execution.

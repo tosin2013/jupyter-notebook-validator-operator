@@ -1,10 +1,7 @@
 # ADR 037: Build-Validation Sequencing and State Machine
 
 ## Status
-Implemented
-
-**Updated**: 2026-01-24
-**Implementation**: State machine phases (`Building`, `BuildComplete`, `ValidationRunning`, `Succeeded`, `Failed`) in `api/v1alpha1/notebookvalidationjob_types.go`
+Accepted
 
 ## Context
 

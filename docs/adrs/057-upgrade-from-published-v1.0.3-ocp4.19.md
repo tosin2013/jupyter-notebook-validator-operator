@@ -1,10 +1,13 @@
-# ADR-048: Upgrade from Published v1.0.3-ocp4.19
+# ADR-057: Upgrade from Published v1.0.3-ocp4.19
 
 **Status**: Accepted  
 **Date**: 2026-01-25  
 **Deciders**: Tosin Akinosho  
 **Context**: Operator Hub Bundle Upgrade Path Fix  
 **Supersedes**: ADR-047
+
+## Status
+Accepted
 
 ## Context and Problem Statement
 

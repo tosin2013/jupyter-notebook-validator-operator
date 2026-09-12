@@ -1,10 +1,13 @@
 # ADR-032: GitHub Actions CI Testing Against Kubernetes 1.31.10
 
-**Status**: Implemented  
+**Status**: Accepted
 **Date**: 2025-11-09  
 **Updated**: 2026-01-24  
 **Authors**: Sophia (AI Assistant), User Feedback  
 **Related**: ADR-031 (Tekton Build), ADR-005 (OpenShift Compatibility), ADR-022 (Testing Strategy)
+
+## Status
+Accepted
 
 ## Context
 

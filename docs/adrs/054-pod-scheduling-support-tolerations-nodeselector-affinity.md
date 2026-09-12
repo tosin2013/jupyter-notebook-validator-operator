@@ -1,10 +1,13 @@
 # ADR-054: Pod Scheduling Support (Tolerations, NodeSelector, Affinity)
 
 **Date**: 2026-01-28
-**Status**: Implemented
+**Status**: Accepted
 **Deciders**: Development Team, User Community
 **Technical Story**: Enable scheduling validation pods on specialized nodes (GPU, high-memory, spot instances)
 **GitHub Issue**: [#13](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/13)
+
+## Status
+Accepted
 
 ## Context and Problem Statement
 

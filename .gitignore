@@ -26,6 +26,9 @@ go.work
 *.swo
 *~
 
+# Cursor IDE (hooks, skills, rules, MCP config are local tooling)
+.cursor/
+
 # Environment variables and secrets
 .env
 .env.*
@@ -40,6 +43,10 @@ test-notebooks/
 
 # MCP server context (auto-generated, contains session state)
 .mcp-server-context.md
+.mcp-adr-cache/
+
+# Repo Governor hook session cache (per-machine, not shared)
+.repo-governor/sessions/
 
 # Test results (local testing artifacts)
 test-results.yaml

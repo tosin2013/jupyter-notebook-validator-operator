@@ -421,7 +421,7 @@ kubectl describe yourresource test-model -n ml-team
 
 ## Step 9: Update Platform List
 
-Update `docs/COMMUNITY_PLATFORMS.md` to change your platform status from "HELP WANTED" to "Contributed":
+Update `docs/community/COMMUNITY_PLATFORMS.md` to change your platform status from "HELP WANTED" to "Contributed":
 
 ```markdown
 ### Your Platform
@@ -441,7 +441,7 @@ Update `docs/COMMUNITY_PLATFORMS.md` to change your platform status from "HELP W
 - [ ] Unit tests added
 - [ ] Sample manifests created in `config/samples/community/`
 - [ ] Documentation created in `docs/community/`
-- [ ] Updated `docs/COMMUNITY_PLATFORMS.md`
+- [ ] Updated `docs/community/COMMUNITY_PLATFORMS.md`
 - [ ] All existing tests pass (`make test`)
 - [ ] Code passes linting (`make lint`)
 

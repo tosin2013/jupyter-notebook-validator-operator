@@ -5,6 +5,9 @@
 **Authors**: Sophia (AI Assistant), User Feedback  
 **Related**: ADR-033 (E2E Testing), ADR-034 (Dual Testing Strategy), ADR-036 (Private Test Repository)
 
+## Status
+Accepted
+
 ## Context
 
 The test notebooks repository contains various types of notebooks for testing different operator capabilities. We need a clear organization strategy to ensure systematic testing and maintainability.

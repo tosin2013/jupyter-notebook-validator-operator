@@ -1,9 +1,12 @@
 # ADR-044: S2I Strategy Enhancements - Parity with Tekton
 
 **Date**: 2025-11-24
-**Status**: Implemented
+**Status**: Accepted
 **Deciders**: Development Team
 **Technical Story**: Add missing Tekton features to S2I strategy for consistency
+
+## Status
+Accepted
 
 ## Context and Problem Statement
 

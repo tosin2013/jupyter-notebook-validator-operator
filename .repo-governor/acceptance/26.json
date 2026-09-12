@@ -1,0 +1,14 @@
+{
+  "$comment": "Criteria taken from issue #26 Acceptance Criteria that can be checked without a live Console session.",
+  "authority_id": "26",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "grep -q 'Verified' docs/adrs/021-openshift-native-dashboard-strategy.md"
+    }
+  ],
+  "covers": {
+    "declared": "ADR-021 Verified note naming the OCP version tested",
+    "uncovered": "kubectl apply -k config/monitoring/ on OCP 4.19+; Observe > Dashboards panel actually rendering; GrafanaDashboard CR accepted on cluster"
+  }
+}

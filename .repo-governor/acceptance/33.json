@@ -1,0 +1,18 @@
+{
+  "$comment": "Criteria taken from issue #33 Acceptance Criteria. scripts/pre-submission-validate.sh already exists; that path is not used as a criterion because it would already pass.",
+  "authority_id": "33",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "grep -q skip-e2e scripts/pre-submission-validate.sh"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'Step 0' docs/RELEASE.md"
+    }
+  ],
+  "covers": {
+    "declared": "--skip-e2e flag and RELEASE.md Step 0 for the existing pre-submission script",
+    "uncovered": "CI on release-branch pushes; docker-build and kind E2E actually succeeding inside the script"
+  }
+}

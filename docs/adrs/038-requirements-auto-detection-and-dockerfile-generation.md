@@ -1,7 +1,7 @@
 # ADR 038: Requirements.txt Auto-Detection and Dockerfile Generation Strategy
 
 ## Status
-Implemented
+Accepted
 
 ## Context
 

@@ -5,6 +5,9 @@
 **Authors**: Sophia (AI Assistant), User Feedback  
 **Related**: ADR-033 (E2E Testing), ADR-034 (Dual Testing), ADR-035 (Test Tier Organization), ADR-020 (Git Authentication)
 
+## Status
+Accepted
+
 ## Context
 
 The Jupyter Notebook Validator Operator needs to validate git authentication features (HTTPS and SSH) for accessing private repositories. This requires a test repository with controlled access.

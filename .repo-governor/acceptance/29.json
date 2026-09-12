@@ -1,0 +1,18 @@
+{
+  "$comment": "Criteria taken from issue #29 Acceptance Criteria (secret watch-and-sync test and ADR-042 Verified note).",
+  "authority_id": "29",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "grep -q 'Verified' docs/adrs/042-automatic-tekton-git-credentials-conversion.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -L TODO pkg/build/tekton_strategy.go | grep -q tekton_strategy.go"
+    }
+  ],
+  "covers": {
+    "declared": "ADR-042 Verified note and the TODO at pkg/build/tekton_strategy.go:252 removed or resolved in-file",
+    "uncovered": "envtest/kind test that an updated git-credentials Secret syncs the Tekton secret within 60s"
+  }
+}

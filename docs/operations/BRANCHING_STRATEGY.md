@@ -117,9 +117,9 @@ This branch targets OpenShift 4.18 (Kubernetes 1.31).
 - OpenShift 4.18.x (tested)
 - OpenShift 4.19.x (compatible)
 - OpenShift 4.20.x (compatible)
-" > docs/RELEASE_BRANCH_INFO.md
+" > docs/_archive/RELEASE_BRANCH_INFO.md
 
-git add go.mod go.sum docs/RELEASE_BRANCH_INFO.md
+git add go.mod go.sum docs/_archive/RELEASE_BRANCH_INFO.md
 git commit -m "chore: Configure dependencies for OpenShift 4.18 (Kubernetes 1.31)"
 git push origin release-4.18
 ```
@@ -155,9 +155,9 @@ This branch targets OpenShift 4.20 (Kubernetes 1.33).
 ## Supported Versions
 - OpenShift 4.20.x (tested)
 - OpenShift 4.21.x (compatible)
-" > docs/RELEASE_BRANCH_INFO.md
+" > docs/_archive/RELEASE_BRANCH_INFO.md
 
-git add go.mod go.sum docs/RELEASE_BRANCH_INFO.md
+git add go.mod go.sum docs/_archive/RELEASE_BRANCH_INFO.md
 git commit -m "chore: Configure dependencies for OpenShift 4.20 (Kubernetes 1.33)"
 git push origin release-4.20
 ```

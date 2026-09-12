@@ -1,0 +1,26 @@
+{
+  "$comment": "Criteria taken from issue #18 Acceptance Criteria (named analyzer/instrumenter/status fields).",
+  "authority_id": "18",
+  "criteria": [
+    {
+      "check": "file_exists",
+      "target": "internal/controller/validation_analyzer.py"
+    },
+    {
+      "check": "file_exists",
+      "target": "internal/controller/validation_instrumenter.py"
+    },
+    {
+      "check": "file_exists",
+      "target": "internal/controller/validation_result_checker.go"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'educationalFeedback' api/v1alpha1/notebookvalidationjob_types.go"
+    }
+  ],
+  "covers": {
+    "declared": "Named analyzer, instrumenter, result-checker files and educationalFeedback on the CRD types",
+    "uncovered": "False-positive rate <5% measurement; E2E learning vs production mode on a cluster"
+  }
+}

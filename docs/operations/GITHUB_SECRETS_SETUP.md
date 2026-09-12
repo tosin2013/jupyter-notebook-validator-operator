@@ -2,7 +2,7 @@
 
 This guide explains how to configure GitHub Secrets for the CI/CD pipeline (ADR-032 and ADR-033).
 
-> **See also:** [docs/CI_CLUSTER_SETUP.md](CI_CLUSTER_SETUP.md) for the full OpenShift cluster
+> **See also:** [CI_CLUSTER_SETUP.md](CI_CLUSTER_SETUP.md) for the full OpenShift cluster
 > registration guide — service account creation, token rotation, test topology, and how to
 > trigger OpenShift E2E tests on a PR.
 

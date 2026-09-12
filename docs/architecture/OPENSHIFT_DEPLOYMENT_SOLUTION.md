@@ -157,7 +157,7 @@ ERROR: Could not install packages due to an OSError: [Errno 13] Permission denie
 ...
 [2025-11-08 10:00:00] ERROR: Failed to install Papermill due to permission errors.
 SOLUTION: Use a custom container image with Papermill pre-installed.
-See docs/ERROR_HANDLING_GUIDE.md for instructions.
+See docs/guides/ERROR_HANDLING_GUIDE.md for instructions.
 Status: failed
 Error Category: dependency_install_failed
 ```

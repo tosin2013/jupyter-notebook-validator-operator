@@ -221,6 +221,6 @@ kubectl port-forward -n operators deployment/jupyter-notebook-validator-operator
 ## Additional Resources
 
 - [Webhook Implementation](https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/api/v1alpha1/notebookvalidationjob_webhook.go)
-- [Architecture Overview](https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/docs/ARCHITECTURE_OVERVIEW.md)
+- [Architecture Overview](https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/docs/architecture/ARCHITECTURE_OVERVIEW.md)
 - [cert-manager Documentation](https://cert-manager.io/docs/)
 

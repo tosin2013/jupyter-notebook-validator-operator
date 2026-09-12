@@ -1,7 +1,7 @@
 # ADR-023: Strategy for Source-to-Image (S2I) Build Integration on OpenShift
 
 ## Status
-**ARCHIVED** - Duplicate of ADR-027. See ADR-027 for the accepted S2I build strategy.
+Superseded
 
 ## Date
 2025-01-08

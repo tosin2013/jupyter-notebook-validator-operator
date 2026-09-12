@@ -7,6 +7,9 @@
 
 ---
 
+## Status
+Accepted
+
 ## Context and Problem Statement
 
 The Jupyter Notebook Validator Operator requires a robust CI/CD pipeline to:

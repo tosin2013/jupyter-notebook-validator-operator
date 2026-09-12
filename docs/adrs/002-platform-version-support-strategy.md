@@ -1,7 +1,9 @@
 # ADR 002: Platform Version Support Strategy
 
 ## Status
-Accepted
+Superseded
+
+Superseded by [ADR-056](056-openshift-support-window-4.20-4.22.md).
 
 ## Context
 

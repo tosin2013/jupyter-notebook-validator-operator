@@ -592,6 +592,6 @@ operator-sdk scorecard bundle \
 ## See Also
 
 - [CHANGELOG.md](../CHANGELOG.md) — per-version feature and fix log
-- [docs/RELEASE-NOTES-v1.0.7.md](RELEASE-NOTES-v1.0.7.md) — v1.0.7 release notes
-- [docs/CI_CLUSTER_SETUP.md](CI_CLUSTER_SETUP.md) — OpenShift cluster registration for E2E CI
+- [Release Notes v1.0.7](../releases/RELEASE-NOTES-v1.0.7.md) — v1.0.7 release notes
+- [CI_CLUSTER_SETUP.md](CI_CLUSTER_SETUP.md) — OpenShift cluster registration for E2E CI
 - [#39](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/39) — OperatorHub submission automation script (in progress)

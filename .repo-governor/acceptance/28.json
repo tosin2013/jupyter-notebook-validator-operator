@@ -1,0 +1,14 @@
+{
+  "$comment": "Criteria taken from issue #28 Acceptance Criteria (named integration test file).",
+  "authority_id": "28",
+  "criteria": [
+    {
+      "check": "file_exists",
+      "target": "internal/controller/recovery_model_validation_test.go"
+    }
+  ],
+  "covers": {
+    "declared": "Named recovery+model-validation integration test file",
+    "uncovered": "Five named test cases, kind combined flow, and wiring into e2e-kind.yaml / ci-unit-tests.yaml"
+  }
+}

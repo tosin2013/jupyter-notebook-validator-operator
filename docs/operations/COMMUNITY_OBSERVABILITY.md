@@ -315,7 +315,7 @@ oc exec -n openshift-monitoring prometheus-k8s-0 -- \
    - `docs/dashboards/<name>.md`
    - `test/dashboards/<name>_test.sh` (optional)
    - Screenshots in `docs/images/dashboard-<name>.png`
-4. Update `docs/COMMUNITY_OBSERVABILITY.md` to mark your dashboard as "In Progress"
+4. Update `docs/operations/COMMUNITY_OBSERVABILITY.md` to mark your dashboard as "In Progress"
 5. Submit PR with title: `[Dashboard] Add <Name> Dashboard`
 
 ---

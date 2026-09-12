@@ -1,0 +1,14 @@
+{
+  "$comment": "Criteria taken from issue #45. GitHub milestone UI is not clone-checkable; the in-repo reconcile note is. Do not satisfy this bar until ADR-056 is ratified.",
+  "authority_id": "45",
+  "criteria": [
+    {
+      "check": "file_exists",
+      "target": "docs/ROADMAP-MILESTONE-RECONCILE.md"
+    }
+  ],
+  "covers": {
+    "declared": "In-repo record of how v1.0.9 / v1.0.10 relate to the 4.20-4.22 window",
+    "uncovered": "Live GitHub milestone title/description edits; closing or retargeting #16; moving issues between milestones"
+  }
+}
