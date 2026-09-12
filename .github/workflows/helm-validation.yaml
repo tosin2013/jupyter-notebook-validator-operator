@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Check if CRDs are in sync
         run: |
@@ -64,7 +64,7 @@ jobs:
     needs: helm-sync-check
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Helm
         uses: azure/setup-helm@v5
@@ -94,7 +94,7 @@ jobs:
             values: "--set tekton.enabled=false --set prometheus.enabled=false"
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Helm
         uses: azure/setup-helm@v5
@@ -134,7 +134,7 @@ jobs:
     needs: [helm-lint, helm-template]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Helm
         uses: azure/setup-helm@v5
@@ -174,7 +174,7 @@ jobs:
     needs: helm-install-dry-run
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Helm
         uses: azure/setup-helm@v5
@@ -269,7 +269,7 @@ jobs:
     needs: helm-install-test
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Helm
         uses: azure/setup-helm@v5
@@ -348,7 +348,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/release-4.18'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Helm
         uses: azure/setup-helm@v5
