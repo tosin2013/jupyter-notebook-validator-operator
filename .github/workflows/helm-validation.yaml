@@ -122,7 +122,7 @@ jobs:
           fi
 
       - name: Upload rendered manifests
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: rendered-manifests-${{ matrix.scenario.name }}
           path: rendered-${{ matrix.scenario.name }}.yaml
@@ -374,7 +374,7 @@ jobs:
           ls -lh dist/*.tgz
 
       - name: Upload Chart Artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: helm-chart
           path: dist/*.tgz
