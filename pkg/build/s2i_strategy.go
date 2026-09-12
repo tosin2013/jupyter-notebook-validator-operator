@@ -389,8 +389,12 @@ func (s *S2IStrategy) buildInfoFromBuild(build *buildv1.Build) *BuildInfo {
 		info.Status = BuildStatusRunning
 	case buildv1.BuildPhaseComplete:
 		info.Status = BuildStatusComplete
-		if build.Status.Output.To != nil {
-			// Get full image reference from ImageStream instead of just digest
+		// ADR-050: Use outputDockerImageReference as the canonical image reference.
+		// This is populated by the cluster when the build pushes to the registry.
+		if build.Status.OutputDockerImageReference != "" {
+			info.ImageReference = build.Status.OutputDockerImageReference
+		} else if build.Status.Output.To != nil {
+			// Fallback for older clusters that don't populate OutputDockerImageReference
 			info.ImageReference = s.getFullImageReference(build)
 		}
 	case buildv1.BuildPhaseFailed, buildv1.BuildPhaseError:
