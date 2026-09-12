@@ -5,16 +5,18 @@ go 1.24
 toolchain go1.24.10
 
 require (
+	github.com/go-logr/logr v1.4.2
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
 	github.com/openshift/api v0.0.0-20250124155635-5dd0bcfcbb79
 	github.com/prometheus/client_golang v1.19.1
 	github.com/stretchr/testify v1.10.0
 	github.com/tektoncd/pipeline v0.68.0
-	k8s.io/api v0.31.10
-	k8s.io/apimachinery v0.31.10
+	k8s.io/api v0.31.14
+	k8s.io/apimachinery v0.31.14
 	k8s.io/client-go v0.31.10
 	sigs.k8s.io/controller-runtime v0.19.4
+	sigs.k8s.io/yaml v1.4.0
 )
 
 require (
@@ -33,7 +35,6 @@ require (
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
-	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
@@ -94,5 +95,4 @@ require (
 	knative.dev/pkg v0.0.0-20240416145024-0f34a8815650 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
-	sigs.k8s.io/yaml v1.4.0 // indirect
 )
