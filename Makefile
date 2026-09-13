@@ -301,6 +301,15 @@ endif
 CATALOG_DIR ?= catalog
 CATALOG_IMG ?= $(IMAGE_TAG_BASE)-catalog:v$(VERSION)
 
+# Render a bundle image into FBC (File Based Catalog) YAML format.
+# Appends the rendered output to catalog/catalog.yaml for review before committing.
+# Usage: make catalog-render BUNDLE_IMG=quay.io/takinosh/jupyter-notebook-validator-operator-bundle:v1.0.9
+.PHONY: catalog-render
+catalog-render: opm ## Render bundle image into FBC catalog format (append to catalog.yaml).
+	$(OPM) render $(BUNDLE_IMG) --output=yaml >> $(CATALOG_DIR)/catalog.yaml
+	@echo "Rendered $(BUNDLE_IMG) → $(CATALOG_DIR)/catalog.yaml"
+	@echo "Review the appended entries, then run: make catalog-validate"
+
 # Validate the FBC catalog directory using opm.
 .PHONY: catalog-validate
 catalog-validate: opm ## Validate the FBC catalog directory.

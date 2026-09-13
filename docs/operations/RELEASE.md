@@ -354,6 +354,82 @@ Wait for each PR to pass all automated checks before proceeding.
 
 ---
 
+## File Based Catalog (FBC) Submission
+
+> **Status:** FBC is the recommended format for new OperatorHub submissions.
+> The legacy bundle-directory approach (Step 8 above) remains available during
+> the transition period while upstream repos complete their FBC migration.
+
+### Background
+
+File Based Catalog (FBC) replaces the legacy SQLite-based index images with a
+declarative YAML catalog. The project already maintains an in-repo FBC at
+`catalog/catalog.yaml` with `olm.package`, `olm.channel`, and `olm.bundle`
+entries for each published version. CI validates this file on every PR with
+`opm validate catalog/`.
+
+### How FBC Works
+
+The catalog file (`catalog/catalog.yaml`) contains three schema types:
+
+- **`olm.package`** — declares the operator package name, default channel, and
+  description.
+- **`olm.channel`** — defines upgrade channels (`stable`, `alpha`) with entries
+  listing each version and its upgrade path (`skipRange` or `replaces`).
+- **`olm.bundle`** — describes a specific version's bundle image, GVKs,
+  package version, and CSV metadata annotations.
+
+When submitting to OperatorHub via FBC, you submit the catalog tree instead of
+individual `operators/<name>/<version>/` bundle directories.
+
+### Adding a New Version to the FBC Catalog
+
+After building and pushing the bundle image (Steps 4-6):
+
+```bash
+# Option A: Use opm render to generate the bundle entry automatically
+BUNDLE_IMG=quay.io/takinosh/jupyter-notebook-validator-operator-bundle:v${VERSION}
+make catalog-render BUNDLE_IMG=${BUNDLE_IMG}
+
+# Review the appended entries in catalog/catalog.yaml
+# Then validate:
+make catalog-validate
+```
+
+```bash
+# Option B: Manually add entries (copy from previous version and update)
+# See Step 4.5 above for the manual YAML format
+```
+
+After rendering or manually adding the entry, update the `stable` channel block
+to include the new version with its `skipRange`.
+
+### FBC Submission to Upstream Repos
+
+When the upstream OperatorHub repos
+([community-operators-prod](https://github.com/redhat-openshift-ecosystem/community-operators-prod),
+[community-operators](https://github.com/k8s-operatorhub/community-operators))
+support FBC submissions, the PR structure changes:
+
+1. Place the catalog entries under `catalogs/` in the upstream repo (instead of
+   `operators/<name>/<version>/`).
+2. The PR title format remains: `operator jupyter-notebook-validator-operator (VERSION)`.
+3. One catalog entry per PR.
+
+See the [FBC Onboarding Guide](https://redhat-openshift-ecosystem.github.io/operator-pipelines/users/fbc_onboarding/)
+for the latest upstream requirements.
+
+### Makefile Targets
+
+| Target | Description |
+|--------|-------------|
+| `make catalog-render BUNDLE_IMG=...` | Render a bundle image into FBC YAML (appends to `catalog/catalog.yaml`) |
+| `make catalog-validate` | Validate the FBC catalog directory with `opm validate` |
+| `make catalog-build` | Build the catalog container image from the FBC directory |
+| `make catalog-push` | Push the catalog container image |
+
+---
+
 ## OperatorHub Submission Backlog
 
 Current status as of April 2026:
