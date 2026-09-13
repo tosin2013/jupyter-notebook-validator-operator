@@ -113,7 +113,7 @@ See [docs/](docs/) for the full documentation index, organized by topic:
 
 ## Contributing
 
-Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, coding standards, and the pull request process.
+Contributions are welcome from both **data scientists** (submit notebooks, report issues, improve docs) and **operator developers** (Go, controller-runtime, Kubernetes). See [CONTRIBUTING.md](CONTRIBUTING.md) for the path that matches your role, coding standards, and the pull request process.
 
 ## Code of Conduct
 
