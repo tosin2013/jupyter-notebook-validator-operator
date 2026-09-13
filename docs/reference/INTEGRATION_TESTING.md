@@ -1,5 +1,8 @@
 # Integration Testing Guide
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 This guide explains how to run integration tests for the Jupyter Notebook Validator Operator against a real OpenShift or Kubernetes cluster.
 
 ## Overview

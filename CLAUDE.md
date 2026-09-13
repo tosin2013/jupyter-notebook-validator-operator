@@ -384,10 +384,10 @@ oc logs build/<build-name>
 ## Documentation References
 
 - **Design Document**: `DESIGN_DOC.md`
-- **Architecture**: `docs/architecture/ARCHITECTURE_OVERVIEW.md`
-- **Testing**: `docs/testing/TESTING_GUIDE.md`
-- **Credentials**: `docs/guides/NOTEBOOK_CREDENTIALS_GUIDE.md`
-- **Model Validation**: `docs/guides/MODEL_DISCOVERY_GUIDE.md`
+- **Architecture**: `docs/explanation/ARCHITECTURE_OVERVIEW.md`
+- **Testing**: `docs/reference/TESTING_GUIDE.md`
+- **Credentials**: `docs/how-to/NOTEBOOK_CREDENTIALS_GUIDE.md`
+- **Model Validation**: `docs/how-to/MODEL_DISCOVERY_GUIDE.md`
 - **ADRs**: `docs/adrs/` (architectural decision records)
 
 ## Development Workflow

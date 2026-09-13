@@ -83,7 +83,7 @@ We will accept contributions in these categories:
 
 **Step 2: Implementation (Pull Request)**
 - Create dashboard ConfigMap or Grafana JSON
-- Add documentation in `docs/dashboards/<name>.md`
+- Add documentation in `docs/reference/<name>.md`
 - Include screenshots and example queries
 - Add tests (optional)
 

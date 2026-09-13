@@ -4,7 +4,7 @@ This directory holds community-contributed dashboards and monitoring integration
 
 ## Contributing
 
-See [`docs/dashboards/CONTRIBUTING.md`](../../../docs/dashboards/CONTRIBUTING.md) for the full contribution guide.
+See [`docs/how-to/DASHBOARD_CONTRIBUTING.md`](../../../docs/how-to/DASHBOARD_CONTRIBUTING.md) for the full contribution guide.
 
 ## Dashboard Categories
 
@@ -21,5 +21,5 @@ See [`docs/dashboards/CONTRIBUTING.md`](../../../docs/dashboards/CONTRIBUTING.md
 1. Fork this repository
 2. Add your dashboard ConfigMap (OpenShift Console format) or Grafana JSON to this directory
 3. Add it to `kustomization.yaml` resources list
-4. Add documentation in `docs/dashboards/<your-dashboard>.md`
+4. Add documentation in `docs/reference/<your-dashboard>.md`
 5. Open a PR with the `dashboard-contribution` label

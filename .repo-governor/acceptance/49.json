@@ -4,11 +4,11 @@
   "criteria": [
     {
       "check": "command_exit",
-      "target": "! grep -q 'Primary Platform.*4\\.18' docs/architecture/ARCHITECTURE_OVERVIEW.md"
+      "target": "! grep -q 'Primary Platform.*4\\.18' docs/explanation/ARCHITECTURE_OVERVIEW.md"
     },
     {
       "check": "command_exit",
-      "target": "! grep -q 'ACTIVE SUPPORT WINDOW.*4\\.19' docs/architecture/OPENSHIFT_SUPPORT_MATRIX_AND_STRATEGY.md"
+      "target": "! grep -q 'ACTIVE SUPPORT WINDOW.*4\\.19' docs/reference/OPENSHIFT_SUPPORT_MATRIX_AND_STRATEGY.md"
     }
   ]
 }

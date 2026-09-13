@@ -146,7 +146,7 @@ The following platforms are **documented for community contributions**. We welco
 - **Use Case**: Large Language Models (LLMs)
 - **CRD**: `serving.kserve.io/v1beta1/InferenceService` (via KServe)
 - **Runtime**: vLLM ServingRuntime
-- **Documentation**: ⚠️ `docs/community/vllm.md` - **TO BE CREATED**
+- **Documentation**: ⚠️ `docs/reference/vllm.md` - **TO BE CREATED**
 - **Example**: ⚠️ `config/samples/community/model-validation-vllm.yaml` - **TO BE CREATED**
 - **Volunteer**: 🙋 **[Claim this platform!](https://github.com/your-org/jupyter-notebook-validator-operator/issues/new?title=Volunteer%20for%20vLLM%20integration)**
 
@@ -188,7 +188,7 @@ print(f"Response: {response.json()['choices'][0]['text']}")
 - **Status**: � **Needs Contributor** - Documentation and examples needed
 - **Use Case**: PyTorch model serving
 - **CRD**: `serving.kserve.io/v1beta1/InferenceService` (via KServe)
-- **Documentation**: ⚠️ `docs/community/torchserve.md` - **TO BE CREATED**
+- **Documentation**: ⚠️ `docs/reference/torchserve.md` - **TO BE CREATED**
 - **Example**: ⚠️ `config/samples/community/model-validation-torchserve.yaml` - **TO BE CREATED**
 - **Volunteer**: 🙋 **[Claim this platform!](https://github.com/your-org/jupyter-notebook-validator-operator/issues/new?title=Volunteer%20for%20TorchServe%20integration)**
 
@@ -210,7 +210,7 @@ print(f"Response: {response.json()['choices'][0]['text']}")
 - **Status**: � **Needs Contributor** - Documentation and examples needed
 - **Use Case**: TensorFlow model serving
 - **CRD**: `serving.kserve.io/v1beta1/InferenceService` (via KServe)
-- **Documentation**: ⚠️ `docs/community/tensorflow-serving.md` - **TO BE CREATED**
+- **Documentation**: ⚠️ `docs/reference/tensorflow-serving.md` - **TO BE CREATED**
 - **Example**: ⚠️ `config/samples/community/model-validation-tensorflow.yaml` - **TO BE CREATED**
 - **Volunteer**: 🙋 **[Claim this platform!](https://github.com/your-org/jupyter-notebook-validator-operator/issues/new?title=Volunteer%20for%20TensorFlow%20Serving%20integration)**
 
@@ -232,7 +232,7 @@ print(f"Response: {response.json()['choices'][0]['text']}")
 - **Status**: � **Needs Contributor** - Documentation and examples needed
 - **Use Case**: Multi-framework, GPU-optimized serving
 - **CRD**: `serving.kserve.io/v1beta1/InferenceService` (via KServe)
-- **Documentation**: ⚠️ `docs/community/triton.md` - **TO BE CREATED**
+- **Documentation**: ⚠️ `docs/reference/triton.md` - **TO BE CREATED**
 - **Example**: ⚠️ `config/samples/community/model-validation-triton.yaml` - **TO BE CREATED**
 - **Volunteer**: 🙋 **[Claim this platform!](https://github.com/your-org/jupyter-notebook-validator-operator/issues/new?title=Volunteer%20for%20Triton%20integration)**
 
@@ -254,7 +254,7 @@ print(f"Response: {response.json()['choices'][0]['text']}")
 - **Status**: � **Needs Contributor** - Documentation and examples needed
 - **Use Case**: Distributed, scalable model serving
 - **CRD**: `ray.io/v1alpha1/RayService`
-- **Documentation**: ⚠️ `docs/community/ray-serve.md` - **TO BE CREATED**
+- **Documentation**: ⚠️ `docs/reference/ray-serve.md` - **TO BE CREATED**
 - **Example**: ⚠️ `config/samples/community/model-validation-ray-serve.yaml` - **TO BE CREATED**
 - **Volunteer**: 🙋 **[Claim this platform!](https://github.com/your-org/jupyter-notebook-validator-operator/issues/new?title=Volunteer%20for%20Ray%20Serve%20integration)**
 
@@ -276,7 +276,7 @@ print(f"Response: {response.json()['choices'][0]['text']}")
 - **Status**: � **Needs Contributor** - Documentation and examples needed
 - **Use Case**: Advanced ML deployments, explainability
 - **CRD**: `machinelearning.seldon.io/v1/SeldonDeployment`
-- **Documentation**: ⚠️ `docs/community/seldon.md` - **TO BE CREATED**
+- **Documentation**: ⚠️ `docs/reference/seldon.md` - **TO BE CREATED**
 - **Example**: ⚠️ `config/samples/community/model-validation-seldon.yaml` - **TO BE CREATED**
 - **Volunteer**: 🙋 **[Claim this platform!](https://github.com/your-org/jupyter-notebook-validator-operator/issues/new?title=Volunteer%20for%20Seldon%20Core%20integration)**
 
@@ -298,7 +298,7 @@ print(f"Response: {response.json()['choices'][0]['text']}")
 - **Status**: � **Needs Contributor** - Documentation and examples needed
 - **Use Case**: Model packaging and serving
 - **CRD**: `serving.yatai.ai/v1alpha1/BentoDeployment`
-- **Documentation**: ⚠️ `docs/community/bentoml.md` - **TO BE CREATED**
+- **Documentation**: ⚠️ `docs/reference/bentoml.md` - **TO BE CREATED**
 - **Example**: ⚠️ `config/samples/community/model-validation-bentoml.yaml` - **TO BE CREATED**
 - **Volunteer**: 🙋 **[Claim this platform!](https://github.com/your-org/jupyter-notebook-validator-operator/issues/new?title=Volunteer%20for%20BentoML%20integration)**
 
@@ -349,7 +349,7 @@ print(f"Response: {response.json()['choices'][0]['text']}")
 
 #### Step 1: Create Platform Documentation (30-60 minutes)
 
-Create `docs/community/{platform-name}.md` with:
+Create `docs/reference/{platform-name}.md` with:
 
 **Required Sections:**
 - ✅ **Platform Overview**: What is it? Why use it?
@@ -360,7 +360,7 @@ Create `docs/community/{platform-name}.md` with:
 - ✅ **Example Notebook**: Working validation example
 - ✅ **Troubleshooting**: Common issues and solutions
 
-**Template Available**: Copy from `docs/community/TEMPLATE.md` (we'll create this for you!)
+**Template Available**: Copy from `docs/reference/TEMPLATE.md` (we'll create this for you!)
 
 **Example Structure:**
 ```markdown
@@ -489,7 +489,7 @@ func TestPredictionValidation(t *testing.T) {
 #### Step 5: Submit Your PR (15 minutes)
 
 **Checklist before submitting:**
-- [ ] Platform documentation created (`docs/community/{platform}.md`)
+- [ ] Platform documentation created (`docs/reference/{platform}.md`)
 - [ ] Platform definition added (`pkg/platform/detector.go`)
 - [ ] Example CRD manifest created
 - [ ] Example notebook created

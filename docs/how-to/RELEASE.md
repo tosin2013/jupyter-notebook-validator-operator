@@ -1,5 +1,8 @@
 # Operator Release Guide
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 This document is the single authoritative runbook for releasing the
 Jupyter Notebook Validator Operator to OperatorHub and community operator
 catalogs. Follow the numbered steps in order.

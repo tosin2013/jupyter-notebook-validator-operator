@@ -13,6 +13,6 @@
   ],
   "covers": {
     "declared": "Community kustomization lists at least one dashboard YAML besides the kustomization file",
-    "uncovered": "Human walkthrough of docs/dashboards/CONTRIBUTING.md; kubectl apply -k on a cluster; third-party contributor PR"
+    "uncovered": "Human walkthrough of docs/how-to/DASHBOARD_CONTRIBUTING.md; kubectl apply -k on a cluster; third-party contributor PR"
   }
 }

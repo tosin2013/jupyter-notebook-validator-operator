@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `config/monitoring/grafana/kustomization.yaml` with ConfigMapGenerator for Grafana Operator
 - Community observability contribution framework (ADR-022) — [#8](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/8)
   - `config/monitoring/community/` directory with `kustomization.yaml` placeholder for contributors
-  - `docs/dashboards/CONTRIBUTING.md` — full guide with formats, metrics table, doc template, review criteria
+  - `docs/how-to/DASHBOARD_CONTRIBUTING.md` — full guide with formats, metrics table, doc template, review criteria
 - Comprehensive ADR-030 Level 1/2/3 test coverage — [#9](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/9)
   - `TestADR030_AllThreeLevels`: validates accurate status, root cause, and actionable guidance
   - `TestADR030_SeverityEscalation`: validates severity defaults per category

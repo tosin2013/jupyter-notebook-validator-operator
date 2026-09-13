@@ -1,5 +1,8 @@
 # OpenShift Support Matrix and Migration Strategy
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 **Date:** April 21, 2026 (updated — original November 8, 2025)
 **Status:** Active
 

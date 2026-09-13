@@ -4,7 +4,7 @@
   "criteria": [
     {
       "check": "command_exit",
-      "target": "test $(grep -rn 'docs/[A-Z][A-Z_-]*\\.md' docs/getting-started/ docs/guides/ docs/architecture/ docs/operations/ docs/testing/ docs/community/ 2>/dev/null | while IFS=: read -r file lineno content; do ref=$(echo \"$content\" | grep -oP 'docs/[A-Z][A-Z_-]+\\.md' | head -1); [ -n \"$ref\" ] && [ ! -f \"$ref\" ] && echo BROKEN; done | wc -l) -eq 0"
+      "target": "test $(grep -rn 'docs/[A-Z][A-Z_-]*\\.md' docs/how-to/ docs/how-to/ docs/explanation/ docs/how-to/ docs/reference/ docs/reference/ 2>/dev/null | while IFS=: read -r file lineno content; do ref=$(echo \"$content\" | grep -oP 'docs/[A-Z][A-Z_-]+\\.md' | head -1); [ -n \"$ref\" ] && [ ! -f \"$ref\" ] && echo BROKEN; done | wc -l) -eq 0"
     }
   ]
 }

@@ -1,5 +1,8 @@
 # Observability and Monitoring Guide
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 ## Overview
 
 The Jupyter Notebook Validator Operator provides comprehensive observability through Prometheus metrics, Grafana dashboards, and OpenShift Console dashboards. This guide covers installation, configuration, and troubleshooting.
