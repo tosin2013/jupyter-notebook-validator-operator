@@ -1,0 +1,18 @@
+{
+  "$comment": "Issue #42: Split onboarding docs for data scientists vs operator contributors.",
+  "authority_id": "42",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "grep -q 'Data Scientist' CONTRIBUTING.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -qi 'OpenShift Local.*not.*supported\\|not a supported.*onboarding' CONTRIBUTING.md"
+    }
+  ],
+  "covers": {
+    "declared": "Data scientist section and OpenShift Local disclaimer in CONTRIBUTING.md",
+    "uncovered": "README.md 'Who is this for?' update is a nice-to-have, not gated"
+  }
+}

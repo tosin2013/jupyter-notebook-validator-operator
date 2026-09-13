@@ -2,6 +2,41 @@
 
 Thank you for your interest in contributing! This guide covers everything you need to get started.
 
+## Who Is This For?
+
+This project serves two audiences. Pick the path that matches your role:
+
+### Data Scientists and Notebook Authors
+
+You want to **run and validate notebooks** on an existing cluster. You do not need Go, Operator SDK, or a local cluster.
+
+1. **Install the operator** on your team's cluster via [OperatorHub](https://operatorhub.io/operator/jupyter-notebook-validator-operator) or Helm:
+   ```bash
+   helm repo add jupyter-validator https://tosin2013.github.io/jupyter-notebook-validator-operator
+   helm install jupyter-validator jupyter-validator/jupyter-notebook-validator-operator \
+     --namespace jupyter-validator-system --create-namespace
+   ```
+2. **Submit a validation job** by copying a sample CR from [`config/samples/`](config/samples/):
+   ```bash
+   kubectl apply -f config/samples/mlops_v1alpha1_notebookvalidationjob.yaml
+   ```
+3. **Check status**:
+   ```bash
+   kubectl get notebookvalidationjobs
+   kubectl describe notebookvalidationjob <name>
+   ```
+4. **Iterate locally** with [Papermill](https://papermill.readthedocs.io/) if you need to debug a notebook before re-submitting.
+
+See [Quick Start CI/CD](docs/getting-started/QUICK_START_CI_CD.md) for more details.
+
+### Operator / Platform Contributors
+
+You want to **change the operator code, fix bugs, or add features**. Continue reading below for the full development setup.
+
+**Local cluster for testing:** [Kind](https://kind.sigs.k8s.io/) is the recommended local cluster. It matches the E2E CI environment and runs on any Linux or macOS host.
+
+> **OpenShift Local (CRC) is not a supported onboarding path.** CRC's first-party docs cover RHEL and Fedora only; Ubuntu (this project's primary development host) is not supported. CRC also requires a Red Hat pull secret and significant RAM. If you already run CRC on a supported host, you may point `oc` at it, but the project does not document or test that workflow.
+
 ## Table of Contents
 
 - [Code of Conduct](#code-of-conduct)
@@ -24,7 +59,7 @@ This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.
 - **Docker** or **Podman** (for building container images)
 - **kubectl** or **oc** CLI
 - **make**
-- **A Kubernetes or OpenShift cluster** (for integration/e2e testing)
+- **Kind** (recommended for local integration/E2E testing; [install guide](https://kind.sigs.k8s.io/docs/user/quick-start/#installation))
 
 ### Fork and Clone
 
