@@ -34,6 +34,14 @@ The operator is built with the Operator SDK (v1.37.0) and Go 1.24. It runs on Op
 | Data scientist | Run notebooks against a deployed model and confirm inference accuracy within tolerance. |
 | Contributor | Understand the architecture, run tests locally, and add a new build strategy or platform detector. |
 
+### 1.3 Reading guide
+
+This document follows the arc42 template. Not every section is relevant to every reader. Start here based on your role:
+
+- **Data scientist / notebook author:** Read Section 1 (goals) and Section 3 (context and scope) to understand what the operator does. Read Section 6 (runtime view) to see what happens when you submit a validation job. Skip Sections 4, 5, and 8-11 unless you plan to contribute code.
+- **Platform administrator:** Read Section 7 (deployment view) for installation and resource layout. Read Section 8 (crosscutting concepts) for security and observability. Read Section 2 (constraints) for supported platforms and versions.
+- **Operator contributor:** Read all sections. Start with Section 5 (building block view) and Section 6 (runtime view) to understand the code structure, then work outward.
+
 ```mermaid
 flowchart TD
   mlops([MLOps Engineer]) --> operator[Jupyter Notebook\nValidator Operator]

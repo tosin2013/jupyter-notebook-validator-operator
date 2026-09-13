@@ -12,6 +12,12 @@ Automate Jupyter Notebook testing in Kubernetes and OpenShift. Run notebooks, co
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.31+-blue.svg)](https://kubernetes.io/)
 [![OperatorHub](https://img.shields.io/badge/OperatorHub.io-available-brightgreen.svg)](https://operatorhub.io/operator/jupyter-notebook-validator-operator)
 
+## Who is this for?
+
+**Data Scientists and Notebook Authors.** You write notebooks and want to validate them on a cluster. You do not need Go or a local cluster. Start at [Quick Start](#quick-start), then see [`config/samples/`](config/samples/) for ready-to-use examples. Read [CONTRIBUTING.md](CONTRIBUTING.md) for how to report issues and improve docs.
+
+**Platform Engineers and Operator Contributors.** You deploy, operate, or modify the operator itself. Start at [Architecture](#architecture) for a high-level view of the controller, then see [DESIGN_DOC.md](DESIGN_DOC.md) for the full arc42 design document. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the Go development setup and pull request process.
+
 ## Why this operator?
 
 - **Notebook regression testing.** Compare executed outputs cell-by-cell against golden notebooks with configurable numeric tolerances.

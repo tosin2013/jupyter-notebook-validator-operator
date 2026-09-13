@@ -1,0 +1,18 @@
+{
+  "$comment": "Issue #85: Add dual-audience navigation to README.md and DESIGN_DOC.md.",
+  "authority_id": "85",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "grep -q 'Data Scientist\\|Notebook Author' README.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -qi 'reading guide\\|Reading guide\\|Start here' DESIGN_DOC.md"
+    }
+  ],
+  "covers": {
+    "declared": "README audience signpost and DESIGN_DOC reading guide",
+    "uncovered": "docs/getting-started/ pages are not restructured by audience"
+  }
+}
