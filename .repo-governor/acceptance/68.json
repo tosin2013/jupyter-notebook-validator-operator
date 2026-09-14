@@ -1,0 +1,22 @@
+{
+  "$comment": "Issue #68: OpenShift E2E on-demand ROSA/IPI cluster provisioning for manual runs.",
+  "authority_id": "68",
+  "criteria": [
+    {
+      "check": "file_exists",
+      "target": "test/e2e/terraform/main.tf"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'provision_cluster' .github/workflows/e2e-openshift.yaml"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'terraform' .github/workflows/e2e-openshift.yaml"
+    }
+  ],
+  "covers": {
+    "declared": "Terraform configs for ROSA HCP provisioning and workflow_dispatch provision_cluster input in e2e-openshift.yaml",
+    "uncovered": "Actual ROSA cluster provisioning test (requires AWS credentials); /e2e PR comment trigger workflow is optional enhancement"
+  }
+}
