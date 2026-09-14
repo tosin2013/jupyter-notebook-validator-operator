@@ -1,0 +1,30 @@
+{
+  "$comment": "Issue #87: Diataxis restructure with value messaging and laptop-first data scientist path.",
+  "authority_id": "87",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "test -d docs/tutorials && test -d docs/how-to && test -d docs/reference && test -d docs/explanation"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'Tutorials' docs/README.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "test -f docs/tutorials/LOCAL_VALIDATION.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -qi 'same.environment\\|production' README.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -qi 'platform engineer\\|data scientist' README.md"
+    }
+  ],
+  "covers": {
+    "declared": "Diataxis directory structure, index headings, laptop-first tutorial, value messaging with production gap, audience-split Why section",
+    "uncovered": "Per-doc internal link audit beyond grep checks; old URL redirect strategy"
+  }
+}

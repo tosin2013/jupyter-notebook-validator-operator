@@ -8,26 +8,26 @@ This project serves two audiences. Pick the path that matches your role:
 
 ### Data Scientists and Notebook Authors
 
-You want to **run and validate notebooks** on an existing cluster. You do not need Go, Operator SDK, or a local cluster.
+You want to **validate notebooks** before they reach production. You do not need Go, Operator SDK, or a local cluster.
 
-1. **Install the operator** on your team's cluster via [OperatorHub](https://operatorhub.io/operator/jupyter-notebook-validator-operator) or Helm:
+1. **Try it locally first** with [Validate a notebook locally](docs/tutorials/LOCAL_VALIDATION.md). Run a notebook through Papermill inside Podman or Docker on your laptop. No cluster needed.
+2. **Submit to a cluster** when ready. Install the operator via [OperatorHub](https://operatorhub.io/operator/jupyter-notebook-validator-operator) or Helm:
    ```bash
    helm repo add jupyter-validator https://tosin2013.github.io/jupyter-notebook-validator-operator
    helm install jupyter-validator jupyter-validator/jupyter-notebook-validator-operator \
      --namespace jupyter-validator-system --create-namespace
    ```
-2. **Submit a validation job** by copying a sample CR from [`config/samples/`](config/samples/):
+3. **Submit a validation job** by copying a sample CR from [`config/samples/`](config/samples/):
    ```bash
    kubectl apply -f config/samples/mlops_v1alpha1_notebookvalidationjob.yaml
    ```
-3. **Check status**:
+4. **Check status**:
    ```bash
    kubectl get notebookvalidationjobs
    kubectl describe notebookvalidationjob <name>
    ```
-4. **Iterate locally** with [Papermill](https://papermill.readthedocs.io/) if you need to debug a notebook before re-submitting.
 
-See [Quick Start CI/CD](docs/getting-started/QUICK_START_CI_CD.md) for more details.
+See [Quick Start CI/CD](docs/tutorials/QUICK_START_CI_CD.md) for the full cluster setup.
 
 ### Operator / Platform Contributors
 
@@ -206,7 +206,7 @@ To sync the repository description, homepage URL, topics, and Discussions flag v
 
 ### Adding Model Serving Platforms
 
-The operator supports a plugin-based architecture for model serving platforms. For detailed instructions on adding support for new platforms (e.g., custom inference servers), see the [Contributing Model Platforms Guide](docs/community/CONTRIBUTING_MODEL_PLATFORMS.md).
+The operator supports a plugin-based architecture for model serving platforms. For detailed instructions on adding support for new platforms (e.g., custom inference servers), see the [Contributing Model Platforms Guide](docs/how-to/CONTRIBUTING_MODEL_PLATFORMS.md).
 
 ### Helm Chart
 

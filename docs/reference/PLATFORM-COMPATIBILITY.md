@@ -1,5 +1,8 @@
 # Platform Compatibility Matrix
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 **Last Updated**: 2025-11-09  
 **Operator Version**: 0.1.0 (release-4.18 branch)
 

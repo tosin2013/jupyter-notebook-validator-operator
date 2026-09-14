@@ -132,7 +132,7 @@ kubectl apply -k config/monitoring/community/
 
 ### Contributing
 
-See [docs/dashboards/CONTRIBUTING.md](dashboards/CONTRIBUTING.md) for the full
+See [docs/how-to/DASHBOARD_CONTRIBUTING.md](how-to/DASHBOARD_CONTRIBUTING.md) for the full
 contribution guide.
 
 ---

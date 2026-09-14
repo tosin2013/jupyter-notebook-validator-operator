@@ -1,5 +1,8 @@
 # Git Branching Strategy for Multi-Version OpenShift Support
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 **Date:** November 8, 2025  
 **Decision:** Use Git branches to support multiple OpenShift versions simultaneously  
 **Status:** ✅ RECOMMENDED APPROACH

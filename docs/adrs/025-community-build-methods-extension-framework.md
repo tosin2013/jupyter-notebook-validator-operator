@@ -223,7 +223,7 @@ All community build strategies must:
    - [ ] Implement feature flag system
 
 2. **Community Framework**
-   - [ ] Create `docs/community/` directory structure
+   - [ ] Create `docs/reference/` directory structure
    - [ ] Write contribution guidelines
    - [ ] Create build strategy template
    - [ ] Add security review checklist

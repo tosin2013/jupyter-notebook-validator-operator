@@ -1,5 +1,8 @@
 # Tekton Build Setup Guide
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 ## Overview
 
 The Jupyter Notebook Validator Operator supports building custom container images using Tekton Pipelines (OpenShift Pipelines). This guide explains the prerequisites and setup required for Tekton builds to work correctly.

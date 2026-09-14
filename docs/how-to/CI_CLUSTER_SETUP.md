@@ -1,5 +1,8 @@
 # CI Cluster Setup Guide
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 This guide explains how to register an OpenShift cluster for E2E testing, the
 recommended cluster strategy, and how to trigger OpenShift tests on a PR or push.
 

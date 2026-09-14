@@ -272,7 +272,7 @@ curl -X POST $MODEL_URL/v1/models/:predict \
 - ✅ `test/generate-test-notebooks.py` - Updated with deployment steps
 - ✅ `config/samples/model-training-job.yaml` - Training only (DEPLOY_MODEL=false)
 - ✅ `config/samples/model-training-with-deployment.yaml` - Training + deployment (DEPLOY_MODEL=true)
-- ✅ `docs/guides/END_TO_END_ML_WORKFLOW.md` - This document
+- ✅ `docs/tutorials/END_TO_END_ML_WORKFLOW.md` - This document
 
 ### In Test Notebooks Repository
 

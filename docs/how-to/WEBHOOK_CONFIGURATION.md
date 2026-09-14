@@ -1,5 +1,8 @@
 # Webhook Configuration Guide
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 The Jupyter Notebook Validator Operator supports optional admission webhooks for validating `NotebookValidationJob` resources before they are created or updated.
 
 ## Overview

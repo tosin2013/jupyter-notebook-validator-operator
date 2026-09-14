@@ -1,5 +1,8 @@
 # Contributing New Model Serving Platforms
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 This guide provides step-by-step technical instructions for adding support for new model serving platforms to the Jupyter Notebook Validator Operator.
 
 ## Overview
@@ -320,7 +323,7 @@ roleRef:
 
 ## Step 8: Create Documentation
 
-Create `docs/community/your-platform.md`:
+Create `docs/reference/your-platform.md`:
 
 ```markdown
 # Your Platform Integration Guide
@@ -421,13 +424,13 @@ kubectl describe yourresource test-model -n ml-team
 
 ## Step 9: Update Platform List
 
-Update `docs/community/COMMUNITY_PLATFORMS.md` to change your platform status from "HELP WANTED" to "Contributed":
+Update `docs/reference/COMMUNITY_PLATFORMS.md` to change your platform status from "HELP WANTED" to "Contributed":
 
 ```markdown
 ### Your Platform
 - **Status**: ✅ Community Contributed
 - **Contributor**: @your-github-username
-- **Documentation**: `docs/community/your-platform.md`
+- **Documentation**: `docs/reference/your-platform.md`
 - **Example**: `config/samples/community/model-validation-your-platform.yaml`
 ```
 
@@ -440,8 +443,8 @@ Update `docs/community/COMMUNITY_PLATFORMS.md` to change your platform status fr
 - [ ] Model availability check implemented
 - [ ] Unit tests added
 - [ ] Sample manifests created in `config/samples/community/`
-- [ ] Documentation created in `docs/community/`
-- [ ] Updated `docs/community/COMMUNITY_PLATFORMS.md`
+- [ ] Documentation created in `docs/reference/`
+- [ ] Updated `docs/reference/COMMUNITY_PLATFORMS.md`
 - [ ] All existing tests pass (`make test`)
 - [ ] Code passes linting (`make lint`)
 
@@ -471,7 +474,7 @@ Adds model validation support for Your Platform.
 
 ## Documentation
 
-- `docs/community/your-platform.md` - User guide
+- `docs/reference/your-platform.md` - User guide
 - `config/samples/community/model-validation-your-platform.yaml` - Example
 
 Closes #XXX

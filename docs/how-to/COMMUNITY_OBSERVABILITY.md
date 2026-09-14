@@ -1,5 +1,8 @@
 # Community Observability Contributions
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 ## 🎯 Overview
 
 We welcome community contributions for observability dashboards, alerts, and monitoring integrations! This guide helps you contribute dashboards for different platforms and use cases.
@@ -248,7 +251,7 @@ histogram_quantile(0.95,
 
 ### **Step 4: Create Documentation** (30 minutes)
 
-Create `docs/dashboards/<name>.md`:
+Create `docs/reference/<name>.md`:
 
 ```markdown
 # <Dashboard Name>
@@ -312,10 +315,10 @@ oc exec -n openshift-monitoring prometheus-k8s-0 -- \
 2. Create a branch: `git checkout -b dashboard/<name>`
 3. Add your files:
    - `config/monitoring/community/console-dashboard-<name>.yaml` or `grafana-dashboard-<name>.yaml`
-   - `docs/dashboards/<name>.md`
+   - `docs/reference/<name>.md`
    - `test/dashboards/<name>_test.sh` (optional)
    - Screenshots in `docs/images/dashboard-<name>.png`
-4. Update `docs/operations/COMMUNITY_OBSERVABILITY.md` to mark your dashboard as "In Progress"
+4. Update `docs/how-to/COMMUNITY_OBSERVABILITY.md` to mark your dashboard as "In Progress"
 5. Submit PR with title: `[Dashboard] Add <Name> Dashboard`
 
 ---

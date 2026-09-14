@@ -1,5 +1,8 @@
 # Development Guide
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 **Jupyter Notebook Validator Operator**  
 **Last Updated:** 2025-11-10  
 **Target Audience:** Developers, Contributors
@@ -28,7 +31,7 @@
 | **Operator SDK** | 1.32.0+ | Operator framework | [operatorframework.io](https://sdk.operatorframework.io/docs/installation/) |
 | **kubectl** | 1.25+ | Kubernetes CLI | [kubernetes.io](https://kubernetes.io/docs/tasks/tools/) |
 | **Kind** | 0.20.0+ | Local Kubernetes clusters | [kind.sigs.k8s.io](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) |
-| **Docker** or **Podman** | 20.10+ / 4.0+ | Container runtime | [docker.com](https://docs.docker.com/get-docker/) / [podman.io](https://podman.io/getting-started/installation) |
+| **Docker** or **Podman** | 20.10+ / 4.0+ | Container runtime | [docker.com](https://docs.docker.com/get-docker/) / [podman.io](https://podman.io/how-to/installation) |
 | **kustomize** | 5.0+ | Kubernetes manifest management | [kustomize.io](https://kubectl.docs.kubernetes.io/installation/kustomize/) |
 
 ### Optional Tools
@@ -504,8 +507,8 @@ chore: Update dependencies
 - [Kubebuilder Book](https://book.kubebuilder.io/)
 - [Kind Documentation](https://kind.sigs.k8s.io/)
 - [ADR Documentation](docs/adrs/)
-- [Integration Testing Guide](docs/testing/INTEGRATION_TESTING.md)
-- [E2E Testing Guide](docs/testing/E2E_TESTING.md)
+- [Integration Testing Guide](docs/reference/INTEGRATION_TESTING.md)
+- [E2E Testing Guide](docs/reference/E2E_TESTING.md)
 
 ---
 

@@ -1,5 +1,8 @@
 # Model Validation Multi-User Guide
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 This guide explains how to configure model-aware validation for multi-user and multi-environment deployments of the Jupyter Notebook Validator Operator.
 
 ## Table of Contents

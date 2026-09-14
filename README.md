@@ -1,6 +1,6 @@
 # Jupyter Notebook Validator Operator
 
-Automate Jupyter Notebook testing in Kubernetes and OpenShift. Run notebooks, compare outputs against golden references, and validate against live ML models -- all from a single custom resource.
+Catch notebook regressions and broken model endpoints before they reach production. Run notebooks in the same environment as production, compare outputs against golden baselines, and validate live ML models.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Go Report Card](https://goreportcard.com/badge/github.com/tosin2013/jupyter-notebook-validator-operator)](https://goreportcard.com/report/github.com/tosin2013/jupyter-notebook-validator-operator)
@@ -14,16 +14,31 @@ Automate Jupyter Notebook testing in Kubernetes and OpenShift. Run notebooks, co
 
 ## Who is this for?
 
-**Data Scientists and Notebook Authors.** You write notebooks and want to validate them on a cluster. You do not need Go or a local cluster. Start at [Quick Start](#quick-start), then see [`config/samples/`](config/samples/) for ready-to-use examples. Read [CONTRIBUTING.md](CONTRIBUTING.md) for how to report issues and improve docs.
+**Data Scientists and Notebook Authors.** Your notebook works on your laptop. Will it work in production? Validate notebooks locally with Podman or Docker before submitting to a cluster. Catch cell-output regressions, confirm model endpoint predictions, and stop silent failures before they reach your team.
 
-**Platform Engineers and Operator Contributors.** You deploy, operate, or modify the operator itself. Start at [Architecture](#architecture) for a high-level view of the controller, then see [DESIGN_DOC.md](DESIGN_DOC.md) for the full arc42 design document. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the Go development setup and pull request process.
+- Start on your laptop: [Validate a notebook locally](docs/tutorials/LOCAL_VALIDATION.md) (no cluster needed)
+- Submit to a cluster: [Quick Start](docs/tutorials/QUICK_START_CI_CD.md) and [`config/samples/`](config/samples/)
+
+**Platform Engineers and Operator Contributors.** CI scripts check whether a notebook executed. They do not check whether outputs are correct, model predictions are valid, or cell outputs regressed from last week. This operator adds a declarative validation gate to your MLOps pipeline with Prometheus metrics, RBAC, and multi-tenant safety.
+
+- Architecture: [Architecture](#architecture) and [DESIGN_DOC.md](DESIGN_DOC.md)
+- Development: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Why this operator?
 
-- **Notebook regression testing.** Compare executed outputs cell-by-cell against golden notebooks with configurable numeric tolerances.
-- **Model-aware validation.** Auto-detect 9 model serving platforms (KServe, OpenShift AI, vLLM, Triton, and more) and inject endpoints into notebooks.
-- **Git-native.** Clone notebooks from any Git repository (HTTPS or SSH). Credentials stay in Kubernetes Secrets.
-- **Zero custom images needed.** Auto-detect `requirements.txt` and build images with S2I or Tekton -- or bring your own.
+### For data scientists
+
+- **Same-environment validation.** Notebooks run in the same cluster, with the same GPU, memory, and model endpoints as production. No more "works on my laptop" failures.
+- **Golden notebook comparison.** Cell-by-cell output diff with configurable numeric tolerances. Catches silent regressions that `nbconvert --execute` misses.
+- **Model endpoint validation.** Auto-detect 9 model serving platforms and confirm predictions are correct, not just that the notebook ran.
+
+### For platform engineers
+
+- **Declarative validation gate.** One CR defines the notebook, the golden baseline, and the model endpoint. Queryable with kubectl, Prometheus metrics included.
+- **Multi-tenant security.** RBAC, Pod Security Standards, credential sanitization. Data scientists get validation results without cluster-admin.
+- **Pluggable build and serve.** S2I, Tekton, KServe, OpenShift AI, vLLM, and 6 more platforms. Add new backends without changing the controller.
+
+> **How is this different from nbval, Papermill, or Deepchecks?** Those tools run on your laptop or in CI. They cannot test whether your notebook works with production GPU, secrets, and model endpoints. This operator runs validation inside Kubernetes, in the same environment as production. See [Architecture Overview](docs/explanation/ARCHITECTURE_OVERVIEW.md) for details.
 
 ## Architecture
 
@@ -106,20 +121,18 @@ More examples in [config/samples/](config/samples/), including GPU scheduling, g
 
 ## Documentation
 
-See [docs/](docs/) for the full documentation index, organized by topic:
+See [docs/](docs/) for the full index, organized by [Diataxis](https://diataxis.fr/) quadrant:
 
-- **[Getting Started](docs/getting-started/)** -- installation, quick start, namespace setup
-- **[Guides](docs/guides/)** -- credentials, model validation, golden notebooks, error handling
+- **[Tutorials](docs/tutorials/)** -- step-by-step lessons (local validation, quick start, ML workflows)
+- **[How-to guides](docs/how-to/)** -- task recipes (credentials, model discovery, releases, CI setup)
+- **[Reference](docs/reference/)** -- technical descriptions (testing, platform compatibility, observability)
+- **[Explanation](docs/explanation/)** -- architecture, build strategies, deployment patterns
 - **[Design Document](DESIGN_DOC.md)** -- arc42 software design document
-- **[Architecture](docs/architecture/)** -- system design, platform compatibility
-- **[Testing](docs/testing/)** -- testing guide, E2E, integration tests
-- **[Operations](docs/operations/)** -- CI setup, observability, webhooks, releases
-- **[Community](docs/community/)** -- supported platforms, contributing model platforms
 - **[ADRs](docs/adrs/)** -- architectural decision records
 
 ## Contributing
 
-Contributions are welcome from both **data scientists** (submit notebooks, report issues, improve docs) and **operator developers** (Go, controller-runtime, Kubernetes). See [CONTRIBUTING.md](CONTRIBUTING.md) for the path that matches your role, coding standards, and the pull request process.
+Contributions are welcome from both **data scientists** (validate notebooks, report issues, improve docs) and **operator developers** (Go, controller-runtime, Kubernetes). See [CONTRIBUTING.md](CONTRIBUTING.md) for the path that matches your role.
 
 ## Code of Conduct
 

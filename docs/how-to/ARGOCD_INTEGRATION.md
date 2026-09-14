@@ -1,5 +1,8 @@
 # ArgoCD Integration Guide
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 This guide covers integrating the jupyter-notebook-validator-operator with ArgoCD for GitOps workflows. It implements features described in [ADR-048: ArgoCD Integration Strategy](./adrs/048-argocd-integration-strategy.md).
 
 ## Table of Contents

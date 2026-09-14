@@ -1,5 +1,8 @@
 # OpenShift AI Integration Guide
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 ## Overview
 
 The Jupyter Notebook Validator Operator automatically integrates with OpenShift AI (formerly Red Hat OpenShift Data Science) to provide users with S2I-enabled Jupyter notebook images optimized for notebook validation workloads.

@@ -1,5 +1,8 @@
 # GitHub Secrets Setup Guide
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 This guide explains how to configure GitHub Secrets for the CI/CD pipeline (ADR-032 and ADR-033).
 
 > **See also:** [CI_CLUSTER_SETUP.md](CI_CLUSTER_SETUP.md) for the full OpenShift cluster

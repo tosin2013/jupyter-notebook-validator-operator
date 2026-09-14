@@ -1,5 +1,8 @@
 # Namespace Setup for NotebookValidationJobs
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 ## Overview
 
 The Jupyter Notebook Validator Operator uses a **mutating admission webhook** to automatically inject the `default` ServiceAccount into `NotebookValidationJob` resources. This means **no manual ServiceAccount setup is required** in most cases.

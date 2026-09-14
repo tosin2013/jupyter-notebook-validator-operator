@@ -1,5 +1,8 @@
 # Dashboard Contribution Guide
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 **ADR-022: Community Observability Contributions**
 
 Thank you for contributing a dashboard to the Jupyter Notebook Validator Operator!
@@ -9,12 +12,12 @@ Thank you for contributing a dashboard to the Jupyter Notebook Validator Operato
 1. **Open a proposal issue** using the `dashboard-proposal` label.
 2. Implement your dashboard YAML in `config/monitoring/community/` (see formats below).
 3. **Add your file to `config/monitoring/community/kustomization.yaml`** under `resources:`.
-4. Add documentation in `docs/dashboards/<your-dashboard-name>.md` (see template below).
+4. Add documentation in `docs/reference/<your-dashboard-name>.md` (see template below).
 5. Submit a pull request with DCO sign-off (`git commit -s`).
 
 For a complete reference implementation, see
 [`config/monitoring/community/notebook-success-rate-dashboard.yaml`](../../config/monitoring/community/notebook-success-rate-dashboard.yaml)
-and its documentation at [`docs/dashboards/notebook-success-rate.md`](notebook-success-rate.md).
+and its documentation at [`docs/reference/notebook-success-rate.md`](notebook-success-rate.md).
 
 ---
 
@@ -72,7 +75,7 @@ If your dashboard requires new metrics, open a separate issue with the `metrics-
 
 ## Documentation Template
 
-Create `docs/dashboards/<your-dashboard-name>.md`:
+Create `docs/reference/<your-dashboard-name>.md`:
 
 ```markdown
 # Dashboard: <Your Title>
@@ -118,7 +121,7 @@ Core team reviewers check for:
 - [ ] ConfigMap is in the correct namespace (`openshift-config-managed` for console dashboards)
 - [ ] Required labels are present (`console.openshift.io/dashboard`, `app.kubernetes.io/part-of: community-dashboards`)
 - [ ] Dashboard YAML added to `config/monitoring/community/kustomization.yaml` resources list
-- [ ] Documentation file exists in `docs/dashboards/`
+- [ ] Documentation file exists in `docs/reference/`
 - [ ] `kubectl apply -k config/monitoring/community/ --dry-run=client` succeeds
 - [ ] DCO sign-off (`git commit -s`)
 

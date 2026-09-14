@@ -8,7 +8,7 @@
     },
     {
       "check": "command_exit",
-      "target": "grep -q 'FBC\\|File Based Catalog\\|catalog/' docs/operations/RELEASE.md"
+      "target": "grep -q 'FBC\\|File Based Catalog\\|catalog/' docs/how-to/RELEASE.md"
     }
   ],
   "covers": {

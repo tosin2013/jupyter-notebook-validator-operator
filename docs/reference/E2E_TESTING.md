@@ -1,5 +1,8 @@
 # End-to-End Testing Guide
 
+> **Requires:** Kubernetes or OpenShift cluster
+
+
 This guide covers end-to-end (E2E) testing for the Jupyter Notebook Validator Operator, including build integration workflows.
 
 ## Overview
