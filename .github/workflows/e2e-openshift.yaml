@@ -329,35 +329,38 @@ jobs:
               echo "Exposing internal registry..."
               oc patch configs.imageregistry.operator.openshift.io/cluster \
                 --type merge -p '{"spec":{"defaultRoute":true}}' 2>/dev/null || true
-              sleep 10
+              sleep 15
               REGISTRY_ROUTE=$(oc get route default-route -n openshift-image-registry \
                 -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
             fi
 
             if [ -n "$REGISTRY_ROUTE" ]; then
-              INTERNAL_IMAGE="${REGISTRY_ROUTE}/${{ env.OPERATOR_NAMESPACE }}/jupyter-notebook-validator-operator:${IMAGE_TAG}"
+              # Use the openshift namespace (always exists, avoids per-namespace imagestream perms)
+              INTERNAL_IMAGE="${REGISTRY_ROUTE}/openshift/jupyter-notebook-validator-operator:${IMAGE_TAG}"
               echo "Pushing to internal registry: ${INTERNAL_IMAGE}"
+
+              # Grant image-pusher role to the authenticated user in the openshift namespace
+              oc policy add-role-to-user system:image-pusher "$(oc whoami)" -n openshift 2>/dev/null || true
 
               # Login to internal registry with the cluster token
               OC_TOKEN=$(oc whoami -t)
-              docker login -u "$(oc whoami)" -p "${OC_TOKEN}" "${REGISTRY_ROUTE}" --tls-verify=false 2>/dev/null || \
-                docker login -u "$(oc whoami)" -p "${OC_TOKEN}" "${REGISTRY_ROUTE}" 2>/dev/null || true
+              docker login -u "$(oc whoami)" -p "${OC_TOKEN}" "${REGISTRY_ROUTE}" 2>/dev/null || true
 
               # Tag and push
               docker tag "${QUAY_IMAGE}" "${INTERNAL_IMAGE}"
-              docker push "${INTERNAL_IMAGE}" 2>&1 || docker push "${INTERNAL_IMAGE}" --tls-verify=false 2>&1
-
-              # For internal consumption, use the internal service URL
-              CLUSTER_IMAGE="image-registry.openshift-image-registry.svc:5000/${{ env.OPERATOR_NAMESPACE }}/jupyter-notebook-validator-operator:${IMAGE_TAG}"
-              echo "IMAGE=${CLUSTER_IMAGE}" >> $GITHUB_ENV
-              echo "✅ Operator image pushed to internal registry: ${CLUSTER_IMAGE}"
-              PUSH_SUCCESS=true
+              if docker push "${INTERNAL_IMAGE}" 2>&1; then
+                CLUSTER_IMAGE="image-registry.openshift-image-registry.svc:5000/openshift/jupyter-notebook-validator-operator:${IMAGE_TAG}"
+                echo "IMAGE=${CLUSTER_IMAGE}" >> $GITHUB_ENV
+                echo "✅ Operator image pushed to internal registry: ${CLUSTER_IMAGE}"
+                PUSH_SUCCESS=true
+              else
+                echo "⚠️ Internal registry push failed"
+              fi
             fi
           fi
 
           if [ "$PUSH_SUCCESS" = "false" ]; then
-            echo "❌ Failed to push image to any registry"
-            echo "Attempting to use existing latest image as fallback..."
+            echo "⚠️ Could not push to any registry, using existing :latest image"
             echo "IMAGE=quay.io/takinosh/jupyter-notebook-validator-operator:latest" >> $GITHUB_ENV
             echo "⚠️ Using existing :latest image. E2E tests may not reflect latest code changes."
           fi
