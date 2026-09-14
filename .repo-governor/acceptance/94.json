@@ -1,0 +1,30 @@
+{
+  "$comment": "Issue #94: E2E cluster prerequisites audit — Tekton install, --audit flag, secrets, cert-manager alignment, runbook.",
+  "authority_id": "94",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "grep -q 'install_tekton' scripts/setup-rosa-e2e.sh"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q '\\-\\-audit' scripts/setup-rosa-e2e.sh"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'QUAY_USERNAME' scripts/setup-rosa-e2e.sh"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'TEST_REPO_TOKEN' scripts/setup-rosa-e2e.sh"
+    },
+    {
+      "check": "file_exists",
+      "target": "docs/how-to/E2E_ROSA_RUNBOOK.md"
+    }
+  ],
+  "covers": {
+    "declared": "Tekton install function, --audit flag, complete secrets list, and E2E runbook documentation",
+    "uncovered": "Live Tekton install verification (requires cluster); cert-manager version alignment verified by visual diff"
+  }
+}

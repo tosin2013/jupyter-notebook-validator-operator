@@ -31,6 +31,16 @@ on:
           - '4'
           - '5'
           - 'all'
+      provision_cluster:
+        description: 'Provision an ephemeral ROSA HCP cluster via Terraform (requires AWS/ROSA secrets)'
+        required: false
+        default: false
+        type: boolean
+      destroy_cluster:
+        description: 'Destroy a previously provisioned cluster (cleanup only)'
+        required: false
+        default: false
+        type: boolean
 
 # Concurrency control: Only one E2E test run per branch at a time
 # This prevents multiple workflow runs from interfering with each other
@@ -107,11 +117,98 @@ jobs:
             echo "Server: ${OPENSHIFT_SERVER}"
           fi
 
+  # --------------------------------------------------------------------------
+  # ROSA HCP Cluster Provisioning (Issue #68)
+  # Provisions an ephemeral cluster when provision_cluster is true and no
+  # existing cluster is available. Uses Terraform with test/e2e/terraform/.
+  # --------------------------------------------------------------------------
+  provision-cluster:
+    name: Provision ROSA HCP Cluster
+    runs-on: ubuntu-latest
+    needs: [check-trigger, check-cluster]
+    if: |
+      needs.check-trigger.outputs.should_run == 'true'
+      && github.event.inputs.provision_cluster == 'true'
+      && needs.check-cluster.outputs.cluster_available == 'false'
+    outputs:
+      cluster_provisioned: ${{ steps.provision.outputs.cluster_provisioned }}
+      cluster_api_url: ${{ steps.provision.outputs.cluster_api_url }}
+    environment: rosa-e2e
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-2' }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        working-directory: test/e2e/terraform
+        run: terraform init
+
+      - name: Terraform Apply
+        id: provision
+        working-directory: test/e2e/terraform
+        env:
+          TF_VAR_rhcs_token: ${{ secrets.ROSA_TOKEN }}
+          TF_VAR_aws_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+          TF_VAR_installer_role_arn: ${{ secrets.ROSA_INSTALLER_ROLE_ARN }}
+          TF_VAR_support_role_arn: ${{ secrets.ROSA_SUPPORT_ROLE_ARN }}
+          TF_VAR_worker_role_arn: ${{ secrets.ROSA_WORKER_ROLE_ARN }}
+          TF_VAR_oidc_config_id: ${{ secrets.ROSA_OIDC_CONFIG_ID }}
+          TF_VAR_rosa_creator_arn: ${{ secrets.ROSA_CREATOR_ARN }}
+          TF_VAR_github_run_id: ${{ github.run_id }}
+          TF_VAR_cluster_name: "jnvo-e2e-${{ github.run_number }}"
+        run: |
+          terraform apply -auto-approve
+
+          CLUSTER_API_URL=$(terraform output -raw cluster_api_url)
+          CLUSTER_PASSWORD=$(terraform output -raw admin_password)
+
+          echo "cluster_provisioned=true" >> $GITHUB_OUTPUT
+          echo "cluster_api_url=${CLUSTER_API_URL}" >> $GITHUB_OUTPUT
+
+          # Store credentials as artifacts (encrypted in transit)
+          echo "${CLUSTER_API_URL}" > /tmp/cluster-api-url.txt
+          echo "${CLUSTER_PASSWORD}" > /tmp/cluster-password.txt
+
+      - name: Save Terraform state
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: terraform-state
+          path: |
+            test/e2e/terraform/terraform.tfstate
+            test/e2e/terraform/.terraform.lock.hcl
+          retention-days: 1
+
+      - name: Save cluster credentials
+        uses: actions/upload-artifact@v7
+        with:
+          name: cluster-credentials
+          path: |
+            /tmp/cluster-api-url.txt
+            /tmp/cluster-password.txt
+          retention-days: 1
+
   openshift-e2e:
     name: OpenShift E2E Tests
     runs-on: ubuntu-latest
-    needs: [check-trigger, check-cluster]
-    if: needs.check-trigger.outputs.should_run == 'true' && needs.check-cluster.outputs.cluster_available == 'true'
+    needs: [check-trigger, check-cluster, provision-cluster]
+    if: |
+      always()
+      && needs.check-trigger.outputs.should_run == 'true'
+      && (needs.check-cluster.outputs.cluster_available == 'true' || needs.provision-cluster.outputs.cluster_provisioned == 'true')
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -130,13 +227,28 @@ jobs:
           sudo mv oc kubectl /usr/local/bin/
           oc version --client
 
+      - name: Download provisioned cluster credentials
+        if: needs.provision-cluster.outputs.cluster_provisioned == 'true'
+        uses: actions/download-artifact@v7
+        with:
+          name: cluster-credentials
+          path: /tmp/cluster-creds
+
       - name: Login to OpenShift cluster
         env:
           OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
           OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
+          PROVISIONED_CLUSTER: ${{ needs.provision-cluster.outputs.cluster_provisioned }}
         run: |
-          echo "Logging in to OpenShift cluster..."
-          oc login --token="$OPENSHIFT_TOKEN" --server="$OPENSHIFT_SERVER" --insecure-skip-tls-verify=true
+          if [ "$PROVISIONED_CLUSTER" == "true" ]; then
+            echo "Using provisioned ROSA HCP cluster..."
+            OPENSHIFT_SERVER=$(cat /tmp/cluster-creds/cluster-api-url.txt)
+            CLUSTER_PASSWORD=$(cat /tmp/cluster-creds/cluster-password.txt)
+            oc login -u cluster-admin -p "$CLUSTER_PASSWORD" "$OPENSHIFT_SERVER" --insecure-skip-tls-verify=true
+          else
+            echo "Using pre-configured OpenShift cluster..."
+            oc login --token="$OPENSHIFT_TOKEN" --server="$OPENSHIFT_SERVER" --insecure-skip-tls-verify=true
+          fi
           
           echo "Verifying cluster access..."
           oc cluster-info
@@ -197,8 +309,8 @@ jobs:
         run: |
           echo "Installing cert-manager..."
 
-          # Install cert-manager using kubectl
-          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml
+          # Install cert-manager using kubectl (aligned with scripts/setup-rosa-e2e.sh)
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.17.2/cert-manager.yaml
 
           echo "Waiting for cert-manager to be ready..."
           kubectl wait --for=condition=available deployment/cert-manager \
@@ -932,10 +1044,66 @@ jobs:
           
           echo "✅ Cleanup completed"
 
+  # --------------------------------------------------------------------------
+  # Terraform Destroy (always runs if a cluster was provisioned)
+  # --------------------------------------------------------------------------
+  destroy-cluster:
+    name: Destroy ROSA HCP Cluster
+    runs-on: ubuntu-latest
+    needs: [check-trigger, provision-cluster, openshift-e2e]
+    if: |
+      always()
+      && needs.provision-cluster.outputs.cluster_provisioned == 'true'
+    environment: rosa-e2e
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-2' }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+          terraform_wrapper: false
+
+      - name: Download Terraform state
+        uses: actions/download-artifact@v7
+        with:
+          name: terraform-state
+          path: test/e2e/terraform
+
+      - name: Terraform Init
+        working-directory: test/e2e/terraform
+        run: terraform init
+
+      - name: Terraform Destroy
+        working-directory: test/e2e/terraform
+        env:
+          TF_VAR_rhcs_token: ${{ secrets.ROSA_TOKEN }}
+          TF_VAR_aws_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+          TF_VAR_installer_role_arn: ${{ secrets.ROSA_INSTALLER_ROLE_ARN }}
+          TF_VAR_support_role_arn: ${{ secrets.ROSA_SUPPORT_ROLE_ARN }}
+          TF_VAR_worker_role_arn: ${{ secrets.ROSA_WORKER_ROLE_ARN }}
+          TF_VAR_oidc_config_id: ${{ secrets.ROSA_OIDC_CONFIG_ID }}
+          TF_VAR_rosa_creator_arn: ${{ secrets.ROSA_CREATOR_ARN }}
+          TF_VAR_github_run_id: ${{ github.run_id }}
+          TF_VAR_cluster_name: "jnvo-e2e-${{ github.run_number }}"
+        run: |
+          echo "Destroying ROSA HCP cluster..."
+          terraform destroy -auto-approve
+          echo "✅ Cluster destroyed successfully"
+
   e2e-status:
     name: E2E Test Status (All Tiers)
     runs-on: ubuntu-latest
-    needs: [check-trigger, check-cluster, openshift-e2e]
+    needs: [check-trigger, check-cluster, openshift-e2e, provision-cluster, destroy-cluster]
     if: always() && needs.check-trigger.outputs.should_run == 'true'
     steps:
       - name: Check E2E status
