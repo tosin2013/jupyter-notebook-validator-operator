@@ -291,19 +291,76 @@ jobs:
         run: |
           # Generate unique tag for this test run
           IMAGE_TAG="e2e-test-$(git rev-parse --short HEAD)-$(date +%s)"
-          IMAGE="quay.io/takinosh/jupyter-notebook-validator-operator:${IMAGE_TAG}"
-          
-          echo "Building operator image: ${IMAGE}"
-          make docker-build IMG="${IMAGE}"
-          
-          echo "Logging in to Quay.io..."
-          echo "$QUAY_PASSWORD" | docker login -u "$QUAY_USERNAME" --password-stdin quay.io
-          
-          echo "Pushing operator image..."
-          make docker-push IMG="${IMAGE}"
-          
-          echo "IMAGE=${IMAGE}" >> $GITHUB_ENV
-          echo "✅ Operator image built and pushed: ${IMAGE}"
+          QUAY_IMAGE="quay.io/takinosh/jupyter-notebook-validator-operator:${IMAGE_TAG}"
+
+          echo "Building operator image: ${QUAY_IMAGE}"
+          make docker-build IMG="${QUAY_IMAGE}"
+
+          # Strategy: try Quay.io first, fall back to OpenShift internal registry
+          PUSH_SUCCESS=false
+
+          if [ -n "$QUAY_USERNAME" ] && [ -n "$QUAY_PASSWORD" ]; then
+            echo "Logging in to Quay.io..."
+            if echo "$QUAY_PASSWORD" | docker login -u "$QUAY_USERNAME" --password-stdin quay.io 2>/dev/null; then
+              echo "Pushing to Quay.io..."
+              if make docker-push IMG="${QUAY_IMAGE}" 2>&1; then
+                echo "IMAGE=${QUAY_IMAGE}" >> $GITHUB_ENV
+                echo "✅ Operator image pushed to Quay.io: ${QUAY_IMAGE}"
+                PUSH_SUCCESS=true
+              else
+                echo "⚠️ Quay.io push failed (registry may be in read-only mode)"
+              fi
+            else
+              echo "⚠️ Quay.io login failed"
+            fi
+          else
+            echo "⚠️ Quay.io credentials not configured, skipping external push"
+          fi
+
+          # Fallback: push to OpenShift internal registry
+          if [ "$PUSH_SUCCESS" = "false" ]; then
+            echo "Falling back to OpenShift internal registry..."
+
+            # Expose the internal registry route (if not already exposed)
+            REGISTRY_ROUTE=$(oc get route default-route -n openshift-image-registry \
+              -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
+
+            if [ -z "$REGISTRY_ROUTE" ]; then
+              echo "Exposing internal registry..."
+              oc patch configs.imageregistry.operator.openshift.io/cluster \
+                --type merge -p '{"spec":{"defaultRoute":true}}' 2>/dev/null || true
+              sleep 10
+              REGISTRY_ROUTE=$(oc get route default-route -n openshift-image-registry \
+                -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
+            fi
+
+            if [ -n "$REGISTRY_ROUTE" ]; then
+              INTERNAL_IMAGE="${REGISTRY_ROUTE}/${{ env.OPERATOR_NAMESPACE }}/jupyter-notebook-validator-operator:${IMAGE_TAG}"
+              echo "Pushing to internal registry: ${INTERNAL_IMAGE}"
+
+              # Login to internal registry with the cluster token
+              OC_TOKEN=$(oc whoami -t)
+              docker login -u "$(oc whoami)" -p "${OC_TOKEN}" "${REGISTRY_ROUTE}" --tls-verify=false 2>/dev/null || \
+                docker login -u "$(oc whoami)" -p "${OC_TOKEN}" "${REGISTRY_ROUTE}" 2>/dev/null || true
+
+              # Tag and push
+              docker tag "${QUAY_IMAGE}" "${INTERNAL_IMAGE}"
+              docker push "${INTERNAL_IMAGE}" 2>&1 || docker push "${INTERNAL_IMAGE}" --tls-verify=false 2>&1
+
+              # For internal consumption, use the internal service URL
+              CLUSTER_IMAGE="image-registry.openshift-image-registry.svc:5000/${{ env.OPERATOR_NAMESPACE }}/jupyter-notebook-validator-operator:${IMAGE_TAG}"
+              echo "IMAGE=${CLUSTER_IMAGE}" >> $GITHUB_ENV
+              echo "✅ Operator image pushed to internal registry: ${CLUSTER_IMAGE}"
+              PUSH_SUCCESS=true
+            fi
+          fi
+
+          if [ "$PUSH_SUCCESS" = "false" ]; then
+            echo "❌ Failed to push image to any registry"
+            echo "Attempting to use existing latest image as fallback..."
+            echo "IMAGE=quay.io/takinosh/jupyter-notebook-validator-operator:latest" >> $GITHUB_ENV
+            echo "⚠️ Using existing :latest image. E2E tests may not reflect latest code changes."
+          fi
 
       - name: Install cert-manager
         run: |
