@@ -48,6 +48,12 @@ test-notebooks/
 # Repo Governor hook session cache (per-machine, not shared)
 .repo-governor/sessions/
 
+# ROSA E2E state (credentials, local provisioning state)
+.rosa-e2e-state/
+
+# AWS CLI local install (from setup-rosa-e2e.sh)
+aws/
+
 # Test results (local testing artifacts)
 test-results.yaml
 

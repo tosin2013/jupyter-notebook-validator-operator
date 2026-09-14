@@ -309,8 +309,8 @@ jobs:
         run: |
           echo "Installing cert-manager..."
 
-          # Install cert-manager using kubectl
-          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml
+          # Install cert-manager using kubectl (aligned with scripts/setup-rosa-e2e.sh)
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.17.2/cert-manager.yaml
 
           echo "Waiting for cert-manager to be ready..."
           kubectl wait --for=condition=available deployment/cert-manager \
