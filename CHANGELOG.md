@@ -18,6 +18,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.9] - 2026-09-14
+
+**OCP Stream:** OCP 4.20+ (Kubernetes 1.33)
+**Certified window (ADR-056):** OCP 4.20 / 4.21 / 4.22
+**Status:** Release preparation complete. Images pending build and push.
+**Bundle:** `olm.skipRange: >=1.0.2 <1.0.9` | `com.redhat.openshift.versions: v4.20-v4.22`
+
+> **OCP-stream versioning**: v1.0.7 → OCP 4.18 | v1.0.8 → OCP 4.19 | v1.0.9 → OCP 4.20 | v1.0.10 → OCP 4.21
+
+### Added
+
+- ADR-038: Requirements.txt auto-detection with 6-source fallback chain — [#17](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/17)
+- ADR-041: Exit code validation framework with learning/development/staging/production levels — [#18](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/18)
+- OperatorHub bundle submission automation script (`scripts/submit-to-operatorhub.sh`) — [#39](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/39)
+- File Based Catalog (FBC) support: `make catalog-render` target and FBC documentation — [#40](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/40)
+- Diataxis documentation restructure with four quadrant directories (`tutorials/`, `how-to/`, `reference/`, `explanation/`) — [#87](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/87)
+- Laptop-first data scientist tutorial: `docs/tutorials/LOCAL_VALIDATION.md` — [#87](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/87)
+- Dual-audience value messaging in README.md, DESIGN_DOC.md, and CSV description — [#85](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/85)
+- Data scientist onboarding path in CONTRIBUTING.md — [#42](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/42)
+- ADR-056: OpenShift support window 4.20–4.22 (supersedes ADR-002)
+- ADR-058: OpenShift E2E as manual/release-only CI strategy
+
+### Fixed
+
+- ADR-050: S2I build status monitoring uses `OutputDockerImageReference` — [#19](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/19)
+- Failing unit/integration tests in CI (BeforeSuite setup + GO_VERSION mismatch) — [#15](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/15)
+- OperatorHub submission backlog: v1.0.7 and v1.0.8 submitted to both upstream repos — [#22](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/22)
+- golangci-lint v2 config compatibility and Helm timeout on Kind — [#51](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/51), [#52](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/52)
+- E2E OpenShift workflow hardened to skip gracefully when no cluster configured — [#20](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/20)
+- OperatorHub listing blank icon (truncated PNG) and stale description — [#89](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/89)
+- golangci-lint version pinned, typecheck suppressions resolved — [#24](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/24)
+
+### Changed
+
+- `com.redhat.openshift.versions` narrowed from `v4.19-v4.22` to `v4.20-v4.22` (ADR-056)
+- `minKubeVersion` updated from `1.28.0` to `1.31.0`
+- Go upgraded from 1.24 to 1.25; dependency bumps for controller-runtime, Tekton, CEL, gRPC
+- Minimum test coverage threshold established — [#25](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/25)
+- CSV description rewritten with dual-audience value messaging and Diataxis doc links
+- 35 documentation files reorganized into Diataxis quadrant directories
+
+### Documentation
+
+- Complete RELEASE.md runbook with per-version instructions — [#23](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/23)
+- OpenShift cluster registration and OCP validation strategy — [#21](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/21)
+- ADR-021 dashboard verification and OBSERVABILITY.md — [#26](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/26)
+- ADR-022 community observability contribution pipeline verified — [#27](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/27)
+
+### Bundle Metadata
+
+- `olm.skipRange: ">=1.0.2 <1.0.9"`
+- `com.redhat.openshift.versions: "v4.20-v4.22"`
+- `containerImage: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.9`
+
+---
+
 ## [1.0.8] - 2026-04-21
 
 **OCP Stream:** OCP 4.19+ (Kubernetes 1.32)  
