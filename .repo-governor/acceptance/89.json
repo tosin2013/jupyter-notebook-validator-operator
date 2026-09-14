@@ -1,0 +1,22 @@
+{
+  "$comment": "Issue #89: Fix OperatorHub listing blank icon and stale description.",
+  "authority_id": "89",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "python3 -c \"import base64; b=open('bundle/manifests/jupyter-notebook-validator-operator.clusterserviceversion.yaml').read(); import re; m=re.search(r'base64data:\\s+(\\S+)', b); d=base64.b64decode(m.group(1)); assert len(d) > 10000 and b'IEND' in d[-12:], 'icon truncated'\""
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'Kubernetes 1.31' bundle/manifests/jupyter-notebook-validator-operator.clusterserviceversion.yaml"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'minKubeVersion: 1.31.0' bundle/manifests/jupyter-notebook-validator-operator.clusterserviceversion.yaml"
+    }
+  ],
+  "covers": {
+    "declared": "Icon base64 validity, Kubernetes version in description, and minKubeVersion update in bundle CSV",
+    "uncovered": "Helm chart description update is optional; OperatorHub.io cache refresh is external"
+  }
+}

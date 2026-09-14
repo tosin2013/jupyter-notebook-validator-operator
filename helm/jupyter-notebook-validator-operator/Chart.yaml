@@ -1,6 +1,6 @@
 apiVersion: v2
 name: jupyter-notebook-validator-operator
-description: A Kubernetes operator for validating Jupyter notebooks with ML model training and validation capabilities
+description: Catch notebook regressions and broken model endpoints before they reach production. Validate Jupyter notebooks in Kubernetes with golden baseline comparison and ML model endpoint validation.
 type: application
 
 # This is the chart version. This version number should be incremented each time you make changes
@@ -79,7 +79,7 @@ annotations:
     - name: ADRs
       url: https://github.com/tosin2013/jupyter-notebook-validator-operator/tree/main/docs/adrs
     - name: Integration Testing
-      url: https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/docs/INTEGRATION_TESTING.md
+      url: https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/docs/reference/INTEGRATION_TESTING.md
   
   # Operator capabilities (for OperatorHub compatibility)
   artifacthub.io/operator: "true"
