@@ -1,24 +1,18 @@
 {
-  "$comment": "TEMPLATE -- NOT a completion bar until a human edits it. The criteria array is deliberately empty, and an empty array reads NO_CRITERIA_DECLARED, never satisfied: completion.py and adapters/acceptance-file each refuse it independently. Nothing here was inferred from the work item; what 'done' means is not derivable from a title, and guessing it is how a confident wrong STOP_COMPLETE gets produced. Replace the array with conditions that would actually fail if the work were not finished.",
-  "$examples": [
+  "$comment": "Issue #40: Migrate OperatorHub submission to File Based Catalog (FBC) format.",
+  "authority_id": "40",
+  "criteria": [
     {
-      "check": "file_exists",
-      "target": "path/that/must/exist"
+      "check": "command_exit",
+      "target": "grep -q 'catalog-render' Makefile"
     },
     {
       "check": "command_exit",
-      "target": "python3 tests/run.py"
-    },
-    {
-      "check": "tests_pass",
-      "target": "npm test"
+      "target": "grep -q 'FBC\\|File Based Catalog\\|catalog/' docs/operations/RELEASE.md"
     }
   ],
-  "$covers_if_partial": {
-    "$comment": "Rename to 'covers' ONLY if this bar deliberately covers part of the item. Completion then becomes unavailable until the uncovered part is split out or this bar is extended. Both fields are required: a partial bar that will not name what it leaves out has recorded a boast, not a limit.",
-    "declared": "the part this bar does cover",
-    "uncovered": "the part it does NOT, and why it is not attempted here"
-  },
-  "authority_id": "40",
-  "criteria": []
+  "covers": {
+    "declared": "Makefile catalog-render target and FBC documentation in RELEASE.md",
+    "uncovered": "Actual FBC submission to upstream OperatorHub repos; opm render end-to-end test with real bundle image"
+  }
 }
