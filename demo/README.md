@@ -8,6 +8,7 @@ This directory contains [VHS](https://github.com/charmbracelet/vhs) tape files t
 |------|----------|-----------|--------|
 | Local Validation | Data scientists | `local-validation.tape` | `local-validation.gif` |
 | OpenShift Deploy | Platform engineers | `openshift-deploy.tape` | `openshift-deploy.gif` |
+| Laptop → Cluster | Both | `laptop-to-cluster.tape` | `laptop-to-cluster.gif` |
 
 ## Prerequisites
 

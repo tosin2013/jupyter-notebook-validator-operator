@@ -28,6 +28,10 @@ Catch notebook regressions and broken model endpoints before they reach producti
 - Architecture: [Architecture](#architecture) and [DESIGN_DOC.md](DESIGN_DOC.md)
 - Development: [CONTRIBUTING.md](CONTRIBUTING.md)
 
+**Full workflow: Laptop → Cluster.** Validate locally first, then promote the same notebook to OpenShift with a single `oc apply`. Same notebook, same result, production-grade guardrails.
+
+![Laptop to cluster demo](demo/laptop-to-cluster.gif)
+
 ## Why this operator?
 
 ### For data scientists
