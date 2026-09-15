@@ -488,11 +488,11 @@ spec:
   - openshift
   links:
   - name: Documentation
-    url: https://github.com/tosin2013/jupyter-notebook-validator-operator/tree/main/docs
+    url: https://tosin2013.github.io/jupyter-notebook-validator-operator/
   - name: GitHub Repository
     url: https://github.com/tosin2013/jupyter-notebook-validator-operator
   - name: Architecture Decision Records
-    url: https://github.com/tosin2013/jupyter-notebook-validator-operator/tree/main/docs/adrs
+    url: https://tosin2013.github.io/jupyter-notebook-validator-operator/adrs/
   maintainers:
   - email: takinosh@redhat.com
     name: Tosin Akinosho
@@ -501,6 +501,7 @@ spec:
   provider:
     name: Decision Crafters
     url: https://decisioncrafters.com
+  replaces: jupyter-notebook-validator-operator.v1.0.8
   version: 1.0.9
   webhookdefinitions:
   - admissionReviewVersions:
