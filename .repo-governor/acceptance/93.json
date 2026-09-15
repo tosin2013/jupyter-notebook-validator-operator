@@ -1,0 +1,30 @@
+{
+  "$comment": "Issue #93: VHS terminal demo GIFs for data scientist and operator audiences.",
+  "authority_id": "93",
+  "criteria": [
+    {
+      "check": "file_exists",
+      "target": "demo/local-validation.tape"
+    },
+    {
+      "check": "file_exists",
+      "target": "demo/openshift-deploy.tape"
+    },
+    {
+      "check": "file_exists",
+      "target": "demo/README.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'local-validation.gif' README.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'openshift-deploy.gif' README.md"
+    }
+  ],
+  "covers": {
+    "declared": "VHS tape files for both demos, demo README, and GIF references in README.md",
+    "uncovered": "Actual GIF rendering requires VHS + ffmpeg installed (not available in current environment)"
+  }
+}
