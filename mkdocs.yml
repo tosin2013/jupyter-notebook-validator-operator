@@ -1,0 +1,211 @@
+site_name: Jupyter Notebook Validator Operator
+site_url: https://tosin2013.github.io/jupyter-notebook-validator-operator/
+site_description: >-
+  Catch notebook regressions and broken model endpoints before they reach
+  production. Validate Jupyter notebooks in Kubernetes with golden baseline
+  comparison and ML model endpoint validation.
+site_author: tosin2013
+repo_url: https://github.com/tosin2013/jupyter-notebook-validator-operator
+repo_name: tosin2013/jupyter-notebook-validator-operator
+edit_uri: edit/main/docs/
+
+copyright: >-
+  Copyright &copy; 2025-2026 tosin2013.
+  <a href="https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/LICENSE">Apache 2.0</a>
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+  - mermaid2
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/tosin2013/jupyter-notebook-validator-operator
+    - icon: fontawesome/solid/cube
+      link: https://operatorhub.io/operator/jupyter-notebook-validator-operator
+      name: OperatorHub.io
+
+hooks:
+  - docs/hooks/copy_root_docs.py
+
+nav:
+  - Home: index.md
+
+  - Tutorials:
+      - Local Validation (Laptop): tutorials/LOCAL_VALIDATION.md
+      - Quick Start CI/CD: tutorials/QUICK_START_CI_CD.md
+      - End-to-End ML Workflow: tutorials/END_TO_END_ML_WORKFLOW.md
+      - Model Training Workflow: tutorials/MODEL_TRAINING_WORKFLOW.md
+
+  - How-To Guides:
+      - Development: how-to/DEVELOPMENT.md
+      - Release Process: how-to/RELEASE.md
+      - E2E ROSA Runbook: how-to/E2E_ROSA_RUNBOOK.md
+      - Tekton Build Setup: how-to/TEKTON_BUILD_SETUP.md
+      - Webhook Configuration: how-to/WEBHOOK_CONFIGURATION.md
+      - Webhook Installation: how-to/WEBHOOK-INSTALLATION-GUIDE.md
+      - Golden Notebook Comparison: how-to/GOLDEN_NOTEBOOK_COMPARISON.md
+      - Model Discovery: how-to/MODEL_DISCOVERY_GUIDE.md
+      - Model Validation Multi-User: how-to/MODEL_VALIDATION_MULTI_USER.md
+      - Notebook Credentials: how-to/NOTEBOOK_CREDENTIALS_GUIDE.md
+      - Credentials Field Guide: how-to/CREDENTIALS-FIELD-GUIDE.md
+      - Error Handling: how-to/ERROR_HANDLING_GUIDE.md
+      - Namespace Setup: how-to/NAMESPACE_SETUP.md
+      - OpenShift AI Integration: how-to/OPENSHIFT-AI-INTEGRATION.md
+      - ArgoCD Integration: how-to/ARGOCD_INTEGRATION.md
+      - CI Cluster Setup: how-to/CI_CLUSTER_SETUP.md
+      - GitHub Secrets Setup: how-to/GITHUB_SECRETS_SETUP.md
+      - Branching Strategy: how-to/BRANCHING_STRATEGY.md
+      - Community Observability: how-to/COMMUNITY_OBSERVABILITY.md
+      - Contributing Model Platforms: how-to/CONTRIBUTING_MODEL_PLATFORMS.md
+      - Dashboard Contributing: how-to/DASHBOARD_CONTRIBUTING.md
+
+  - Reference:
+      - Testing Guide: reference/TESTING_GUIDE.md
+      - Test Notebooks Guide: reference/TEST_NOTEBOOKS_GUIDE.md
+      - E2E Testing: reference/E2E_TESTING.md
+      - Integration Testing: reference/INTEGRATION_TESTING.md
+      - Observability: reference/OBSERVABILITY.md
+      - Platform Compatibility: reference/PLATFORM-COMPATIBILITY.md
+      - OpenShift Support Matrix: reference/OPENSHIFT_SUPPORT_MATRIX_AND_STRATEGY.md
+      - Community Platforms: reference/COMMUNITY_PLATFORMS.md
+      - Notebook Success Rate: reference/notebook-success-rate.md
+
+  - Explanation:
+      - Architecture Overview: explanation/ARCHITECTURE_OVERVIEW.md
+      - Build Strategy Implementation: explanation/BUILD_STRATEGY_IMPLEMENTATION.md
+      - OpenShift Deployment Solution: explanation/OPENSHIFT_DEPLOYMENT_SOLUTION.md
+      - Design Document: design-doc.md
+      - Observability Strategy: OBSERVABILITY.md
+      - Release Notes v1.0.7: releases/RELEASE-NOTES-v1.0.7.md
+      - Release Notes v1.0.0-ocp4.20: releases/RELEASE_NOTES_v1.0.0-ocp4.20.md
+      - Roadmap Reconciliation: ROADMAP-MILESTONE-RECONCILE.md
+
+  - Project:
+      - Contributing: contributing.md
+      - Changelog: changelog.md
+      - Code of Conduct: code-of-conduct.md
+
+  - ADRs:
+      - Overview: adrs/README.md
+      - "001: Operator Framework": adrs/001-operator-framework-and-sdk-version.md
+      - "002: Platform Version Support": adrs/002-platform-version-support-strategy.md
+      - "003: CRD Schema Design": adrs/003-crd-schema-design-and-versioning.md
+      - "004: Deployment and Packaging": adrs/004-deployment-and-packaging-strategy.md
+      - "005: RBAC and Service Account": adrs/005-rbac-and-service-account-model.md
+      - "006: Version Support Roadmap": adrs/006-version-support-roadmap-and-testing.md
+      - "007: Distribution and Catalog": adrs/007-distribution-and-catalog-strategy.md
+      - "008: Notebook Testing Strategy": adrs/008-notebook-testing-strategy-and-complexity-levels.md
+      - "009: Secret Management": adrs/009-secret-management-and-git-credentials.md
+      - "010: Observability and Monitoring": adrs/010-observability-and-monitoring-strategy.md
+      - "011: Error Handling and Retry": adrs/011-error-handling-and-retry-strategy.md
+      - "012: Release and CI/CD": adrs/012-release-and-cicd-strategy.md
+      - "013: Output Comparison": adrs/013-output-comparison-and-diffing-strategy.md
+      - "014: Notebook Credential Injection": adrs/014-notebook-credential-injection-strategy.md
+      - "015: Environment Variable Pattern": adrs/015-environment-variable-pattern-for-notebook-credentials.md
+      - "016: External Secrets Operator": adrs/016-external-secrets-operator-integration.md
+      - "017: Vault Dynamic Secrets": adrs/017-vault-dynamic-secrets-injection-pattern.md
+      - "018: Secret Rotation": adrs/018-secret-rotation-and-lifecycle-management.md
+      - "019: RBAC Pod Security": adrs/019-rbac-and-pod-security-policies-for-notebook-secret-access.md
+      - "020: Model-Aware Validation": adrs/020-model-aware-validation-strategy.md
+      - "021: OpenShift Dashboard": adrs/021-openshift-native-dashboard-strategy.md
+      - "022: Community Observability": adrs/022-community-observability-contributions.md
+      - "023: S2I Build Integration": adrs/023-s2i-build-integration-openshift.md
+      - "024: Fallback Strategy": adrs/024-fallback-strategy-missing-requirements.md
+      - "025: Community Build Methods": adrs/025-community-build-methods-extension-framework.md
+      - "026: Smart Pod Recovery": adrs/026-smart-validation-pod-recovery.md
+      - "027: S2I Build Strategy": adrs/027-s2i-build-strategy-for-git-integration.md
+      - "028: Tekton Task Strategy": adrs/028-tekton-task-strategy-custom-vs-cluster-tasks.md
+      - "029: Platform Version Review": adrs/029-platform-version-dependency-review-process.md
+      - "030: Smart Error Messages": adrs/030-smart-error-messages-and-user-feedback.md
+      - "031: Tekton Build Dockerfile": adrs/031-tekton-build-dockerfile-vs-base-image.md
+      - "032: GitHub Actions CI Testing": adrs/032-github-actions-ci-testing-kubernetes-version.md
+      - "033: E2E Testing Live OpenShift": adrs/033-e2e-testing-live-openshift-cluster.md
+      - "034: Dual Testing Strategy": adrs/034-dual-testing-strategy-kind-openshift.md
+      - "035: Test Tier Organization": adrs/035-test-tier-organization-and-scope.md
+      - "036: Private Test Repository": adrs/036-private-test-repository-strategy.md
+      - "037: Build Validation Sequencing": adrs/037-build-validation-sequencing-and-state-machine.md
+      - "038: Requirements Auto-Detection": adrs/038-requirements-auto-detection-and-dockerfile-generation.md
+      - "039: Automatic SCC Management": adrs/039-automatic-scc-management-for-tekton-builds.md
+      - "040: Unique Build PVCs": adrs/040-unique-build-pvcs-for-concurrent-tekton-builds.md
+      - "041: Exit Code Validation": adrs/041-exit-code-validation-and-developer-safety-framework.md
+      - "042: Tekton Git Credentials": adrs/042-automatic-tekton-git-credentials-conversion.md
+      - "043: Separate Build Status": adrs/043-separate-build-status-monitoring-by-strategy.md
+      - "044: S2I Strategy Enhancements": adrs/044-s2i-strategy-enhancements-parity-with-tekton.md
+      - "045: Long-Term Strategic Deployment": adrs/045-long-term-strategic-deployment-plan.md
+      - "046: Multi-Version Bundle": adrs/046-multi-version-bundle-strategy-and-upgrade-chain.md
+      - "047: Fix Bundle Versioning": adrs/047-fix-bundle-versioning-consecutive-upgrade-chain.md
+      - "048: Pre-Submission Validation": adrs/048-pre-submission-validation-test-rig-strategy.md
+      - "049: ArgoCD Integration": adrs/049-argocd-integration-strategy.md
+      - "050: Fix S2I Build Status": adrs/050-fix-s2i-build-status-monitoring.md
+      - "051: Git Init Image Compatibility": adrs/051-git-init-image-compatibility.md
+      - "052: Resource Conflict Errors": adrs/052-resource-conflict-error-handling.md
+      - "053: Volume and PVC Support": adrs/053-volume-and-pvc-support-for-validation-pods.md
+      - "054: Pod Scheduling Support": adrs/054-pod-scheduling-support-tolerations-nodeselector-affinity.md
+      - "055: OperatorHub Submission Lessons": adrs/055-operatorhub-submission-lessons-learned.md
+      - "056: OpenShift Support Window": adrs/056-openshift-support-window-4.20-4.22.md
+      - "057: Upgrade from v1.0.3": adrs/057-upgrade-from-published-v1.0.3-ocp4.19.md
+      - "058: OpenShift E2E Optional CI": adrs/058-openshift-e2e-optional-ci-strategy.md

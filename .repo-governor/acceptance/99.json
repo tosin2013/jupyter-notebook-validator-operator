@@ -1,0 +1,30 @@
+{
+  "$comment": "Issue #99: GitHub Pages docs site with MkDocs Material.",
+  "authority_id": "99",
+  "criteria": [
+    {
+      "check": "file_exists",
+      "target": "mkdocs.yml"
+    },
+    {
+      "check": "file_exists",
+      "target": ".github/workflows/docs.yml"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'material' mkdocs.yml"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'tutorials/' mkdocs.yml"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'adrs/' mkdocs.yml"
+    }
+  ],
+  "covers": {
+    "declared": "MkDocs config with Material theme, GitHub Actions deploy workflow, Diataxis nav sections, and ADR section",
+    "uncovered": "Actual GitHub Pages deployment (requires repo settings); OperatorHub CSV URL update is a separate commit"
+  }
+}
