@@ -3,150 +3,94 @@
 # This demo shows a platform engineer deploying the operator to an
 # OpenShift cluster and running a validation job end-to-end.
 #
-# Render: vhs demo/openshift-deploy.tape
-# Requires: oc, make, go (connected to an OpenShift cluster)
+# Render: ./demo/render.sh demo/openshift-deploy.tape
+# Requires: oc (logged in), make, go
 
-Output demo/openshift-deploy.gif
-Output demo/openshift-deploy.mp4
+Output "demo/openshift-deploy.gif"
 
 Set Shell "bash"
-Set FontSize 18
+Set FontSize 16
 Set Width 1200
-Set Height 600
+Set Height 700
 Set Theme "Catppuccin Mocha"
 Set WindowBar Colorful
 Set WindowBarSize 40
-Set TypingSpeed 40ms
-Set Padding 20
+Set TypingSpeed 30ms
+Set Padding 15
+Set CursorBlink false
 
-# Title banner
-Type "# Jupyter Notebook Validator - OpenShift Operator Deployment"
-Enter
-Type "# Deploy the operator and validate a notebook on a live cluster"
+# Title
+Type "echo '=== Jupyter Notebook Validator: OpenShift Deployment ==='"
 Enter
 Sleep 1s
 
-# Step 1: Login to OpenShift
-Type "echo '--- Step 1: Connect to OpenShift cluster ---'"
+# Step 1: Verify cluster
+Type "echo '--- Step 1: Verify OpenShift cluster ---'"
 Enter
 Sleep 500ms
-
-Type@30ms "oc login --server=https://api.my-cluster.example.com:6443 -u admin"
-Enter
-Sleep 2s
 
 Type "oc whoami"
 Enter
 Sleep 1s
 
-Type "oc version --short"
+Type "oc version"
 Enter
-Sleep 1s
+Sleep 2s
 
 # Step 2: Install CRDs
 Type "echo '--- Step 2: Install CRDs ---'"
 Enter
 Sleep 500ms
 
-Type@30ms "make install"
+Type "make install"
+Enter
+Sleep 15s
+
+# Step 3: Deploy operator
+Type "echo '--- Step 3: Deploy operator ---'"
+Enter
+Sleep 500ms
+
+Type "make deploy IMG=quay.io/takinosh/jupyter-notebook-validator-operator:latest"
+Enter
+Sleep 15s
+
+# Step 4: Wait for operator
+Type "echo '--- Step 4: Verify operator is running ---'"
+Enter
+Sleep 500ms
+
+Type "oc get pods -n jupyter-notebook-validator-operator"
 Enter
 Sleep 3s
 
-# Step 3: Deploy operator
-Type "echo '--- Step 3: Deploy the operator ---'"
-Enter
-Sleep 500ms
-
-Type@30ms "make deploy IMG=quay.io/takinosh/jupyter-notebook-validator-operator:latest"
-Enter
-Sleep 5s
-
-# Step 4: Verify operator is running
-Type "echo '--- Step 4: Verify operator pod ---'"
-Enter
-Sleep 500ms
-
-Type@30ms "oc get pods -n jupyter-notebook-validator-operator"
-Enter
-Sleep 2s
-
-# Step 5: Create a validation job
+# Step 5: Submit a validation job
 Type "echo '--- Step 5: Submit a NotebookValidationJob ---'"
 Enter
 Sleep 500ms
 
-Type@30ms "cat <<'CR' | oc apply -f -"
+Type "oc apply -f config/samples/mlops_v1alpha1_notebookvalidationjob.yaml"
 Enter
-Type@20ms "apiVersion: mlops.mlops.dev/v1alpha1"
-Enter
-Type@20ms "kind: NotebookValidationJob"
-Enter
-Type@20ms "metadata:"
-Enter
-Type@20ms "  name: demo-hello-world"
-Enter
-Type@20ms "  namespace: default"
-Enter
-Type@20ms "spec:"
-Enter
-Type@20ms "  notebook:"
-Enter
-Type@20ms "    git:"
-Enter
-Type@20ms "      url: https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks.git"
-Enter
-Type@20ms "      ref: main"
-Enter
-Type@20ms "    path: notebooks/tier1-simple/01-hello-world.ipynb"
-Enter
-Type@20ms "  podConfig:"
-Enter
-Type@20ms "    containerImage: quay.io/jupyter/scipy-notebook:latest"
-Enter
-Type@20ms "  timeout: \"5m\""
-Enter
-Type@20ms "CR"
-Enter
-Sleep 2s
+Sleep 3s
 
-# Step 6: Watch the validation
-Type "echo '--- Step 6: Watch validation progress ---'"
+# Step 6: Watch status
+Type "echo '--- Step 6: Check validation status ---'"
 Enter
 Sleep 500ms
 
-Type@30ms "oc get notebookvalidationjobs demo-hello-world -w"
+Type "oc get notebookvalidationjobs"
 Enter
-Sleep 10s
+Sleep 5s
 
-Ctrl+C
-Sleep 500ms
-
-# Step 7: Check final status
-Type "echo '--- Step 7: Final status ---'"
+Type "oc get pods -l app=notebook-validation"
 Enter
-Sleep 500ms
+Sleep 3s
 
-Type@30ms "oc get notebookvalidationjob demo-hello-world -o jsonpath='{.status.phase}'"
-Enter
-Sleep 1s
-
+# Final
 Type "echo ''"
 Enter
-
-Type@30ms "oc get notebookvalidationjob demo-hello-world -o jsonpath='{.status.conditions[*].message}'"
+Type "echo 'Operator deployed and notebook validated on OpenShift.'"
 Enter
-Sleep 2s
-
-Type "echo ''"
-Enter
-
-# Final message
-Type "echo ''"
-Enter
-Type "echo 'Notebook validation succeeded on OpenShift.'"
-Enter
-Type "echo 'Operator docs: docs/tutorials/QUICK_START_CI_CD.md'"
-Enter
-Type "echo 'E2E runbook:   docs/how-to/E2E_ROSA_RUNBOOK.md'"
+Type "echo 'Docs: docs/how-to/E2E_ROSA_RUNBOOK.md'"
 Enter
 Sleep 3s

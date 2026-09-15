@@ -49,23 +49,30 @@ ffmpeg -version
 
 ## Render the GIFs
 
-From the repository root:
+Use the `render.sh` wrapper script from the repository root. This script captures frames with VHS and converts them to GIF with ffmpeg (works around a VHS bug where GIF creation silently fails in headless environments).
 
 ```bash
-# Data scientist demo
-vhs demo/local-validation.tape
+# Render both demos
+./demo/render.sh
 
-# Platform engineer demo
-vhs demo/openshift-deploy.tape
+# Render one demo
+./demo/render.sh demo/local-validation.tape
+./demo/render.sh demo/openshift-deploy.tape
 ```
 
-Each command produces a `.gif` and `.mp4` in the `demo/` directory.
+Each command produces a `.gif` in the `demo/` directory.
+
+### Helper scripts
+
+- `create-notebook.py` — Creates a minimal test notebook for the local validation demo.
+- `check-output.py` — Inspects executed notebook output for the local validation demo.
+- `render.sh` — Two-step VHS→ffmpeg renderer that works in headless environments.
 
 ## Editing a demo
 
 1. Edit the `.tape` file in this directory.
-2. Render with `vhs demo/<name>.tape` to preview.
-3. Commit only the `.tape` file. GIF and MP4 files are gitignored.
+2. Render with `./demo/render.sh demo/<name>.tape` to preview.
+3. Commit only the `.tape` file and helper scripts. GIF files are gitignored.
 
 ## VHS syntax reference
 
