@@ -11,6 +11,7 @@ Catch notebook regressions and broken model endpoints before they reach producti
 [![OpenShift](https://img.shields.io/badge/OpenShift-4.20+-red.svg)](https://www.openshift.com/)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.31+-blue.svg)](https://kubernetes.io/)
 [![OperatorHub](https://img.shields.io/badge/OperatorHub.io-available-brightgreen.svg)](https://operatorhub.io/operator/jupyter-notebook-validator-operator)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg)](https://tosin2013.github.io/jupyter-notebook-validator-operator/)
 
 ## Who is this for?
 

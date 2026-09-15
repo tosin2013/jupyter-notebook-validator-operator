@@ -1,1 +1,1 @@
-operations/RELEASE.md
+how-to/RELEASE.md

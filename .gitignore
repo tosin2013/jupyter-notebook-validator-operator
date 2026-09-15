@@ -118,3 +118,13 @@ docs/ADR-CLEANUP-SUMMARY.md
 # Test result documents (internal)
 docs/*-TEST-RESULTS.md
 docs/TIER*-TEST*.md
+
+# MkDocs build output
+site/
+
+# MkDocs hook artifacts (copied during build, cleaned after)
+docs/index.md
+docs/design-doc.md
+docs/contributing.md
+docs/changelog.md
+docs/code-of-conduct.md
