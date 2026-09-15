@@ -18,18 +18,20 @@ theme:
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: deep purple
-      accent: amber
+      primary: blue
+      accent: orange
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: deep purple
-      accent: amber
+      primary: blue
+      accent: orange
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
+  logo: assets/images/logo.png
+  favicon: assets/images/favicon.png
   features:
     - navigation.instant
     - navigation.tracking
@@ -79,6 +81,9 @@ markdown_extensions:
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
+
+extra_css:
+  - assets/stylesheets/custom.css
 
 extra:
   social:
