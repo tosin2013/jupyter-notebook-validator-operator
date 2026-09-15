@@ -3,7 +3,7 @@
 # This demo shows the full data scientist workflow:
 # 1. Validate a notebook locally with Docker + Papermill
 # 2. Submit the same notebook to OpenShift as a NotebookValidationJob
-# 3. Watch the cluster validate it end-to-end
+# 3. Watch the cluster validate it and show logs
 #
 # This bridges the data scientist and platform engineer paths.
 #
@@ -60,7 +60,6 @@ Type "oc whoami && oc version"
 Enter
 Sleep 2s
 
-# Apply sample CR
 Type "echo 'Submitting NotebookValidationJob to the cluster...'"
 Enter
 Sleep 500ms
@@ -69,29 +68,39 @@ Type "oc apply -f config/samples/mlops_v1alpha1_notebookvalidationjob.yaml"
 Enter
 Sleep 3s
 
-# Watch status
+# --- PHASE 3: Watch cluster validation ---
+
 Type "echo ''"
 Enter
 Type "echo '>>> PHASE 3: Watch cluster validation <<<'"
 Enter
 Sleep 1s
 
+Type "oc get pods -n jupyter-notebook-validator-operator -l app=jupyter-notebook-validator -w"
+Enter
+Sleep 90s
+
+Ctrl+C
+Sleep 1s
+
+# Check status
 Type "oc get notebookvalidationjobs -n jupyter-notebook-validator-operator"
 Enter
-Sleep 5s
-
-Type "oc get pods -n jupyter-notebook-validator-operator -l app=notebook-validation"
-Enter
-Sleep 5s
-
-Type "oc get notebookvalidationjob notebookvalidationjob-sample -n jupyter-notebook-validator-operator -o wide"
-Enter
 Sleep 3s
+
+# Show logs
+Type "echo '--- Validation pod logs ---'"
+Enter
+Sleep 500ms
+
+Type "oc logs -n jupyter-notebook-validator-operator notebookvalidationjob-sample-validation --tail=30"
+Enter
+Sleep 5s
 
 # Final
 Type "echo ''"
 Enter
-Type "echo 'Local validation passed. Cluster validation submitted.'"
+Type "echo 'Local validation passed. Cluster validation Succeeded.'"
 Enter
 Type "echo 'Same notebook, same result, production-grade guardrails.'"
 Enter

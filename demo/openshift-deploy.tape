@@ -73,18 +73,35 @@ Type "oc apply -f config/samples/mlops_v1alpha1_notebookvalidationjob.yaml"
 Enter
 Sleep 3s
 
-# Step 6: Watch status
-Type "echo '--- Step 6: Check validation status ---'"
+# Step 6: Watch validation pod
+Type "echo '--- Step 6: Watch validation pod ---'"
 Enter
 Sleep 500ms
 
-Type "oc get notebookvalidationjobs"
+Type "oc get pods -n jupyter-notebook-validator-operator -l app=jupyter-notebook-validator -w"
 Enter
-Sleep 5s
+Sleep 90s
 
-Type "oc get pods -l app=notebook-validation"
+Ctrl+C
+Sleep 1s
+
+# Step 7: Check job status
+Type "echo '--- Step 7: Check job status ---'"
+Enter
+Sleep 500ms
+
+Type "oc get notebookvalidationjobs -n jupyter-notebook-validator-operator"
 Enter
 Sleep 3s
+
+# Step 8: Show validation logs
+Type "echo '--- Step 8: Validation pod logs ---'"
+Enter
+Sleep 500ms
+
+Type "oc logs -n jupyter-notebook-validator-operator notebookvalidationjob-sample-validation --tail=30"
+Enter
+Sleep 5s
 
 # Final
 Type "echo ''"
