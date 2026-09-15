@@ -2,7 +2,6 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   annotations:
-    olm.skipRange: ">=1.0.2 <1.0.9"
     alm-examples: |-
       [
         {
@@ -52,8 +51,10 @@ metadata:
     categories: AI/Machine Learning, Developer Tools, Integration & Delivery
     com.redhat.openshift.versions: "v4.20-v4.22"
     containerImage: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.9
-    createdAt: "2026-09-14T14:00:00Z"
+    createdAt: "2026-09-15T16:39:26Z"
     description: Kubernetes operator for validating Jupyter notebooks in MLOps workflows
+    olm.skipRange: ">=1.0.2 <1.0.9"
+    operatorframework.io/suggested-namespace: jupyter-notebook-validator-operator
     operators.operatorframework.io/builder: operator-sdk-v1.37.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/tosin2013/jupyter-notebook-validator-operator
@@ -138,6 +139,7 @@ spec:
           - ""
           resources:
           - configmaps
+          - pods/log
           verbs:
           - get
           - list
@@ -153,17 +155,6 @@ spec:
           - ""
           resources:
           - persistentvolumeclaims
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - ""
-          resources:
           - pods
           verbs:
           - create
@@ -176,13 +167,6 @@ spec:
         - apiGroups:
           - ""
           resources:
-          - pods/log
-          verbs:
-          - get
-          - list
-        - apiGroups:
-          - ""
-          resources:
           - pods/status
           verbs:
           - get
@@ -192,14 +176,6 @@ spec:
           - ""
           resources:
           - secrets
-          verbs:
-          - create
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - ""
-          resources:
           - serviceaccounts
           verbs:
           - create

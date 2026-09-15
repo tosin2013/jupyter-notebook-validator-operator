@@ -3,7 +3,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     cert-manager.io/inject-ca-from: jupyter-notebook-validator-operator/notebook-validator-serving-cert
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.17.0
   creationTimestamp: null
   name: notebookvalidationjobs.mlops.mlops.dev
 spec:
@@ -1425,6 +1425,13 @@ spec:
                       DetectSilentFailures enables detection of None returns and NaN values
                       ADR-041: Catches common silent failure patterns in data science notebooks
                     type: boolean
+                  educationalMode:
+                    default: false
+                    description: |-
+                      EducationalMode enables detailed educational feedback in status
+                      ADR-041: When true, produces actionable suggestions and code examples
+                      Automatically enabled for "learning" level; optional for other levels
+                    type: boolean
                   expectedOutputs:
                     description: |-
                       ExpectedOutputs specifies expected output types and values for specific cells
@@ -1703,16 +1710,8 @@ spec:
                 description: Conditions represent the latest available observations
                   of the job's state
                 items:
-                  description: "Condition contains details for one aspect of the current
-                    state of this API Resource.\n---\nThis struct is intended for
-                    direct use as an array at the field path .status.conditions.  For
-                    example,\n\n\n\ttype FooStatus struct{\n\t    // Represents the
-                    observations of a foo's current state.\n\t    // Known .status.conditions.type
-                    are: \"Available\", \"Progressing\", and \"Degraded\"\n\t    //
-                    +patchMergeKey=type\n\t    // +patchStrategy=merge\n\t    // +listType=map\n\t
-                    \   // +listMapKey=type\n\t    Conditions []metav1.Condition `json:\"conditions,omitempty\"
-                    patchStrategy:\"merge\" patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"`\n\n\n\t
-                    \   // other fields\n\t}"
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -1753,12 +1752,7 @@ spec:
                       - Unknown
                       type: string
                     type:
-                      description: |-
-                        type of condition in CamelCase or in foo.example.com/CamelCase.
-                        ---
-                        Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
-                        useful (see .node.status.conditions), the ability to deconflict is important.
-                        The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
                       maxLength: 316
                       pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
                       type: string
@@ -1768,6 +1762,48 @@ spec:
                   - reason
                   - status
                   - type
+                  type: object
+                type: array
+              educationalFeedback:
+                description: |-
+                  EducationalFeedback contains actionable messages and best-practice code examples
+                  ADR-041: Populated when validation level is "learning" or "development"
+                items:
+                  description: |-
+                    EducationalFeedbackItem contains a single piece of educational feedback
+                    ADR-041: Provides actionable guidance to notebook authors
+                  properties:
+                    category:
+                      description: Category classifies the feedback (e.g., "silent-failure",
+                        "missing-assertion", "type-mismatch")
+                      type: string
+                    cell:
+                      description: Cell is the zero-based index of the cell this feedback
+                        relates to (-1 for global)
+                      type: integer
+                    codeExample:
+                      description: CodeExample shows corrected code (if applicable)
+                      type: string
+                    message:
+                      description: Message is a human-readable description of the
+                        issue
+                      type: string
+                    severity:
+                      description: 'Severity indicates the importance: info, warning,
+                        error'
+                      enum:
+                      - info
+                      - warning
+                      - error
+                      type: string
+                    suggestion:
+                      description: Suggestion provides a recommended fix or best practice
+                      type: string
+                  required:
+                  - category
+                  - cell
+                  - message
+                  - severity
                   type: object
                 type: array
               lastRetryTime:
