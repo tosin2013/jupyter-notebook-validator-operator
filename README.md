@@ -16,13 +16,21 @@ Catch notebook regressions and broken model endpoints before they reach producti
 
 **Data Scientists and Notebook Authors.** Your notebook works on your laptop. Will it work in production? Validate notebooks locally with Podman or Docker before submitting to a cluster. Catch cell-output regressions, confirm model endpoint predictions, and stop silent failures before they reach your team.
 
+![Local validation demo](https://github.com/tosin2013/jupyter-notebook-validator-operator/releases/download/v1.0.9/local-validation.gif)
+
 - Start on your laptop: [Validate a notebook locally](docs/tutorials/LOCAL_VALIDATION.md) (no cluster needed)
 - Submit to a cluster: [Quick Start](docs/tutorials/QUICK_START_CI_CD.md) and [`config/samples/`](config/samples/)
 
 **Platform Engineers and Operator Contributors.** CI scripts check whether a notebook executed. They do not check whether outputs are correct, model predictions are valid, or cell outputs regressed from last week. This operator adds a declarative validation gate to your MLOps pipeline with Prometheus metrics, RBAC, and multi-tenant safety.
 
+![OpenShift deployment demo](https://github.com/tosin2013/jupyter-notebook-validator-operator/releases/download/v1.0.9/openshift-deploy.gif)
+
 - Architecture: [Architecture](#architecture) and [DESIGN_DOC.md](DESIGN_DOC.md)
 - Development: [CONTRIBUTING.md](CONTRIBUTING.md)
+
+**Full workflow: Laptop → Cluster.** Validate locally first, then promote the same notebook to OpenShift with a single `oc apply`. Same notebook, same result, production-grade guardrails.
+
+![Laptop to cluster demo](https://github.com/tosin2013/jupyter-notebook-validator-operator/releases/download/v1.0.9/laptop-to-cluster.gif)
 
 ## Why this operator?
 

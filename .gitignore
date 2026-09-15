@@ -54,6 +54,11 @@ test-notebooks/
 # AWS CLI local install (from setup-rosa-e2e.sh)
 aws/
 
+# VHS demo rendered output (render locally with: vhs demo/<name>.tape)
+demo/*.gif
+demo/*.mp4
+demo/*.webm
+
 # Test results (local testing artifacts)
 test-results.yaml
 
