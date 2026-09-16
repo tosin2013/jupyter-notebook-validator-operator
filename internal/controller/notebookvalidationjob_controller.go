@@ -179,8 +179,8 @@ func (r *NotebookValidationJobReconciler) Reconcile(ctx context.Context, req ctr
 			return ctrl.Result{}, err
 		}
 
-		// Requeue to continue processing
-		return ctrl.Result{Requeue: true}, nil
+		// Requeue immediately to continue processing
+		return ctrl.Result{RequeueAfter: 1}, nil
 	}
 
 	// Check if validation is already complete
@@ -299,7 +299,7 @@ func (r *NotebookValidationJobReconciler) transitionPhase(ctx context.Context, j
 	}
 
 	// Requeue immediately to process new phase
-	return ctrl.Result{Requeue: true}, nil
+	return ctrl.Result{RequeueAfter: 1}, nil
 }
 
 // reconcileInitializing handles the Initializing phase

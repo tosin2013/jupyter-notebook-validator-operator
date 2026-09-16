@@ -296,7 +296,7 @@ var _ = Describe("NotebookValidationJob Controller", func() {
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Requeue).To(BeFalse())
+			Expect(result.RequeueAfter).To(BeZero())
 
 			By("Verifying phase remains Succeeded")
 			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedJob)).To(Succeed())
@@ -347,7 +347,7 @@ var _ = Describe("NotebookValidationJob Controller", func() {
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Requeue).To(BeFalse())
+			Expect(result.RequeueAfter).To(BeZero())
 
 			By("Verifying phase remains Failed")
 			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedJob)).To(Succeed())
@@ -456,7 +456,7 @@ var _ = Describe("NotebookValidationJob Controller", func() {
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Requeue).To(BeTrue(), "Should requeue after initialization")
+			Expect(result.RequeueAfter).NotTo(BeZero(), "Should requeue after initialization")
 		})
 	})
 
