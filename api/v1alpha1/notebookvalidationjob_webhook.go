@@ -20,10 +20,8 @@ import (
 	"context"
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -32,8 +30,7 @@ var notebookvalidationjoblog = logf.Log.WithName("notebookvalidationjob-resource
 
 // SetupWebhookWithManager will setup the manager to manage the webhooks
 func (r *NotebookValidationJob) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(r).
+	return ctrl.NewWebhookManagedBy(mgr, r).
 		WithDefaulter(r).
 		WithValidator(r).
 		Complete()
@@ -43,14 +40,10 @@ func (r *NotebookValidationJob) SetupWebhookWithManager(mgr ctrl.Manager) error 
 
 //+kubebuilder:webhook:path=/mutate-mlops-mlops-dev-v1alpha1-notebookvalidationjob,mutating=true,failurePolicy=fail,sideEffects=None,groups=mlops.mlops.dev,resources=notebookvalidationjobs,verbs=create;update,versions=v1alpha1,name=mnotebookvalidationjob.kb.io,admissionReviewVersions=v1
 
-var _ webhook.CustomDefaulter = &NotebookValidationJob{}
+var _ admission.Defaulter[*NotebookValidationJob] = &NotebookValidationJob{}
 
-// Default implements webhook.CustomDefaulter so a webhook will be registered for the type
-func (r *NotebookValidationJob) Default(ctx context.Context, obj runtime.Object) error {
-	job, ok := obj.(*NotebookValidationJob)
-	if !ok {
-		return fmt.Errorf("expected a NotebookValidationJob object but got %T", obj)
-	}
+// Default implements admission.Defaulter so a webhook will be registered for the type
+func (r *NotebookValidationJob) Default(ctx context.Context, job *NotebookValidationJob) error {
 	notebookvalidationjoblog.Info("default", "name", job.Name, "namespace", job.Namespace)
 
 	// Convert credentials array to envFrom (syntactic sugar)
@@ -111,14 +104,10 @@ func (r *NotebookValidationJob) Default(ctx context.Context, obj runtime.Object)
 // TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
 //+kubebuilder:webhook:path=/validate-mlops-mlops-dev-v1alpha1-notebookvalidationjob,mutating=false,failurePolicy=fail,sideEffects=None,groups=mlops.mlops.dev,resources=notebookvalidationjobs,verbs=create;update,versions=v1alpha1,name=vnotebookvalidationjob.kb.io,admissionReviewVersions=v1
 
-var _ webhook.CustomValidator = &NotebookValidationJob{}
+var _ admission.Validator[*NotebookValidationJob] = &NotebookValidationJob{}
 
-// ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type
-func (r *NotebookValidationJob) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	job, ok := obj.(*NotebookValidationJob)
-	if !ok {
-		return nil, fmt.Errorf("expected a NotebookValidationJob object but got %T", obj)
-	}
+// ValidateCreate implements admission.Validator so a webhook will be registered for the type
+func (r *NotebookValidationJob) ValidateCreate(ctx context.Context, job *NotebookValidationJob) (admission.Warnings, error) {
 	notebookvalidationjoblog.Info("validate create", "name", job.Name, "namespace", job.Namespace)
 
 	// Validate volumes and volume mounts (ADR-045)
@@ -129,12 +118,8 @@ func (r *NotebookValidationJob) ValidateCreate(ctx context.Context, obj runtime.
 	return nil, nil
 }
 
-// ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type
-func (r *NotebookValidationJob) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
-	job, ok := newObj.(*NotebookValidationJob)
-	if !ok {
-		return nil, fmt.Errorf("expected a NotebookValidationJob object but got %T", newObj)
-	}
+// ValidateUpdate implements admission.Validator so a webhook will be registered for the type
+func (r *NotebookValidationJob) ValidateUpdate(ctx context.Context, oldObj, job *NotebookValidationJob) (admission.Warnings, error) {
 	notebookvalidationjoblog.Info("validate update", "name", job.Name, "namespace", job.Namespace)
 
 	// Validate volumes and volume mounts (ADR-045)
@@ -145,12 +130,8 @@ func (r *NotebookValidationJob) ValidateUpdate(ctx context.Context, oldObj, newO
 	return nil, nil
 }
 
-// ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type
-func (r *NotebookValidationJob) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	job, ok := obj.(*NotebookValidationJob)
-	if !ok {
-		return nil, fmt.Errorf("expected a NotebookValidationJob object but got %T", obj)
-	}
+// ValidateDelete implements admission.Validator so a webhook will be registered for the type
+func (r *NotebookValidationJob) ValidateDelete(ctx context.Context, job *NotebookValidationJob) (admission.Warnings, error) {
 	notebookvalidationjoblog.Info("validate delete", "name", job.Name, "namespace", job.Namespace)
 
 	// TODO(user): fill in your validation logic upon object deletion.

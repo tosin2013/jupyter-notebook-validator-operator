@@ -1,7 +1,9 @@
 # ADR 059: Kubernetes Client Library Upgrade to v0.35.x for OCP 4.22
 
 ## Status
-Proposed
+Accepted
+
+Ratified 2026-09-16 by repository owner (tosin2013).
 
 ## Context
 
