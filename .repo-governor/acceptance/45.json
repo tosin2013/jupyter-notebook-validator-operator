@@ -1,14 +1,18 @@
 {
-  "$comment": "Criteria taken from issue #45. GitHub milestone UI is not clone-checkable; the in-repo reconcile note is. Do not satisfy this bar until ADR-056 is ratified.",
+  "$comment": "Criteria for #45. ADR-056 is ratified. Reconcile document updated for v1.0.10 as OCP 4.22 release.",
   "authority_id": "45",
   "criteria": [
     {
       "check": "file_exists",
-      "target": "docs/ROADMAP-MILESTONE-RECONCILE.md"
+      "target": "docs/explanation/ROADMAP_MILESTONE_RECONCILE.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q '4.22' docs/explanation/ROADMAP_MILESTONE_RECONCILE.md"
     }
   ],
   "covers": {
-    "declared": "In-repo record of how v1.0.9 / v1.0.10 relate to the 4.20-4.22 window",
-    "uncovered": "Live GitHub milestone title/description edits; closing or retargeting #16; moving issues between milestones"
+    "declared": "In-repo record of how v1.0.9 / v1.0.10 relate to the 4.20-4.22 window, updated for v1.0.10 as OCP 4.22 release",
+    "uncovered": "Live GitHub milestone title/description edits; moving issues between milestones"
   }
 }
