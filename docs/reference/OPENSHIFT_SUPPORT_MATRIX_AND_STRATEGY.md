@@ -288,6 +288,20 @@ require (
 5. ✅ **Dec 2025**: Test on OpenShift 4.19 for backward compatibility
 6. ✅ **Feb 2026**: Test on OpenShift 4.21 when released
 
+## OLM v1 Status
+
+OLM v1 (Operator Lifecycle Manager v1) is GA since OCP 4.20. This operator continues to use **OLM Classic** for distribution via OperatorHub.io and community-operators-prod. See [OLM Strategy](../explanation/OLM_STRATEGY.md) for the detailed rationale.
+
+| OCP | OLM v1 Status | This operator |
+|-----|---------------|---------------|
+| 4.18 | Tech Preview | OLM Classic only |
+| 4.19 | Tech Preview | OLM Classic only |
+| 4.20 | **GA** | OLM Classic (OperatorHub) |
+| 4.21 | GA | OLM Classic (OperatorHub) |
+| 4.22 | GA (current EUS) | OLM Classic (OperatorHub) |
+
+The `registry+v1` bundle format is compatible with both OLM Classic and OLM v1.
+
 ## References
 
 - OpenShift Life Cycle: https://access.redhat.com/support/policy/updates/openshift
