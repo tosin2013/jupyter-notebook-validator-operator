@@ -1,0 +1,22 @@
+{
+  "$comment": "Issue #105: ADR-059 k8s.io client library upgrade to v0.35.x for OCP 4.22.",
+  "authority_id": "105",
+  "criteria": [
+    {
+      "check": "file_exists",
+      "target": "docs/adrs/059-k8s-client-library-upgrade-v0.35.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'v0.35' docs/adrs/059-k8s-client-library-upgrade-v0.35.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'v0.23' docs/adrs/059-k8s-client-library-upgrade-v0.35.md"
+    }
+  ],
+  "covers": {
+    "declared": "ADR-059 proposed with version mapping for k8s.io v0.35.x and controller-runtime v0.23.x",
+    "uncovered": "Human ratification of the ADR (setting status to Accepted)"
+  }
+}
