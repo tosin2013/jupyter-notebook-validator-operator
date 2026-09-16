@@ -1,0 +1,48 @@
+# Example: NotebookValidationJob with AWS EBS (gp3-csi) PVC for build storage
+#
+# Uses the gp3-csi StorageClass (default on ROSA/EKS) for Tekton build PVCs.
+# EBS volumes are ReadWriteOnce — one pod at a time. Suitable for single
+# build-then-validate workflows.
+#
+# Key behaviors:
+#   - gp3-csi uses WaitForFirstConsumer binding: the PV is provisioned in the
+#     same AZ as the pod that first claims it.
+#   - ADR-040: each build gets a unique PVC name to allow concurrent builds.
+#
+# See docs/how-to/AWS_STORAGE_GUIDE.md for EBS vs EFS guidance.
+
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: validate-with-ebs-pvc
+  namespace: notebook-validation
+spec:
+  notebook:
+    path: notebooks/data-analysis.ipynb
+    git:
+      url: https://github.com/org/ml-notebooks.git
+      ref: main
+  podConfig:
+    image: quay.io/jupyter/scipy-notebook:latest
+    volumes:
+      - name: build-workspace
+        persistentVolumeClaim:
+          claimName: build-workspace-pvc
+    volumeMounts:
+      - name: build-workspace
+        mountPath: /workspace/build
+  timeout: "30m"
+---
+# PVC using gp3-csi (default on ROSA/EKS)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: build-workspace-pvc
+  namespace: notebook-validation
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: gp3-csi
+  resources:
+    requests:
+      storage: 10Gi

@@ -1251,6 +1251,8 @@ type CellDiff struct {
 //+kubebuilder:resource:shortName=nvj;nvjob
 //+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 //+kubebuilder:printcolumn:name="Notebook",type=string,JSONPath=`.spec.notebook.path`
+//+kubebuilder:printcolumn:name="Git-URL",type=string,JSONPath=`.spec.notebook.git.url`,priority=1
+//+kubebuilder:printcolumn:name="Timeout",type=string,JSONPath=`.spec.timeout`
 //+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 //+kubebuilder:printcolumn:name="Message",type=string,JSONPath=`.status.message`,priority=1
 

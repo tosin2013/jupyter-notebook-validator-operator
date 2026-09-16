@@ -498,6 +498,25 @@ go tool cover -html=cover.out
 3. Bring `pkg/build` from ~35% to ~60% with additional build-strategy unit tests
 4. Each new feature PR is expected to include tests that keep patch coverage ≥ 0%
 
+## Checking Job Status with kubectl
+
+The `NotebookValidationJob` CRD includes printer columns for quick status checks:
+
+```bash
+# Standard output shows Phase, Notebook, Timeout, and Age
+kubectl get notebookvalidationjobs
+# NAME              PHASE       NOTEBOOK              TIMEOUT   AGE
+# my-validation     Succeeded   notebooks/train.ipynb  30m       5m
+
+# Short name also works
+kubectl get nvj
+
+# Wide output adds Git-URL and Message columns
+kubectl get nvj -o wide
+# NAME              PHASE       NOTEBOOK              GIT-URL                              TIMEOUT   AGE   MESSAGE
+# my-validation     Succeeded   notebooks/train.ipynb  https://github.com/org/repo.git      30m       5m    Validation completed successfully
+```
+
 ## Next Steps
 
 1. **Review ADR 008**: [Notebook Testing Strategy and Complexity Levels](adrs/008-notebook-testing-strategy-and-complexity-levels.md)
