@@ -144,10 +144,10 @@ nav:
       - Build Strategy Implementation: explanation/BUILD_STRATEGY_IMPLEMENTATION.md
       - OpenShift Deployment Solution: explanation/OPENSHIFT_DEPLOYMENT_SOLUTION.md
       - Design Document: design-doc.md
-      - Observability Strategy: OBSERVABILITY.md
+      - Observability Strategy: explanation/OBSERVABILITY_STRATEGY.md
       - Release Notes v1.0.7: releases/RELEASE-NOTES-v1.0.7.md
       - Release Notes v1.0.0-ocp4.20: releases/RELEASE_NOTES_v1.0.0-ocp4.20.md
-      - Roadmap Reconciliation: ROADMAP-MILESTONE-RECONCILE.md
+      - Roadmap Reconciliation: explanation/ROADMAP_MILESTONE_RECONCILE.md
 
   - Project:
       - Contributing: contributing.md
