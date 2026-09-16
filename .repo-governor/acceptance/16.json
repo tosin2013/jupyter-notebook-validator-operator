@@ -21,6 +21,7 @@
   ],
   "covers": {
     "declared": "Makefile VERSION, Helm chart version, bundle CSV name, and CHANGELOG section for 1.0.9",
-    "uncovered": "Quay image/bundle push; OperatorHub PRs; live OCP 4.20 install; issue text still asks for spec.replaces which ADR-055 replaced with olm.skipRange \u2014 that field is not this bar"
+    "uncovered": "Quay image/bundle push; OperatorHub PRs; live OCP 4.20 install; issue text still asks for spec.replaces which ADR-055 replaced with olm.skipRange — that field is not this bar",
+    "split_to": ["39", "68"]
   }
 }
