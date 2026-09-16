@@ -127,6 +127,7 @@ nav:
       - Community Observability: how-to/COMMUNITY_OBSERVABILITY.md
       - Contributing Model Platforms: how-to/CONTRIBUTING_MODEL_PLATFORMS.md
       - Dashboard Contributing: how-to/DASHBOARD_CONTRIBUTING.md
+      - AWS Storage: how-to/AWS_STORAGE_GUIDE.md
 
   - Reference:
       - Testing Guide: reference/TESTING_GUIDE.md
@@ -148,6 +149,7 @@ nav:
       - Release Notes v1.0.7: releases/RELEASE-NOTES-v1.0.7.md
       - Release Notes v1.0.0-ocp4.20: releases/RELEASE_NOTES_v1.0.0-ocp4.20.md
       - Roadmap Reconciliation: explanation/ROADMAP_MILESTONE_RECONCILE.md
+      - OLM Strategy: explanation/OLM_STRATEGY.md
 
   - Project:
       - Contributing: contributing.md

@@ -1,0 +1,18 @@
+{
+  "$comment": "Issue #92: Document OLM v1 GA status and operator's OLM Classic strategy.",
+  "authority_id": "92",
+  "criteria": [
+    {
+      "check": "file_exists",
+      "target": "docs/explanation/OLM_STRATEGY.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'OLM Classic' docs/explanation/OLM_STRATEGY.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'OLM v1' docs/reference/OPENSHIFT_SUPPORT_MATRIX_AND_STRATEGY.md"
+    }
+  ]
+}
