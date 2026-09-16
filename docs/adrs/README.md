@@ -107,7 +107,10 @@ Architectural Decision Records document important architectural decisions made d
 | [046](046-multi-version-bundle-strategy-and-upgrade-chain.md) | Multi-Version Bundle Strategy and Upgrade Chain | Accepted | 2025-12-03 |
 | [047](047-fix-bundle-versioning-consecutive-upgrade-chain.md) | Fix Bundle Versioning for Consecutive Upgrade Chain | Superseded | 2025-12-03 |
 | [055](055-operatorhub-submission-lessons-learned.md) | OperatorHub Submission Lessons Learned (v1.0.8) | Accepted | 2026-04-22 |
+| [056](056-openshift-support-window-4.20-4.22.md) | OpenShift Support Window 4.20–4.22 | Accepted | 2026-09-12 |
 | [057](057-upgrade-from-published-v1.0.3-ocp4.19.md) | Upgrade from Published v1.0.3-ocp4.19 | Accepted | 2026-01-25 |
+| [058](058-openshift-e2e-optional-ci-strategy.md) | OpenShift E2E Optional CI Strategy | Accepted | 2026-09-13 |
+| [059](059-k8s-client-library-upgrade-v0.35.md) | k8s.io Client Library Upgrade to v0.35.x for OCP 4.22 | Proposed | 2026-09-16 |
 
 ## ADR Status Definitions
 

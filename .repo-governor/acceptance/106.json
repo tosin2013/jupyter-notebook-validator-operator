@@ -1,0 +1,22 @@
+{
+  "$comment": "Issue #106: Upgrade k8s.io to v0.35.x and controller-runtime to v0.23.x.",
+  "authority_id": "106",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "grep -q 'k8s.io/api v0.35' go.mod"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'controller-runtime v0.23' go.mod"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'ENVTEST_K8S_VERSION = 1.35' Makefile"
+    },
+    {
+      "check": "command_exit",
+      "target": "make test 2>&1 | tail -1 | grep -q 'ok\\|PASS'"
+    }
+  ]
+}
