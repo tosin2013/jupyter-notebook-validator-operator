@@ -1,0 +1,44 @@
+# Example: NotebookValidationJob using IRSA (IAM Roles for Service Accounts)
+#
+# On EKS and ROSA, IRSA lets pods assume an IAM role without static credentials.
+# The operator's service account (or a dedicated SA) is annotated with the IAM role ARN,
+# and AWS SDK calls inside the notebook automatically use that role.
+#
+# Prerequisites:
+#   1. IAM OIDC provider configured for the cluster
+#   2. IAM role created with a trust policy for the service account
+#   3. ServiceAccount annotated with eks.amazonaws.com/role-arn
+#
+# See docs/how-to/NOTEBOOK_CREDENTIALS_GUIDE.md for the full IRSA guide.
+
+# Step 1: Create a ServiceAccount annotated with the IAM role
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: notebook-validation-sa
+  namespace: notebook-validation
+  annotations:
+    # Replace with your actual IAM role ARN
+    eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/notebook-validation-role"
+---
+# Step 2: Create the NotebookValidationJob using the annotated ServiceAccount
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: validate-with-irsa
+  namespace: notebook-validation
+spec:
+  notebook:
+    path: notebooks/s3-data-pipeline.ipynb
+    git:
+      url: https://github.com/org/ml-notebooks.git
+      ref: main
+  podConfig:
+    image: quay.io/jupyter/scipy-notebook:latest
+    serviceAccountName: notebook-validation-sa
+    env:
+      - name: AWS_DEFAULT_REGION
+        value: "us-east-1"
+      - name: S3_BUCKET
+        value: "my-ml-datasets"
+  timeout: "30m"

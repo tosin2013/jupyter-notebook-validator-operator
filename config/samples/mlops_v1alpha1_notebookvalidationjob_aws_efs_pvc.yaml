@@ -1,0 +1,52 @@
+# Example: NotebookValidationJob with AWS EFS (ReadWriteMany) for shared datasets
+#
+# Uses the efs-sc StorageClass for shared storage across multiple pods.
+# EFS volumes are ReadWriteMany — multiple validation pods can read the same
+# dataset simultaneously. Ideal for:
+#   - Shared test datasets across concurrent validation jobs
+#   - Large model artifacts that should not be copied per-pod
+#   - Multi-user validation environments
+#
+# Prerequisites:
+#   1. AWS EFS CSI driver installed (OpenShift: via Operator, EKS: via add-on)
+#   2. EFS filesystem created in the same VPC as the cluster
+#   3. efs-sc StorageClass configured with the filesystem ID
+#
+# See docs/how-to/AWS_STORAGE_GUIDE.md for EBS vs EFS guidance.
+
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: validate-with-efs-shared
+  namespace: notebook-validation
+spec:
+  notebook:
+    path: notebooks/large-dataset-analysis.ipynb
+    git:
+      url: https://github.com/org/ml-notebooks.git
+      ref: main
+  podConfig:
+    image: quay.io/jupyter/scipy-notebook:latest
+    volumes:
+      - name: shared-datasets
+        persistentVolumeClaim:
+          claimName: shared-datasets-efs
+    volumeMounts:
+      - name: shared-datasets
+        mountPath: /data
+        readOnly: true
+  timeout: "45m"
+---
+# PVC using efs-sc (ReadWriteMany)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-datasets-efs
+  namespace: notebook-validation
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: efs-sc
+  resources:
+    requests:
+      storage: 100Gi

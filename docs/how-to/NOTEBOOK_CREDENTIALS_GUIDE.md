@@ -1048,6 +1048,99 @@ ExternalSecret status: SecretSyncedError
    print("Available env vars:", list(os.environ.keys()))
    ```
 
+## AWS Integration
+
+### AWS Secrets Manager with External Secrets Operator
+
+On ROSA and EKS, the recommended pattern uses the External Secrets Operator (ESO) to pull
+credentials from AWS Secrets Manager and create Kubernetes Secrets that the operator can inject.
+
+```yaml
+# 1. Create a ClusterSecretStore pointing to AWS Secrets Manager
+apiVersion: external-secrets.io/v1beta1
+kind: ClusterSecretStore
+metadata:
+  name: aws-secrets-manager
+spec:
+  provider:
+    aws:
+      service: SecretsManager
+      region: us-east-1
+      auth:
+        jwt:
+          serviceAccountRef:
+            name: external-secrets-sa
+            namespace: external-secrets
+---
+# 2. Create an ExternalSecret that syncs specific keys
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: ml-api-credentials
+  namespace: notebook-validation
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: ml-api-credentials
+    creationPolicy: Owner
+  data:
+    - secretKey: API_KEY
+      remoteRef:
+        key: prod/ml-api-keys
+        property: api_key
+    - secretKey: MODEL_ENDPOINT
+      remoteRef:
+        key: prod/ml-api-keys
+        property: model_endpoint
+```
+
+Then reference the synced secret in your `NotebookValidationJob`:
+
+```yaml
+spec:
+  podConfig:
+    credentials:
+      - ml-api-credentials   # All keys injected as env vars
+```
+
+See the full example at [`config/samples/mlops_v1alpha1_notebookvalidationjob_aws_secrets_manager.yaml`](../../config/samples/mlops_v1alpha1_notebookvalidationjob_aws_secrets_manager.yaml).
+
+### IRSA (IAM Roles for Service Accounts)
+
+IRSA lets pods assume an IAM role without static credentials. This is the recommended pattern for
+notebooks that access AWS services (S3, SageMaker, Bedrock) directly.
+
+```yaml
+# 1. Create a ServiceAccount annotated with the IAM role
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: notebook-validation-sa
+  namespace: notebook-validation
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/notebook-validation-role"
+---
+# 2. Reference the SA in the NotebookValidationJob
+apiVersion: mlops.mlops.dev/v1alpha1
+kind: NotebookValidationJob
+metadata:
+  name: validate-with-irsa
+spec:
+  podConfig:
+    serviceAccountName: notebook-validation-sa
+    env:
+      - name: AWS_DEFAULT_REGION
+        value: "us-east-1"
+```
+
+The AWS SDK inside the notebook automatically uses the IRSA-provided temporary credentials.
+No `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` environment variables are needed.
+
+See the full example at [`config/samples/mlops_v1alpha1_notebookvalidationjob_irsa.yaml`](../../config/samples/mlops_v1alpha1_notebookvalidationjob_irsa.yaml).
+
 ## Additional Resources
 
 - [ADR-014: Notebook Credential Injection Strategy](adrs/014-notebook-credential-injection-strategy.md)
