@@ -28,12 +28,12 @@ The buildah task used for building container images requires privileged access. 
 #### Why is this needed?
 
 - The buildah task needs to run containers with elevated privileges to build images
-- OpenShift's default `restricted-v2` SCC doesn't allow the necessary capabilities
+- The OpenShift default `restricted-v2` SCC does not allow the necessary capabilities
 - The `pipelines-scc` SCC is specifically designed for Tekton build tasks
 
 #### Setup Instructions
 
-**For each namespace where you'll run Tekton builds**, grant the `pipelines-scc` to the `pipeline` ServiceAccount:
+**For each namespace where you will run Tekton builds**, grant the `pipelines-scc` to the `pipeline` ServiceAccount:
 
 ```bash
 # Replace <namespace> with your target namespace
@@ -68,12 +68,12 @@ oc describe sa pipeline -n <namespace>
 When you create a NotebookValidationJob with Tekton build enabled:
 
 1. **Operator checks for pipeline ServiceAccount**
-   - If it doesn't exist, the operator creates it automatically
+   - If it does not exist, the operator creates it automatically
    - The ServiceAccount is labeled with `app.kubernetes.io/managed-by: jupyter-notebook-validator-operator`
 
 2. **Operator logs a warning if SCC is not granted**
    - The operator cannot grant SCC permissions itself (requires cluster-admin)
-   - You'll see a log message: "NOTE: The pipeline ServiceAccount needs pipelines-scc..."
+   - You will see a log message: "NOTE: The pipeline ServiceAccount needs pipelines-scc..."
 
 3. **PipelineRun uses the pipeline ServiceAccount**
    - All Tekton tasks run with the `pipeline` ServiceAccount
@@ -81,7 +81,7 @@ When you create a NotebookValidationJob with Tekton build enabled:
 
 ### What Happens Without pipelines-scc?
 
-If the `pipeline` ServiceAccount doesn't have `pipelines-scc`, the buildah task will fail with:
+If the `pipeline` ServiceAccount does not have `pipelines-scc`, the buildah task will fail with:
 
 ```
 pods "...-build-image-pod" is forbidden: unable to validate against any security context constraint
@@ -105,7 +105,7 @@ Grant `pipelines-scc` to the `pipeline` ServiceAccount:
 oc adm policy add-scc-to-user pipelines-scc -z pipeline -n <namespace>
 ```
 
-### Issue: pipeline ServiceAccount doesn't exist
+### Issue: pipeline ServiceAccount does not exist
 
 **Symptoms:**
 ```
@@ -113,7 +113,7 @@ Error from server (NotFound): serviceaccounts "pipeline" not found
 ```
 
 **Solution:**
-The operator creates the ServiceAccount automatically when you create a NotebookValidationJob with Tekton build enabled. If it doesn't exist:
+The operator creates the ServiceAccount automatically when you create a NotebookValidationJob with Tekton build enabled. If it does not exist:
 
 1. Check operator logs for errors:
    ```bash

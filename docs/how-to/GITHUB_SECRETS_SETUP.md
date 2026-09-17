@@ -6,7 +6,7 @@
 This guide explains how to configure GitHub Secrets for the CI/CD pipeline (ADR-032 and ADR-033).
 
 > **See also:** [CI_CLUSTER_SETUP.md](CI_CLUSTER_SETUP.md) for the full OpenShift cluster
-> registration guide — service account creation, token rotation, test topology, and how to
+> registration guide, covering service account creation, token rotation, test topology, and how to
 > trigger OpenShift E2E tests on a PR.
 
 ## Overview
@@ -237,7 +237,7 @@ quay.io/takinosh/jupyter-notebook-validator-operator
 
 ### Available Tags
 - `latest` - Latest build from main branch
-- `v0.1.0`, `v0.2.0`, etc. - Release versions
+- `v0.1.0`, `v0.2.0`, and similar - Release versions
 - `main-<sha>` - Commit-specific builds
 - `dev-<branch>` - Development branch builds
 
@@ -266,7 +266,7 @@ kubectl set image deployment/controller-manager \
    - Uses: `QUAY_USERNAME` and `QUAY_PASSWORD` for authentication
 
 2. **`.github/workflows/release.yml`**
-   - Triggers: Git tag push (e.g., `v0.1.0`)
+   - Triggers: Git tag push (for example, `v0.1.0`)
    - Actions: Build binaries, create release, push images
    - Uses: `QUAY_USERNAME` and `QUAY_PASSWORD` for bundle image push
 

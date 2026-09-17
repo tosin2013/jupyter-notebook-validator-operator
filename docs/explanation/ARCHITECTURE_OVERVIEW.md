@@ -6,9 +6,9 @@ The Jupyter Notebook Validator Operator is a Kubernetes-native tool designed to 
 
 ## Quick Reference
 
-- **Language**: Go 1.21+
-- **Framework**: Operator SDK v1.32.0+
-- **Primary Platform**: OpenShift 4.20+ (certified: 4.20/4.21/4.22 per ADR-056), Kubernetes 1.31+
+- **Language**: Go 1.22+
+- **Framework**: Operator SDK v1.37.0+
+- **Primary Platform**: OpenShift 4.20+ (certified: 4.20/4.21/4.22 per ADR-056), Kubernetes 1.31-1.35
 - **CRD**: `NotebookValidationJob` (mlops.dev/v1alpha1)
 - **Deployment**: OLM Bundle (primary), Helm Chart (secondary), Raw Manifests (tertiary)
 - **Distribution**: OpenShift OperatorHub, Red Hat Catalog, OperatorHub.io, Artifact Hub
@@ -33,12 +33,12 @@ The Jupyter Notebook Validator Operator is a Kubernetes-native tool designed to 
 
 **Phases**:
 1. **Phase 1**: OpenShift 4.20 foundation (released)
-2. **Phase 2**: OpenShift 4.21 and 4.22 expansion
-3. **Phase 3 (Months 7-9)**: Kubernetes 1.25+ community support
+2. **Phase 2**: OpenShift 4.21 and 4.22 expansion (current)
+3. **Phase 3 (Months 7-9)**: Kubernetes 1.31+ community support
 
 **Support Tiers**:
 - **Tier 1**: OpenShift 4.20-4.22 (certified, full support per ADR-056)
-- **Tier 2**: Kubernetes 1.31+ (community, best-effort)
+- **Tier 2**: Kubernetes 1.31-1.35 (community, best-effort)
 
 **Why**: Balances enterprise needs with community adoption, manages risk through incremental expansion
 
@@ -196,7 +196,7 @@ The Jupyter Notebook Validator Operator is a Kubernetes-native tool designed to 
 
 **Goals**:
 - ✅ Core operator functionality
-- ✅ Production-ready on OpenShift 4.18
+- ✅ Production-ready on OpenShift 4.20+
 - ✅ OLM bundle published to community catalog
 - ✅ Comprehensive test suite
 
@@ -209,7 +209,7 @@ The Jupyter Notebook Validator Operator is a Kubernetes-native tool designed to 
 ### Phase 2: OpenShift Expansion (Months 4-6)
 
 **Goals**:
-- ✅ Support OpenShift 4.19 & 4.20
+- ✅ Support OpenShift 4.20, 4.21, and 4.22
 - ✅ Red Hat certification
 - ✅ Multi-version testing
 - ✅ API stability improvements
@@ -223,7 +223,7 @@ The Jupyter Notebook Validator Operator is a Kubernetes-native tool designed to 
 ### Phase 3: Kubernetes Community (Months 7-9)
 
 **Goals**:
-- ✅ Support Kubernetes 1.25+
+- ✅ Support Kubernetes 1.31-1.35
 - ✅ Helm chart distribution
 - ✅ Community adoption
 - ✅ Multiple distribution channels
@@ -252,11 +252,11 @@ The Jupyter Notebook Validator Operator is a Kubernetes-native tool designed to 
 
 ### Test Matrix (Phase 3)
 
-| Test Type | OpenShift 4.18 | OpenShift 4.19 | OpenShift 4.20 | K8s 1.25+ |
-|-----------|----------------|----------------|----------------|-----------|
-| Unit      | ✅             | ✅             | ✅             | ✅        |
-| Integration | ✅           | ✅             | ✅             | ✅        |
-| E2E       | ✅             | ✅             | ✅             | ✅        |
+| Test Type | OpenShift 4.20 | OpenShift 4.21 | OpenShift 4.22 | K8s 1.31-1.35 |
+|-----------|----------------|----------------|----------------|---------------|
+| Unit      | ✅             | ✅             | ✅             | ✅            |
+| Integration | ✅           | ✅             | ✅             | ✅            |
+| E2E       | ✅             | ✅             | ✅             | ✅            |
 
 ## Key Metrics
 
@@ -295,7 +295,7 @@ The Jupyter Notebook Validator Operator is a Kubernetes-native tool designed to 
 3. **Build Test Suite** (Weeks 9-10)
    - Unit tests
    - Integration tests
-   - E2E tests on OpenShift 4.18
+   - E2E tests on OpenShift 4.20+
 
 4. **Create OLM Bundle** (Week 11)
    - ClusterServiceVersion

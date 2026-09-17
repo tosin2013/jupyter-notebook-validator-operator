@@ -35,10 +35,10 @@ flowchart TD
 
 | Workflow | Cluster | Triggers | Always-on |
 |---|---|---|---|
-| `ci.yml` — lint / build / security | none | every push / PR | yes |
-| `ci-unit-tests.yaml` — unit + Kind integration | Kind (ephemeral) | every push / PR | yes |
-| `e2e-kind.yaml` — Tier 1 E2E | Kind (ephemeral) | every push / PR | yes |
-| `e2e-openshift.yaml` — Tiers 2-5 E2E | live OCP cluster | push to `main`/`release-*`, or PR with `e2e-test` label | no — skips when no cluster registered |
+| `ci.yml` - lint / build / security | none | every push / PR | yes |
+| `ci-unit-tests.yaml` - unit + Kind integration | Kind (ephemeral) | every push / PR | yes |
+| `e2e-kind.yaml` - Tier 1 E2E | Kind (ephemeral) | every push / PR | yes |
+| `e2e-openshift.yaml` - Tiers 2-5 E2E | live OCP cluster | push to `main`/`release-*`, or PR with `e2e-test` label | no - skips when no cluster registered |
 
 ---
 
@@ -105,7 +105,7 @@ oc get secret github-ci-token -n ci-service-accounts \
   -o jsonpath='{.data.token}' | base64 -d
 ```
 
-Save the output — it is the value for the `OPENSHIFT_TOKEN` secret.
+Save the output - it is the value for the `OPENSHIFT_TOKEN` secret.
 
 ---
 
@@ -153,7 +153,7 @@ gh secret list
 ### Automatic triggers
 
 OpenShift E2E tests run automatically on every push to `main` or any
-`release-*` branch — provided both `OPENSHIFT_SERVER` and `OPENSHIFT_TOKEN`
+`release-*` branch - provided both `OPENSHIFT_SERVER` and `OPENSHIFT_TOKEN`
 are set.
 
 ### On a pull request
@@ -196,7 +196,7 @@ job is skipped, and `e2e-status` exits successfully.
 
 The badge will appear grey (no recent run) or show "skipped" when no cluster
 is registered. This is by design (implemented in commit `10ae47f`). Only a
-red badge — meaning the job ran and failed — requires investigation.
+red badge - meaning the job ran and failed - requires investigation.
 
 ---
 
@@ -234,7 +234,7 @@ gh secret set OPENSHIFT_TOKEN --body "$NEW_TOKEN"
 
 ## See Also
 
-- [GITHUB_SECRETS_SETUP.md](GITHUB_SECRETS_SETUP.md) — full secrets inventory for all CI workflows
-- [.github/workflows/e2e-openshift.yaml](../.github/workflows/e2e-openshift.yaml) — `check-cluster` job implementation
-- [ADR-033](adrs/033-e2e-testing-against-live-openshift-cluster.md) — E2E testing decision
-- [ADR-034](adrs/034-dual-testing-strategy-kind-and-openshift.md) — dual testing strategy
+- [GITHUB_SECRETS_SETUP.md](GITHUB_SECRETS_SETUP.md) - full secrets inventory for all CI workflows
+- [.github/workflows/e2e-openshift.yaml](../.github/workflows/e2e-openshift.yaml) - `check-cluster` job implementation
+- [ADR-033](adrs/033-e2e-testing-against-live-openshift-cluster.md) - E2E testing decision
+- [ADR-034](adrs/034-dual-testing-strategy-kind-and-openshift.md) - dual testing strategy

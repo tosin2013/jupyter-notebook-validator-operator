@@ -3,12 +3,12 @@
 > **Requires:** Kubernetes or OpenShift cluster
 
 
-**Date:** April 21, 2026 (updated — original November 8, 2025)
+**Date:** April 21, 2026 (updated, original November 8, 2025)
 **Status:** Active
 
 ## Executive Summary
 
-Based on the official Red Hat OpenShift lifecycle data (updated April 2026 — OCP 4.21 is now GA):
+Based on the official Red Hat OpenShift lifecycle data (updated April 2026, OCP 4.21 is now GA):
 
 **🎯 CERTIFIED SUPPORT WINDOW (ADR-056): OCP 4.20 / 4.21 / 4.22. OCP 4.18 dropped (maintenance ended 2026-08-25). OCP 4.19 best-effort.**
 
@@ -26,8 +26,8 @@ Based on the official Red Hat OpenShift lifecycle data (updated April 2026 — O
 
 ### Key Observations
 
-1. **4.21 is the LATEST** (released April 2026 — GA)
-2. **4.18 is in Maintenance/EUS Support** — operator support will be dropped when 4.22 ships
+1. **4.21 is the LATEST** (released April 2026, GA)
+2. **4.18 is in Maintenance/EUS Support**. Operator support will be dropped when 4.22 ships
 3. **4.20 is an EUS release** (even-numbered = Extended Update Support)
 4. **4.18 is an EUS release** (even-numbered = Extended Update Support)
 5. **Rolling 3-version active window: 4.19 / 4.20 / 4.21**
@@ -42,6 +42,7 @@ Based on research and OpenShift release patterns:
 | **4.19** | **1.32** | 1.23+ | **v0.32.x** | ✅ Full Support |
 | **4.20** | **1.33** | 1.24+ | **v0.33.x** | ✅ Full Support |
 | **4.21** | **1.34** | 1.24+ | **v0.34.x** | ✅ **GA (April 2026)** |
+| **4.22** | **1.35** | 1.24+ | **v0.35.x** | 🔄 **Planned (EUS)** |
 
 ## Extended Update Support (EUS) Strategy
 
@@ -82,7 +83,7 @@ Based on research and OpenShift release patterns:
 
 **Timeline:**
 - **Nov 2025**: Initial development on 4.18
-- **Apr 2026**: 4.21 GA — 4.18 now clearly dated; rolling window shifts to 4.19/4.20/4.21
+- **Apr 2026**: 4.21 GA. 4.18 now clearly dated; rolling window shifts to 4.19/4.20/4.21
 - **Aug 2026**: 4.18 Maintenance Support ends
 - **Feb 2027**: 4.18 EUS Term 1 ends (if purchased)
 - **Feb 2028**: 4.18 EUS Term 2 ends (if purchased)
@@ -111,7 +112,7 @@ Based on research and OpenShift release patterns:
 
 **Timeline:**
 - **Oct 2025**: Develop on 4.20
-- **Apr 2026**: 4.21 GA — 4.20 compatibility confirmed
+- **Apr 2026**: 4.21 GA. 4.20 compatibility confirmed
 - **Apr 2027**: 4.20 Maintenance Support ends
 - **Oct 2027**: 4.20 EUS Term 1 ends
 - **Oct 2028**: 4.20 EUS Term 2 ends
@@ -161,16 +162,16 @@ Based on research and OpenShift release patterns:
 
 ### **Active Support Window: OCP 4.19 / 4.20 / 4.21**
 
-**Primary Target:** OpenShift 4.20 (Kubernetes 1.33, k8s.io v0.33.x) — EUS, long support  
-**Full Support:** OpenShift 4.21 (Kubernetes 1.34, k8s.io v0.34.x) — newest GA  
-**Maintenance Support:** OpenShift 4.19 — active but entering end-of-life window  
+**Primary Target:** OpenShift 4.20 (Kubernetes 1.33, k8s.io v0.33.x), EUS, long support  
+**Full Support:** OpenShift 4.21 (Kubernetes 1.34, k8s.io v0.34.x), newest GA  
+**Maintenance Support:** OpenShift 4.19, active but entering end-of-life window  
 **Dropped:** 4.18 removed from active CI; maintained via EUS track only for existing users
 
 ### Rationale
 
-1. **4.21 is now GA** (released April 2026) — rolling window shifts to 4.19/4.20/4.21
+1. **4.21 is now GA** (released April 2026). Rolling window shifts to 4.19/4.20/4.21
 2. **EUS Benefits**: 4.20 has long support (up to Oct 2028 with EUS Term 2)
-3. **OCP-stream versioning**: v1.0.8 → OCP 4.19+, v1.0.9 → OCP 4.20+, v1.0.10 → OCP 4.21+
+3. **OCP-stream versioning**: v1.0.8 → OCP 4.19+, v1.0.9 → OCP 4.20+, v1.0.10 → OCP 4.22+
 4. **EUS Upgrade Path**: Clean EUS-to-EUS upgrades (4.20 → 4.22 → 4.24)
 
 ### Implementation Strategy (Current)

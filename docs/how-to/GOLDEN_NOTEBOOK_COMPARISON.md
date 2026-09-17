@@ -129,7 +129,7 @@ status:
 
 ### Diff Format
 
-When cells don't match, diffs are generated:
+When cells do not match, diffs are generated:
 
 ```yaml
 diffs:
@@ -143,10 +143,10 @@ diffs:
 
 ### Diff Types
 
-- **output_mismatch**: Cell outputs don't match
+- **output_mismatch**: Cell outputs do not match
 - **extra_cell**: Executed notebook has extra cells
 - **missing_cell**: Executed notebook is missing cells
-- **cell_type_mismatch**: Cell types don't match
+- **cell_type_mismatch**: Cell types do not match
 
 ### Severity Levels
 

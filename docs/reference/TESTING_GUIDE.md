@@ -478,7 +478,7 @@ kubectl patch notebookvalidationjob test-model-training \
 | Project overall | **41%** | v1.0.10 → 50%, v1.1.0 → 60%, stretch → 75% |
 | Patch (new code) | **−5% max** | A PR must not drop coverage by more than 5 points |
 
-These thresholds are enforced automatically on every PR by Codecov. The project gate is set at the current baseline so PRs are not blocked unfairly — raise `.codecov.yml` `target:` as coverage improves milestone by milestone. The `api/v1alpha1` package is the biggest gap (5.21%); adding generated-type validation tests there will have the largest impact on the overall number.
+These thresholds are enforced automatically on every PR by Codecov. The project gate is set at the current baseline so PRs are not blocked unfairly. Raise `.codecov.yml` `target:` as coverage improves milestone by milestone. The `api/v1alpha1` package is the biggest gap (5.21%); adding generated-type validation tests there will have the largest impact on the overall number.
 
 ### Running Coverage Locally
 

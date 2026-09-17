@@ -18,7 +18,7 @@ E2E tests validate complete workflows from start to finish:
 
 ### Required
 
-- Access to OpenShift 4.18+ or Kubernetes 1.31+ cluster
+- Access to OpenShift 4.20+ or Kubernetes 1.31+ cluster
 - `kubectl` or `oc` CLI configured
 - Go 1.21+ installed
 - Cluster admin permissions (for creating namespaces and resources)

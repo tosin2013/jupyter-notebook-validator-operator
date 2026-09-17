@@ -128,7 +128,7 @@ The Jupyter Notebook Validator Operator provides **5 built-in dashboards** for c
 **Use Case:** ML teams with complex model validation workflows  
 
 **Metrics:**
-- Model health checks by platform (KServe, OpenShift AI, vLLM, etc.)
+- Model health checks by platform (KServe, OpenShift AI, vLLM, and others)
 - Prediction validation results with tolerance analysis
 - Platform detection success rate
 - Model validation duration by platform
@@ -400,5 +400,5 @@ See `internal/controller/metrics.go` for complete metric definitions.
 
 ---
 
-**🎉 We can't wait to see what you build!**
+**🎉 We cannot wait to see what you build!**
 

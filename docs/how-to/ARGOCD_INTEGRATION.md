@@ -27,7 +27,7 @@ The jupyter-notebook-validator-operator manages the validation and execution of 
 
 ### Why ArgoCD Integration Matters
 
-**Problem:** Model training notebooks complete successfully, but InferenceServices don't know when to reload new models.
+**Problem:** Model training notebooks complete successfully, but InferenceServices do not know when to reload new models.
 
 **Solution:** ArgoCD integration enables automatic coordination between notebook execution (training) and model serving (inference).
 
@@ -287,7 +287,7 @@ resource.customizations.health.mlops.mlops.dev_NotebookValidationJob: |
 
 ### Proposed Usage
 
-When implemented, you'll be able to automatically trigger resource updates when notebooks succeed:
+When implemented, you will be able to automatically trigger resource updates when notebooks succeed:
 
 ```yaml
 apiVersion: mlops.mlops.dev/v1alpha1
@@ -498,7 +498,7 @@ spec:
 
 ---
 # Stage 5 (Wave 4): Deploy InferenceService
-# NOTE: Currently deploys after wave 3, but doesn't wait for completion
+# NOTE: Currently deploys after wave 3, but does not wait for completion
 # Feature 3 (sync wave coordination) will add waiting capability
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
@@ -669,7 +669,7 @@ kubectl get notebookvalidationjob -n <namespace> -o json | \
    kubectl logs <validation-pod-name>
    ```
 
-2. **Delete failed jobs** (if they're old/irrelevant):
+2. **Delete failed jobs** (if they are old or irrelevant):
    ```bash
    kubectl delete notebookvalidationjob <failed-job-name>
    ```

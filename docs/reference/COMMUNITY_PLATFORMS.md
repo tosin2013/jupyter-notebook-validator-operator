@@ -52,7 +52,7 @@
 **Why KServe?**
 - Most widely adopted open-source model serving platform
 - Works on any Kubernetes cluster
-- Supports multiple frameworks (TensorFlow, PyTorch, ONNX, etc.)
+- Supports multiple frameworks (TensorFlow, PyTorch, ONNX, and others)
 - Active community and regular updates
 
 **Example Usage:**
@@ -84,7 +84,7 @@ spec:
 
 ### OpenShift AI
 - **Status**: ✅ Built-in, fully supported
-- **Platform**: OpenShift 4.18+
+- **Platform**: OpenShift 4.20+
 - **CRD**: `serving.kserve.io/v1beta1/InferenceService` (KServe-based)
 - **Documentation**: [OpenShift AI Docs](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/)
 - **Example**: See `config/samples/model-validation-openshift-ai.yaml`
@@ -151,7 +151,7 @@ The following platforms are **documented for community contributions**. We welco
 - **Volunteer**: 🙋 **[Claim this platform!](https://github.com/your-org/jupyter-notebook-validator-operator/issues/new?title=Volunteer%20for%20vLLM%20integration)**
 
 **Key Features:**
-- Optimized for LLM inference (Llama, Mistral, GPT, etc.)
+- Optimized for LLM inference (Llama, Mistral, GPT, and others)
 - PagedAttention for efficient memory usage
 - OpenAI-compatible API
 - Continuous batching for high throughput

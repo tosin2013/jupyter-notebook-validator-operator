@@ -140,7 +140,7 @@ spec:
 ### When to Use Standard Data Science
 
 ✅ **Use `s2i-generic-data-science-notebook` when**:
-- You need common data science libraries (pandas, numpy, scikit-learn, etc.)
+- You need common data science libraries (pandas, numpy, scikit-learn, and similar)
 - You want faster build times (libraries pre-installed)
 - You're working with typical ML/AI workloads
 - You want a standardized environment

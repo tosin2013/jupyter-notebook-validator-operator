@@ -3,8 +3,8 @@
 > **Requires:** Kubernetes or OpenShift cluster
 
 
-**Last Updated**: 2025-11-09  
-**Operator Version**: 0.1.0 (release-4.18 branch)
+**Last Updated**: 2026-09-17  
+**Operator Version**: 1.0.10 (release-4.22 branch)
 
 ## Overview
 
@@ -14,9 +14,9 @@ This document tracks the compatibility of the Jupyter Notebook Validator Operato
 
 | Operator Version | OpenShift      | Kubernetes     | Tekton Pipelines | OpenShift AI   | Status      |
 |------------------|----------------|----------------|------------------|----------------|-------------|
-| 0.1.0            | 4.18.21        | 1.31.10        | 1.17.0           | 2025.1         | ✅ Tested   |
-| 0.1.0            | 4.18.x         | 1.31.x         | 1.17.x           | 2025.1         | ✅ Expected |
-| 0.2.0 (planned)  | 4.18-4.19      | 1.31-1.32      | 1.17-1.18        | 2025.1-2025.2  | 🔄 Planned  |
+| 0.1.0            | 4.18.21        | 1.31.10        | 1.17.0           | 2025.1         | ⚠️ Deprecated |
+| 1.0.9            | 4.20           | 1.33           | 1.17.0           | 2025.1         | ✅ Tested   |
+| 1.0.10           | 4.20-4.22      | 1.31-1.35      | 1.17+            | 2025.1+        | ✅ Current  |
 
 **Legend**:
 - ✅ Tested: Verified working on this exact version
@@ -107,14 +107,14 @@ This document tracks the compatibility of the Jupyter Notebook Validator Operato
 
 ## Known Issues and Workarounds
 
-### OpenShift 4.18.21
+### OpenShift 4.20-4.22
 
 **Issue**: None currently known  
 **Status**: ✅ Working
 
 ### Tekton Pipelines 1.17.0
 
-**Issue**: ClusterTasks don't exist, Tasks are namespace-scoped  
+**Issue**: ClusterTasks do not exist, Tasks are namespace-scoped  
 **Workaround**: Copy Tasks to user namespace (implemented in ADR-028)  
 **Status**: ✅ Resolved
 
@@ -129,16 +129,16 @@ This document tracks the compatibility of the Jupyter Notebook Validator Operato
 
 | Platform       | Version | Test Type        | Frequency | Status     | Last Run   |
 |----------------|---------|------------------|-----------|------------|------------|
-| OpenShift      | 4.18.21 | Unit Tests       | Per PR    | ✅ Passing | 2025-11-09 |
-| OpenShift      | 4.18.21 | Integration      | Per PR    | ✅ Passing | 2025-11-09 |
-| OpenShift      | 4.18.21 | E2E (S2I)        | Per PR    | ✅ Passing | 2025-11-09 |
-| OpenShift      | 4.18.21 | E2E (Tekton)     | Manual    | 🔄 Pending | N/A        |
-| Kubernetes     | 1.31.x  | Unit Tests       | Per PR    | ✅ Passing | 2025-11-09 |
-| Kubernetes     | 1.31.x  | Integration      | Manual    | 🔄 Pending | N/A        |
+| OpenShift      | 4.20-4.22 | Unit Tests       | Per PR    | ✅ Passing | 2026-09-17 |
+| OpenShift      | 4.20-4.22 | Integration      | Per PR    | ✅ Passing | 2026-09-17 |
+| OpenShift      | 4.20-4.22 | E2E (S2I)        | Per PR    | ✅ Passing | 2026-09-17 |
+| OpenShift      | 4.20-4.22 | E2E (Tekton)     | Manual    | 🔄 Pending | N/A        |
+| Kubernetes     | 1.31-1.35 | Unit Tests       | Per PR    | ✅ Passing | 2026-09-17 |
+| Kubernetes     | 1.31-1.35 | Integration      | Manual    | 🔄 Pending | N/A        |
 
 ### Manual Testing
 
-| Scenario                                  | OpenShift 4.18 | Kubernetes 1.31 | Notes |
+| Scenario                                  | OpenShift 4.20-4.22 | Kubernetes 1.31-1.35 | Notes |
 |-------------------------------------------|----------------|-----------------|-------|
 | S2I Build with OpenShift AI               | ✅ Tested      | N/A             | Working perfectly |
 | S2I Build with custom base image          | ✅ Tested      | N/A             | Working |
@@ -151,7 +151,7 @@ This document tracks the compatibility of the Jupyter Notebook Validator Operato
 ### From 0.1.0 to 0.2.0 (Planned)
 
 **Prerequisites**:
-- OpenShift 4.18+ or Kubernetes 1.31+
+- OpenShift 4.20+ or Kubernetes 1.31+
 - Tekton Pipelines 1.17+ (if using Tekton builds)
 
 **Breaking Changes**: TBD
@@ -193,8 +193,8 @@ This document tracks the compatibility of the Jupyter Notebook Validator Operato
 
 ### Platform Support
 
-- **OpenShift**: Current and previous minor version (e.g., 4.18, 4.17)
-- **Kubernetes**: Current and previous minor version (e.g., 1.31, 1.30)
+- **OpenShift**: Certified rolling window (currently 4.20, 4.21, 4.22 per ADR-056)
+- **Kubernetes**: Corresponding versions (currently 1.31-1.35)
 - **Tekton**: Current major version (e.g., 1.x)
 
 ## Contributing
@@ -225,7 +225,7 @@ This document is updated:
 - [ADR-029: Platform Version Dependency Review Process](adrs/029-platform-version-dependency-review-process.md)
 - [ADR-027: S2I Build Strategy](adrs/027-s2i-build-strategy-for-git-integration.md)
 - [ADR-028: Tekton Task Strategy](adrs/028-tekton-task-strategy-custom-vs-cluster-tasks.md)
-- [OpenShift Release Notes](https://docs.openshift.com/container-platform/4.18/release_notes/ocp-4-18-release-notes.html)
+- [OpenShift Release Notes](https://docs.openshift.com/container-platform/4.22/release_notes/ocp-4-22-release-notes.html)
 - [Kubernetes Release Notes](https://kubernetes.io/releases/)
 - [Tekton Pipeline Releases](https://github.com/tektoncd/pipeline/releases)
 

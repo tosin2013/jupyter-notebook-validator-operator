@@ -5,7 +5,7 @@ This guide helps you quickly set up and test the CI/CD workflows.
 ## Prerequisites
 
 - GitHub repository with workflows enabled
-- OpenShift 4.18+ cluster access
+- OpenShift 4.20+ cluster access
 - Quay.io account
 
 ## Step 1: Configure GitHub Secrets (5 minutes)
@@ -71,7 +71,7 @@ git push origin test-ci-workflows
 
 **Expected Results:**
 - ✅ Unit tests pass
-- ✅ Integration tests pass on KinD (Kubernetes v1.31.10)
+- ✅ Integration tests pass on KinD (Kubernetes v1.31+)
 - ✅ Build verification passes
 - ✅ Manifest validation passes
 
@@ -221,5 +221,5 @@ For issues:
 
 **Congratulations!** 🎉 Your CI/CD workflows are now configured and tested.
 
-Next: Proceed to Phase 6 (Observability) or prepare for 4.18 release.
+Next: Proceed to Phase 6 (Observability) or prepare for 4.22 release.
 

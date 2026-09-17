@@ -404,9 +404,43 @@ oc logs build/<build-name>
 
 The project uses release branches:
 - `main`: Development branch
-- `release-X.Y`: Stable release branches (e.g., `release-4.20` for OpenShift 4.20)
+- `release-X.Y`: Stable release branches (e.g., `release-4.22` for OpenShift 4.22)
+
+### Pre-Release Documentation Audit
+
+Before tagging a release, run a documentation audit using the `documentation-specialist` skill. The audit checks for:
+
+1. **Stale version references**: OCP versions, K8s versions, operator versions in non-archive docs
+2. **STE100 voice compliance**: No em dashes, no contractions, no Latin abbreviations (`e.g.`, `i.e.`, `etc.`), no sentences starting with So/That/Thus/Hence
+3. **Broken navigation**: All `mkdocs.yml` nav entries resolve to existing files
+4. **README currency**: Badges, GIF links, and version references match the release being tagged
+5. **Orphan documents**: All docs outside `_archive/` appear in `mkdocs.yml` navigation
+
+Quick audit commands:
+```bash
+# Stale OCP/K8s references (exclude archive and ADRs)
+rg "OCP 4\.(18|19)" docs/ --glob "*.md" | grep -v "_archive" | grep -v "adrs/"
+
+# Em dashes (hard ban)
+rg "—" docs/ --glob "*.md" | grep -v "_archive"
+
+# Contractions (STE100 ban)
+rg "don't|doesn't|can't|won't|isn't" docs/ --glob "*.md" | grep -v "_archive" | grep -v "adrs/"
+
+# Latin abbreviations (STE100 ban)
+rg " e\.g\.| i\.e\.| etc\." docs/ --glob "*.md" | grep -v "_archive" | grep -v "adrs/"
+
+# Sentences starting with banned words
+rg "^(So |That |Thus |Hence )" docs/ --glob "*.md" | grep -v "_archive"
+```
+
+### Release Checklist
 
 When creating PRs or commits:
 - Target appropriate branch based on OpenShift/Kubernetes version
 - Update relevant docs in `docs/` if architecture changes
 - Add ADRs for significant design decisions in `docs/adrs/`
+- Run the documentation audit (see above) before tagging
+- Update `CHANGELOG.md` with all milestone issues
+- Rebuild and push operator and bundle images to Quay.io
+- Submit to OperatorHub via `scripts/submit-to-operatorhub.sh`

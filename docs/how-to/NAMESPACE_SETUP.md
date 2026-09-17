@@ -101,7 +101,7 @@ If you need to create a custom ServiceAccount for specific use cases, follow the
 # Set your namespace
 NAMESPACE="your-namespace"
 
-# Create the namespace (if it doesn't exist)
+# Create the namespace (if it does not exist)
 oc create namespace ${NAMESPACE}
 
 # Create ServiceAccount
@@ -186,7 +186,7 @@ oc get certificate -n jupyter-notebook-validator-operator
 You can create NotebookValidationJobs in any namespace without any setup:
 
 ```bash
-# Create a namespace (if it doesn't exist)
+# Create a namespace (if it does not exist)
 oc create namespace my-namespace
 
 # Create a NotebookValidationJob - no ServiceAccount setup needed!
@@ -269,7 +269,7 @@ This is extremely rare as the `default` ServiceAccount is automatically created 
    oc get serviceaccount default -n my-namespace
    ```
 
-3. If it doesn't exist, create it:
+3. If it does not exist, create it:
    ```bash
    oc create serviceaccount default -n my-namespace
    ```

@@ -16,12 +16,12 @@ catalogs. Follow the numbered steps in order.
 | v1.0.5 | 4.18+ | `replaces: v1.0.4` | Submitted |
 | v1.0.6 | 4.18+ | `replaces: v1.0.5` | Submitted |
 | v1.0.7 | 4.18 | `replaces: v1.0.6` | Submitted (merged upstream) |
-| v1.0.8 | 4.19 | `olm.skipRange: >=1.0.2 <1.0.8` | [community-operators-prod PR #9442](https://github.com/redhat-openshift-ecosystem/community-operators-prod/pull/9442) / [community-operators PR #7940](https://github.com/k8s-operatorhub/community-operators/pull/7940) — pending maintainer merge |
-| v1.0.9 | 4.20 | `olm.skipRange: >=1.0.2 <1.0.9` | Not yet released |
-| v1.0.10 | 4.21 | `olm.skipRange: >=1.0.2 <1.0.10` | Planned |
+| v1.0.8 | 4.19 | `olm.skipRange: >=1.0.2 <1.0.8` | [community-operators-prod PR #9442](https://github.com/redhat-openshift-ecosystem/community-operators-prod/pull/9442) / [community-operators PR #7940](https://github.com/k8s-operatorhub/community-operators/pull/7940) - pending maintainer merge |
+| v1.0.9 | 4.20 | `olm.skipRange: >=1.0.2 <1.0.9` | Released |
+| v1.0.10 | 4.22 | `olm.skipRange: >=1.0.2 <1.0.10` | Current |
 
 > **OCP-stream convention:** v1.0.7 → OCP 4.18 | v1.0.8 → OCP 4.19 |
-> v1.0.9 → OCP 4.20 | v1.0.10 → OCP 4.21
+> v1.0.9 → OCP 4.20 | v1.0.10 → OCP 4.22
 >
 > **Upgrade strategy change at v1.0.8:** `spec.replaces` was replaced with
 > `olm.skipRange` because v1.0.7 was submitted with a flat bundle structure
@@ -117,7 +117,7 @@ grep "base64data:" $CSV | sed 's/.*base64data: //' | cut -c1-50
 Replace `VERSION` with the new version number (e.g. `1.0.9`) and `OCP_STREAM`
 with the target OCP minor version (e.g. `4.20`) throughout.
 
-### Step 1 — Create the release branch
+### Step 1 - Create the release branch
 
 ```bash
 VERSION=1.0.9
@@ -129,7 +129,7 @@ git checkout -b release-${OCP_STREAM}
 git push -u origin release-${OCP_STREAM}
 ```
 
-### Step 2 — Bump versions
+### Step 2 - Bump versions
 
 ```bash
 # Makefile
@@ -145,21 +145,21 @@ grep "^VERSION" Makefile
 grep "^version\|^appVersion" $CHART
 ```
 
-### Step 3 — Regenerate manifests and DeepCopy code
+### Step 3 - Regenerate manifests and DeepCopy code
 
 ```bash
 make manifests generate
 git diff --stat   # verify only expected generated files changed
 ```
 
-### Step 4 — Generate the OLM bundle
+### Step 4 - Generate the OLM bundle
 
 ```bash
 make bundle
 ```
 
 After `make bundle`, manually correct the CSV and bundle metadata. **Do NOT
-use `spec.replaces`** — use `olm.skipRange` instead. See
+use `spec.replaces`** - use `olm.skipRange` instead. See
 [Known Pipeline Pitfalls](#known-pipeline-pitfalls) for the reason.
 
 ```bash
@@ -195,7 +195,7 @@ EOF
 # Update containerImage annotation (must match the image tag you will push)
 sed -i "s|containerImage:.*quay.io/takinosh/jupyter-notebook-validator-operator:.*|containerImage: quay.io/takinosh/jupyter-notebook-validator-operator:${VERSION}|" $CSV
 
-# Update bundle/metadata/annotations.yaml — set channel and OCP range
+# Update bundle/metadata/annotations.yaml - set channel and OCP range
 # Edit manually or with sed:
 sed -i "s|operators.operatorframework.io.bundle.channels.v1:.*|operators.operatorframework.io.bundle.channels.v1: stable|" \
     bundle/metadata/annotations.yaml
@@ -211,7 +211,7 @@ grep -E "skipRange|containerImage:|com.redhat.openshift|channels" $CSV bundle/me
 grep "spec.replaces\|^  replaces:" $CSV && echo "ERROR: replaces still present" || echo "OK: no replaces"
 ```
 
-### Step 4.5 — Update the FBC catalog
+### Step 4.5 - Update the FBC catalog
 
 Add the new version to `catalog/catalog.yaml`. Two sections need updating:
 
@@ -265,7 +265,7 @@ make catalog-validate
 
 All checks must pass before proceeding.
 
-### Step 5 — Validate the bundle
+### Step 5 - Validate the bundle
 
 ```bash
 operator-sdk bundle validate ./bundle \
@@ -274,7 +274,7 @@ operator-sdk bundle validate ./bundle \
 
 All checks must pass with no errors before proceeding.
 
-### Step 6 — Build and push images
+### Step 6 - Build and push images
 
 ```bash
 IMG=quay.io/takinosh/jupyter-notebook-validator-operator:${VERSION}
@@ -291,7 +291,7 @@ docker pull ${IMG}
 docker pull ${BUNDLE_IMG}
 ```
 
-### Step 7 — Tag the release and push
+### Step 7 - Tag the release and push
 
 ```bash
 git add Makefile bundle/ helm/ config/
@@ -307,7 +307,7 @@ git push origin v${VERSION}
 Monitor the **Release** workflow in GitHub Actions to confirm images are built
 and the GitHub Release is created.
 
-### Step 8 — Submit to OperatorHub (automated)
+### Step 8 - Submit to OperatorHub (automated)
 
 Use `scripts/submit-to-operatorhub.sh` to automate fork sync, branch creation,
 bundle copy, DCO commit, and PR opening for both upstream repos.
@@ -340,7 +340,7 @@ bundle metadata (provider, maintainer, containerImage), and checks for
 existing open PRs before submitting.
 
 > **OperatorHub requires exactly one commit per PR.** If you need to amend
-> after pushing, squash before force-pushing — never add a second commit:
+> after pushing, squash before force-pushing - never add a second commit:
 > ```bash
 > git add -A
 > git commit --amend -s --no-edit
@@ -375,11 +375,11 @@ entries for each published version. CI validates this file on every PR with
 
 The catalog file (`catalog/catalog.yaml`) contains three schema types:
 
-- **`olm.package`** — declares the operator package name, default channel, and
+- **`olm.package`** - declares the operator package name, default channel, and
   description.
-- **`olm.channel`** — defines upgrade channels (`stable`, `alpha`) with entries
+- **`olm.channel`** - defines upgrade channels (`stable`, `alpha`) with entries
   listing each version and its upgrade path (`skipRange` or `replaces`).
-- **`olm.bundle`** — describes a specific version's bundle image, GVKs,
+- **`olm.bundle`** - describes a specific version's bundle image, GVKs,
   package version, and CSV metadata annotations.
 
 When submitting to OperatorHub via FBC, you submit the catalog tree instead of
@@ -440,12 +440,13 @@ Current status as of April 2026:
 | Version | community-operators-prod | community-operators |
 |---|---|---|
 | v1.0.7 | Merged ✓ | Merged ✓ |
-| v1.0.8 | [PR #9442](https://github.com/redhat-openshift-ecosystem/community-operators-prod/pull/9442) — CI passing, awaiting merge | [PR #7940](https://github.com/k8s-operatorhub/community-operators/pull/7940) — CI passing, awaiting merge |
-| v1.0.9 | Not yet submitted — blocked until v1.0.8 merges | Not yet submitted |
+| v1.0.8 | [PR #9442](https://github.com/redhat-openshift-ecosystem/community-operators-prod/pull/9442) - CI passing, awaiting merge | [PR #7940](https://github.com/k8s-operatorhub/community-operators/pull/7940) - CI passing, awaiting merge |
+| v1.0.9 | Submitted | Submitted |
+| v1.0.10 | Planned | Planned |
 
 Related issues:
-- [#22](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/22) — Resolve OperatorHub submission backlog
-- [#39](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/39) — Automate OperatorHub bundle submission script
+- [#22](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/22) - Resolve OperatorHub submission backlog
+- [#39](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/39) - Automate OperatorHub bundle submission script
 
 ---
 
@@ -454,7 +455,7 @@ Related issues:
 These issues were encountered during the v1.0.8 submission and are documented
 here to prevent repeating them.
 
-### Pitfall 1 — `check_replaces_availability` fails for flat-structure bundles
+### Pitfall 1 - `check_replaces_availability` fails for flat-structure bundles
 
 **Symptom:** The operatorcert static test reports `KeyError: '<version>'`
 inside `check_replaces_availability`, even though the prior version exists in
@@ -489,7 +490,7 @@ operator-sdk bundle validate ./bundle
 
 ---
 
-### Pitfall 2 — Channel trap: `stable,alpha` with a `stable`-only `replaces` target
+### Pitfall 2 - Channel trap: `stable,alpha` with a `stable`-only `replaces` target
 
 **Symptom:** `check_replaces_availability` fails with `KeyError` even when
 `spec.replaces` points to a version that appears to exist.
@@ -512,7 +513,7 @@ with a full, unbroken upgrade chain from the oldest alpha bundle.
 
 ---
 
-### Pitfall 3 — Transient `ppc64le` IIB build failure
+### Pitfall 3 - Transient `ppc64le` IIB build failure
 
 **Symptom:** The `add-bundle-to-index` task in the `operator-hosted-pipeline`
 fails with `IIB build failed` and `Reason: Failed to build the container image
@@ -611,7 +612,7 @@ operator-sdk scorecard bundle \
 
 ## See Also
 
-- [CHANGELOG.md](../CHANGELOG.md) — per-version feature and fix log
-- [Release Notes v1.0.7](../releases/RELEASE-NOTES-v1.0.7.md) — v1.0.7 release notes
-- [CI_CLUSTER_SETUP.md](CI_CLUSTER_SETUP.md) — OpenShift cluster registration for E2E CI
-- [#39](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/39) — OperatorHub submission automation script (in progress)
+- [CHANGELOG.md](../CHANGELOG.md) - per-version feature and fix log
+- [Release Notes v1.0.7](../releases/RELEASE-NOTES-v1.0.7.md) - v1.0.7 release notes
+- [CI_CLUSTER_SETUP.md](CI_CLUSTER_SETUP.md) - OpenShift cluster registration for E2E CI
+- [#39](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues/39) - OperatorHub submission automation script (in progress)

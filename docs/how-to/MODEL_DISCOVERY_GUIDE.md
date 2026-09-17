@@ -126,7 +126,7 @@ def discover_models(platform: Optional[str] = None, namespace: Optional[str] = N
     Discover available models based on platform.
     
     Args:
-        platform: Model serving platform (kserve, openshift-ai, vllm, etc.)
+        platform: Model serving platform (kserve, openshift-ai, vllm, and others)
                  If None, uses MODEL_VALIDATION_PLATFORM env var
         namespace: Kubernetes namespace to search
     
@@ -372,7 +372,7 @@ See the updated notebooks in the test repository:
 Both notebooks now:
 1. ✅ Discover models dynamically using `model_discovery.py`
 2. ✅ Check model health before making predictions
-3. ✅ Handle cases where models aren't deployed (graceful degradation)
+3. ✅ Handle cases where models are not deployed (graceful degradation)
 4. ✅ Provide clear feedback about model availability
 
 ## Troubleshooting

@@ -19,7 +19,7 @@ This guide explains how to configure model-aware validation for multi-user and m
 
 ## Overview
 
-The model-aware validation feature enables notebooks to validate against deployed ML models (KServe, OpenShift AI, vLLM, etc.). In multi-user environments, proper namespace isolation and RBAC configuration are essential for security and resource management.
+The model-aware validation feature enables notebooks to validate against deployed ML models (KServe, OpenShift AI, vLLM, and others). In multi-user environments, proper namespace isolation and RBAC configuration are essential for security and resource management.
 
 ### Key Concepts
 
@@ -350,7 +350,7 @@ The operator sets these environment variables in validation pods:
 | Variable | Description |
 |----------|-------------|
 | `MODEL_VALIDATION_ENABLED` | "true" if model validation is enabled |
-| `MODEL_VALIDATION_PLATFORM` | Platform type (kserve, openshift-ai, etc.) |
+| `MODEL_VALIDATION_PLATFORM` | Platform type (kserve, openshift-ai, and others) |
 | `MODEL_VALIDATION_NAMESPACE` | Namespace where the validation job runs |
 | `MODEL_VALIDATION_PHASE` | Validation phase (clean, existing, both) |
 | `MODEL_VALIDATION_TARGET_MODELS` | Comma-separated list of resolved model refs |

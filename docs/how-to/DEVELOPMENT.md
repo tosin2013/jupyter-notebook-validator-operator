@@ -130,7 +130,7 @@ make docker-build IMG=jupyter-notebook-validator-operator:dev
 
 - ✅ **Auto-installs Kind** if not present (no manual installation needed)
 - ✅ **Supports Docker and Podman** (auto-detects container runtime)
-- ✅ **Kubernetes v1.31.10** (matches OpenShift 4.18.21)
+- ✅ **Kubernetes v1.31+** (matches OpenShift 4.20+)
 - ✅ **Fast execution** (< 2 minutes for Tier 1 tests)
 - ✅ **Automatic cleanup** (or keep cluster for debugging)
 
@@ -165,13 +165,13 @@ make docker-build IMG=jupyter-notebook-validator-operator:dev
 ```
 ========================================
 [INFO] Kind Local Testing - Tier 1
-[INFO] Kubernetes Version: v1.31.10
+[INFO] Kubernetes Version: v1.31+
 [INFO] Cluster Name: jupyter-validator-test
 ========================================
 
 [INFO] Checking prerequisites...
 [SUCCESS] All prerequisites met
-[INFO] Creating Kind cluster: jupyter-validator-test (Kubernetes v1.31.10)
+[INFO] Creating Kind cluster: jupyter-validator-test (Kubernetes v1.31+)
 [SUCCESS] Kind cluster created successfully
 [INFO] Installing cert-manager for webhooks...
 [SUCCESS] cert-manager installed successfully

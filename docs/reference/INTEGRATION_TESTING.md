@@ -25,7 +25,7 @@ Integration tests validate that the build strategies work correctly with actual 
 
 ### Required
 
-1. **Cluster Access**: Access to an OpenShift 4.18+ or Kubernetes 1.31+ cluster
+1. **Cluster Access**: Access to an OpenShift 4.20+ or Kubernetes 1.31+ cluster
 2. **CLI Tools**: `oc` (OpenShift) or `kubectl` (Kubernetes)
 3. **Kubeconfig**: Valid kubeconfig with cluster admin or sufficient permissions
 4. **Go**: Go 1.21+ for running tests
@@ -146,7 +146,7 @@ These tests verify cluster connectivity and information:
 
 ## Expected Test Results
 
-### On OpenShift 4.18+
+### On OpenShift 4.20+
 
 ```
 ✅ TestIntegrationS2IDetection - PASS (S2I detected)
@@ -157,7 +157,7 @@ These tests verify cluster connectivity and information:
 ✅ TestIntegrationClusterInfo - PASS
 ```
 
-### On Kubernetes 1.31+ with Tekton
+### On Kubernetes 1.31-1.35 with Tekton
 
 ```
 ⚠️  TestIntegrationS2IDetection - PASS (S2I not detected - expected)
@@ -227,15 +227,15 @@ oc delete pipelinerun -l mlops.redhat.com/notebook-validation=true -n $TEST_NAME
 
 Our CI/CD pipeline implements a two-tier testing approach:
 
-1. **Unit & Integration Tests** (ADR-032): Run on KinD cluster with Kubernetes v1.31.10
-2. **End-to-End Tests** (ADR-033): Run on live OpenShift 4.18 cluster
+1. **Unit & Integration Tests** (ADR-032): Run on KinD cluster with Kubernetes v1.31+
+2. **End-to-End Tests** (ADR-033): Run on live OpenShift 4.20+ cluster
 
 ### Tier 1: Unit & Integration Tests (KinD)
 
 **Purpose**: Fast feedback on Kubernetes API compatibility
 
 **Environment**:
-- KinD cluster with Kubernetes v1.31.10 (matches OpenShift 4.18.21)
+- KinD cluster with Kubernetes v1.31+ (matches OpenShift 4.20+)
 - GitHub Actions runner
 - ~5 minute runtime
 
@@ -300,7 +300,7 @@ jobs:
 **Purpose**: Validate complete operator workflow on real OpenShift cluster
 
 **Environment**:
-- Live OpenShift 4.18.21 cluster
+- Live OpenShift 4.20+ cluster
 - External test notebooks: `https://github.com/tosin2013/jupyter-notebook-validator-test-notebooks`
 - ~15 minute runtime
 

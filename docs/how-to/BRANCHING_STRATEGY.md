@@ -358,8 +358,8 @@ jobs:
 
 | Branch | Created | EOL | Status |
 |--------|---------|-----|--------|
-| `release-4.18` | Nov 2025 | Aug 2026 | ✅ Active |
-| `release-4.20` | Q1 2026 | Oct 2028 | 🚧 Planned |
+| `release-4.18` | Nov 2025 | Aug 2026 | ❌ Frozen |
+| `release-4.20` | Q1 2026 | Oct 2028 | ✅ Active |
 | `main` | Always | Never | 🔬 Development |
 
 ### EOL Process

@@ -18,7 +18,7 @@ The Jupyter Notebook Validator Operator provides comprehensive observability thr
 
 ### Prerequisites
 
-- OpenShift 4.18+ or Kubernetes 1.31+ cluster
+- OpenShift 4.20+ or Kubernetes 1.31+ cluster
 - Prometheus Operator installed (for Kubernetes)
 - User workload monitoring enabled (for OpenShift)
 
@@ -160,7 +160,7 @@ oc get configmap -n openshift-config-managed -l console.openshift.io/dashboard=t
 1. Log in to OpenShift Console
 2. Navigate to **Observe** → **Dashboards**
 3. Select **Jupyter Notebook Validator** dashboards from the dropdown
-4. Use time range selector to adjust view (Last 1h, 6h, 24h, etc.)
+4. Use time range selector to adjust view (Last 1h, 6h, 24h, and others)
 
 ---
 
@@ -409,7 +409,7 @@ data:
 - **ADR-022:** [Community Observability Contributions](adrs/022-community-observability-contributions.md)
 - **Community Dashboards:** [COMMUNITY_OBSERVABILITY.md](COMMUNITY_OBSERVABILITY.md)
 - **Prometheus Documentation:** https://prometheus.io/docs/
-- **OpenShift Monitoring:** https://docs.openshift.com/container-platform/4.18/monitoring/monitoring-overview.html
+- **OpenShift Monitoring:** https://docs.openshift.com/container-platform/4.22/monitoring/monitoring-overview.html
 
 
 
