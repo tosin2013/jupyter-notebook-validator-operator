@@ -1,0 +1,80 @@
+apiVersion: v1
+entries:
+  jupyter-notebook-validator-operator:
+  - annotations:
+      artifacthub.io/category: integration-delivery
+      artifacthub.io/changes: |
+        - kind: changed
+          description: Upgrade k8s.io client libraries to v0.35.x for OCP 4.22 / Kubernetes 1.35
+        - kind: changed
+          description: Upgrade controller-runtime to v0.23.3 with generic webhook interfaces
+        - kind: added
+          description: NotebookValidationJob printer columns for kubectl get (Phase, Notebook, Git-URL, Timeout, Age, Message)
+        - kind: added
+          description: AWS Secrets Manager and IRSA credential injection documentation and examples
+        - kind: added
+          description: AWS EBS and EFS StorageClass documentation and sample CRs
+        - kind: added
+          description: OLM v1 strategy documentation (OLM Classic vs OLM v1 comparison)
+        - kind: added
+          description: Pod recovery and model validation integration tests (ADR-026, ADR-020)
+        - kind: added
+          description: Tekton git credentials auto-sync smoke test (ADR-042)
+        - kind: changed
+          description: OpenShift certified window updated to 4.20, 4.21, 4.22 per ADR-056
+        - kind: added
+          description: E2E verified on OCP 4.22.13 ROSA HCP cluster
+      artifacthub.io/containsSecurityUpdates: "false"
+      artifacthub.io/images: |
+        - name: jupyter-notebook-validator-operator
+          image: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.10
+      artifacthub.io/license: Apache-2.0
+      artifacthub.io/links: |
+        - name: Documentation
+          url: https://tosin2013.github.io/jupyter-notebook-validator-operator/
+        - name: Source Code
+          url: https://github.com/tosin2013/jupyter-notebook-validator-operator
+        - name: ADRs
+          url: https://tosin2013.github.io/jupyter-notebook-validator-operator/adrs/
+        - name: Changelog
+          url: https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/CHANGELOG.md
+      artifacthub.io/openshift: "true"
+      artifacthub.io/operator: "true"
+      artifacthub.io/operatorCapabilities: Seamless Upgrades
+      artifacthub.io/prerelease: "false"
+      artifacthub.io/recommendations: |
+        - url: https://artifacthub.io/packages/helm/tekton/tekton-pipelines
+        - url: https://artifacthub.io/packages/helm/external-secrets-operator/external-secrets
+    apiVersion: v2
+    appVersion: 1.0.10
+    created: "2026-09-17T17:50:27.526339361Z"
+    description: Catch notebook regressions and broken model endpoints before they
+      reach production. Validate Jupyter notebooks in Kubernetes with golden baseline
+      comparison and ML model endpoint validation.
+    digest: 97aade040c27f6d84f46bb1eb7b252ad7daf652fc28ff35572563b92bb11240a
+    home: https://github.com/tosin2013/jupyter-notebook-validator-operator
+    icon: https://raw.githubusercontent.com/tosin2013/jupyter-notebook-validator-operator/main/images/small-logo.png
+    keywords:
+    - jupyter
+    - notebook
+    - validation
+    - mlops
+    - machine-learning
+    - operator
+    - kubernetes
+    - openshift
+    - tekton
+    - papermill
+    kubeVersion: '>=1.31.0-0'
+    maintainers:
+    - email: tosin.akinosho@gmail.com
+      name: Tosin Akinosho
+      url: https://github.com/tosin2013
+    name: jupyter-notebook-validator-operator
+    sources:
+    - https://github.com/tosin2013/jupyter-notebook-validator-operator
+    type: application
+    urls:
+    - https://tosin2013.github.io/jupyter-notebook-validator-operator/charts/jupyter-notebook-validator-operator-1.0.10.tgz
+    version: 1.0.10
+generated: "2026-09-17T17:50:27.524231848Z"
