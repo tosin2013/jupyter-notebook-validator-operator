@@ -9,12 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned — v1.0.10 (OCP 4.21 stream)
+---
 
-- Create `release-4.21` branch from main
-- Run scorecard validation on OCP 4.21 / Kubernetes 1.34
-- Generate bundle for v1.0.10 with `replaces: v1.0.9`
-- Submit OperatorHub PR for `1.0.10/` after v1.0.9 PR merges
+## [1.0.10] - 2026-09-16
+
+**OCP Stream:** OCP 4.22 (Kubernetes 1.35)
+**Certified window (ADR-056):** OCP 4.20 / 4.21 / 4.22
+**Branch:** `release-4.22`
+
+### Added
+
+- **ADR-059**: k8s.io client library upgrade to v0.35.x for OCP 4.22 / K8s 1.35 (#105)
+- **k8s.io upgrade**: Upgraded k8s.io/api from v0.32.2 to v0.35.8, controller-runtime from v0.19.4 to v0.23.3, ENVTEST from 1.31.0 to 1.35.0 (#106)
+- **Printer columns**: Added Git-URL (wide) and Timeout columns to `kubectl get nvj` output (#32)
+- **AWS Secrets Manager docs**: ESO ExternalSecret and IRSA credential injection examples (#30)
+- **AWS Storage docs**: EBS (gp3-csi) and EFS (efs-sc) StorageClass guide with sample CRs (#31)
+- **OLM v1 strategy docs**: Documented OLM v1 GA status and rationale for OLM Classic distribution (#92)
+- **Pod recovery tests**: Integration tests for ImagePullBackOff, OOMKilled, CrashLoopBackOff, init container failures (#28)
+- **Tekton credentials tests**: Smoke tests for ADR-042 git credentials auto-sync, documented watch-and-sync gap (#29)
+
+### Changed
+
+- Webhook interfaces migrated to controller-runtime v0.23 generics (`admission.Defaulter[T]`, `admission.Validator[T]`)
+- `ctrl.Result.Requeue` replaced with `RequeueAfter` (deprecated in controller-runtime v0.23)
+- Milestone reconciliation: v1.0.10 repurposed from "4.21 stream" to "OCP 4.22 release" (#45)
+- ADR-002 superseded by ADR-056, issue #44 closed
+
+### Fixed
+
+- Fixed ADR index: added missing ADR-056 and ADR-058 entries
+- Fixed acceptance bar for #45 (file moved to docs/explanation/)
 
 ---
 

@@ -25,6 +25,13 @@ spec:
     - jsonPath: .spec.notebook.path
       name: Notebook
       type: string
+    - jsonPath: .spec.notebook.git.url
+      name: Git-URL
+      priority: 1
+      type: string
+    - jsonPath: .spec.timeout
+      name: Timeout
+      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date

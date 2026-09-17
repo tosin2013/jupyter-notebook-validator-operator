@@ -49,17 +49,17 @@ metadata:
       ]
     capabilities: Seamless Upgrades
     categories: AI/Machine Learning, Developer Tools, Integration & Delivery
-    com.redhat.openshift.versions: "v4.20-v4.22"
-    containerImage: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.9
-    createdAt: "2026-09-15T16:39:26Z"
+    com.redhat.openshift.versions: v4.20-v4.22
+    containerImage: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.10
+    createdAt: "2026-09-16T22:09:01Z"
     description: Kubernetes operator for validating Jupyter notebooks in MLOps workflows
-    olm.skipRange: ">=1.0.2 <1.0.9"
-    operatorframework.io/suggested-namespace: jupyter-notebook-validator-operator
+    olm.skipRange: ">=1.0.2 <1.0.10"
+    operatorframework.io/suggested-namespace: jupyter-notebook-validator-operator-system
     operators.operatorframework.io/builder: operator-sdk-v1.37.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/tosin2013/jupyter-notebook-validator-operator
     support: Community
-  name: jupyter-notebook-validator-operator.v1.0.9
+  name: jupyter-notebook-validator-operator.v1.0.10
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -365,7 +365,7 @@ spec:
                 - name: PLATFORM
                   value: openshift
                 - name: GIT_INIT_IMAGE
-                image: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.9
+                image: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.10
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
@@ -497,12 +497,12 @@ spec:
   - email: takinosh@redhat.com
     name: Tosin Akinosho
   maturity: stable
+  replaces: jupyter-notebook-validator-operator.v1.0.9
   minKubeVersion: 1.31.0
   provider:
     name: Decision Crafters
-    url: https://decisioncrafters.com
-  replaces: jupyter-notebook-validator-operator.v1.0.8
-  version: 1.0.9
+    url: https://github.com/tosin2013
+  version: 1.0.10
   webhookdefinitions:
   - admissionReviewVersions:
     - v1
