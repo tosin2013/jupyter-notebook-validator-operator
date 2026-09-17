@@ -5,7 +5,7 @@
 # repositoryID below with the UUID shown on the repository card in the
 # Artifact Hub control panel. Once pushed, Artifact Hub will grant the
 # Verified Publisher badge on the next indexing cycle.
-repositoryID: "00000000-0000-0000-0000-000000000000"
+repositoryID: "a1358305-0cbd-42e4-80ed-2305a4532de9"
 owners:
   - name: Tosin Akinosho
     email: takinosh@redhat.com
