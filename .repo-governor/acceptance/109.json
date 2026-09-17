@@ -1,0 +1,18 @@
+{
+  "$comment": "Issue #109: OperatorHub: Submit v1.0.10 bundle to both upstream repos.",
+  "authority_id": "109",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "test -d /home/ubuntu/forks/community-operators && cd /home/ubuntu/forks/community-operators && git branch -a | grep -q 'add-jupyter-notebook-validator-operator-1.0.10'"
+    },
+    {
+      "check": "command_exit",
+      "target": "test -d /home/ubuntu/forks/community-operators-prod && cd /home/ubuntu/forks/community-operators-prod && git branch -a | grep -q 'add-jupyter-notebook-validator-operator-1.0.10'"
+    }
+  ],
+  "covers": {
+    "declared": "v1.0.10 bundle branches pushed to both fork repos; community-operators PR #9291 created",
+    "uncovered": "community-operators-prod PR creation (blocked by open v1.0.9 PR #11193)"
+  }
+}
