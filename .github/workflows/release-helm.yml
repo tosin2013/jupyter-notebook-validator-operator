@@ -1,0 +1,125 @@
+name: Release Helm Chart
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Chart version to publish (e.g. 1.0.10)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release-helm:
+    name: Package and Publish Helm Chart
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Chart version: $VERSION"
+
+      - name: Verify Chart.yaml version
+        run: |
+          CHART_VERSION=$(grep '^version:' helm/jupyter-notebook-validator-operator/Chart.yaml | awk '{print $2}')
+          echo "Chart.yaml version: $CHART_VERSION"
+          echo "Expected version: ${{ steps.version.outputs.version }}"
+          if [ "$CHART_VERSION" != "${{ steps.version.outputs.version }}" ]; then
+            echo "::warning::Chart.yaml version ($CHART_VERSION) does not match tag version (${{ steps.version.outputs.version }})"
+          fi
+
+      - name: Package Helm chart
+        run: |
+          mkdir -p staging
+          helm package helm/jupyter-notebook-validator-operator/ \
+            --destination staging/
+
+      - name: Fetch existing index from GitHub Pages
+        run: |
+          PAGES_URL="https://tosin2013.github.io/jupyter-notebook-validator-operator/charts/index.yaml"
+          if curl -sf -o staging/existing-index.yaml "$PAGES_URL"; then
+            echo "Fetched existing index.yaml"
+          else
+            echo "No existing index.yaml found, creating fresh index"
+            rm -f staging/existing-index.yaml
+          fi
+
+      - name: Build repository index
+        run: |
+          cd staging
+          if [ -f existing-index.yaml ]; then
+            helm repo index . \
+              --url "https://tosin2013.github.io/jupyter-notebook-validator-operator/charts/" \
+              --merge existing-index.yaml
+            rm -f existing-index.yaml
+          else
+            helm repo index . \
+              --url "https://tosin2013.github.io/jupyter-notebook-validator-operator/charts/"
+          fi
+
+      - name: Copy Artifact Hub metadata
+        run: |
+          cp artifacthub-repo.yml staging/artifacthub-repo.yml
+
+      - name: Commit charts to docs/charts/
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          mkdir -p docs/charts
+          cp staging/index.yaml docs/charts/index.yaml
+          cp staging/*.tgz docs/charts/
+          cp staging/artifacthub-repo.yml docs/charts/artifacthub-repo.yml
+
+          git add docs/charts/
+          git commit -m "helm: publish chart ${{ steps.version.outputs.version }} to GitHub Pages"
+          git push origin HEAD:main
+
+      - name: Upload chart as release asset
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CHART_TGZ=$(ls staging/*.tgz)
+          gh release upload "${{ github.ref_name }}" "$CHART_TGZ" --clobber || true
+
+      - name: Trigger docs rebuild
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run docs.yml || echo "Docs workflow trigger skipped (may run automatically)"
+
+      - name: Summary
+        run: |
+          echo "## Helm Chart Published" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Version**: ${{ steps.version.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Repo URL**: https://tosin2013.github.io/jupyter-notebook-validator-operator/charts/" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Install" >> "$GITHUB_STEP_SUMMARY"
+          echo '```bash' >> "$GITHUB_STEP_SUMMARY"
+          echo "helm repo add jupyter-validator https://tosin2013.github.io/jupyter-notebook-validator-operator/charts/" >> "$GITHUB_STEP_SUMMARY"
+          echo "helm install jupyter-validator jupyter-validator/jupyter-notebook-validator-operator \\" >> "$GITHUB_STEP_SUMMARY"
+          echo "  --namespace jupyter-validator-system --create-namespace" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

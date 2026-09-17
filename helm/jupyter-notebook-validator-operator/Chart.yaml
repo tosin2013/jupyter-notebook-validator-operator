@@ -6,13 +6,13 @@ type: application
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
 # Versions are expected to follow Semantic Versioning (https://semver.org/)
-version: 1.0.9
+version: 1.0.10
 
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application. Versions are not expected to
 # follow Semantic Versioning. They should reflect the version the application is using.
 # It is recommended to use it with quotes.
-appVersion: "1.0.9"
+appVersion: "1.0.10"
 
 # Keywords for searching
 keywords:
@@ -40,8 +40,8 @@ maintainers:
     email: tosin.akinosho@gmail.com
     url: https://github.com/tosin2013
 
-# Icon URL (optional - add when you have one)
-# icon: https://example.com/icon.png
+# Icon URL
+icon: https://raw.githubusercontent.com/tosin2013/jupyter-notebook-validator-operator/main/images/small-logo.png
 
 # Chart dependencies (if any)
 dependencies: []
@@ -61,25 +61,37 @@ annotations:
   
   # Changes in this version
   artifacthub.io/changes: |
+    - kind: changed
+      description: Upgrade k8s.io client libraries to v0.35.x for OCP 4.22 / Kubernetes 1.35
+    - kind: changed
+      description: Upgrade controller-runtime to v0.23.3 with generic webhook interfaces
     - kind: added
-      description: Initial Helm chart release for OpenShift 4.18
+      description: NotebookValidationJob printer columns for kubectl get (Phase, Notebook, Git-URL, Timeout, Age, Message)
     - kind: added
-      description: Support for Tekton Pipelines v0.65.0
+      description: AWS Secrets Manager and IRSA credential injection documentation and examples
     - kind: added
-      description: ADR-031 Tekton build with Dockerfile and base image support
+      description: AWS EBS and EFS StorageClass documentation and sample CRs
     - kind: added
-      description: Comprehensive validation with golden notebook comparison
+      description: OLM v1 strategy documentation (OLM Classic vs OLM v1 comparison)
     - kind: added
-      description: Model training and validation workflows
+      description: Pod recovery and model validation integration tests (ADR-026, ADR-020)
+    - kind: added
+      description: Tekton git credentials auto-sync smoke test (ADR-042)
+    - kind: changed
+      description: OpenShift certified window updated to 4.20, 4.21, 4.22 per ADR-056
+    - kind: added
+      description: E2E verified on OCP 4.22.13 ROSA HCP cluster
   
   # Links
   artifacthub.io/links: |
     - name: Documentation
-      url: https://github.com/tosin2013/jupyter-notebook-validator-operator/tree/main/docs
+      url: https://tosin2013.github.io/jupyter-notebook-validator-operator/
+    - name: Source Code
+      url: https://github.com/tosin2013/jupyter-notebook-validator-operator
     - name: ADRs
-      url: https://github.com/tosin2013/jupyter-notebook-validator-operator/tree/main/docs/adrs
-    - name: Integration Testing
-      url: https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/docs/reference/INTEGRATION_TESTING.md
+      url: https://tosin2013.github.io/jupyter-notebook-validator-operator/adrs/
+    - name: Changelog
+      url: https://github.com/tosin2013/jupyter-notebook-validator-operator/blob/main/CHANGELOG.md
   
   # Operator capabilities (for OperatorHub compatibility)
   artifacthub.io/operator: "true"
@@ -92,9 +104,7 @@ annotations:
   artifacthub.io/containsSecurityUpdates: "false"
   artifacthub.io/images: |
     - name: jupyter-notebook-validator-operator
-      image: quay.io/takinosh/jupyter-notebook-validator-operator:1.1.0
-    - name: kube-rbac-proxy
-      image: quay.io/brancz/kube-rbac-proxy:v0.18.0
+      image: quay.io/takinosh/jupyter-notebook-validator-operator:1.0.10
   
   # Recommendations
   artifacthub.io/recommendations: |
