@@ -1,6 +1,11 @@
 # Artifact Hub repository metadata file
-# https://artifacthub.io/docs/topics/repositories/
-repositoryID: jupyter-notebook-validator-operator
+# https://artifacthub.io/docs/topics/repositories/#verified-publisher
+#
+# After registering the Helm chart repository on Artifact Hub, replace the
+# repositoryID below with the UUID shown on the repository card in the
+# Artifact Hub control panel. Once pushed, Artifact Hub will grant the
+# Verified Publisher badge on the next indexing cycle.
+repositoryID: "00000000-0000-0000-0000-000000000000"
 owners:
   - name: Tosin Akinosho
     email: takinosh@redhat.com

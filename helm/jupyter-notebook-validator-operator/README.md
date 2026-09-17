@@ -5,8 +5,8 @@ A Kubernetes operator for validating Jupyter notebooks with ML model training an
 ## TL;DR
 
 ```bash
-# Add the Helm repository (when published)
-helm repo add jupyter-validator https://tosin2013.github.io/jupyter-notebook-validator-operator
+# Add the Helm repository
+helm repo add jupyter-validator https://tosin2013.github.io/jupyter-notebook-validator-operator/charts/
 
 # Install the operator
 helm install jupyter-validator jupyter-validator/jupyter-notebook-validator-operator \

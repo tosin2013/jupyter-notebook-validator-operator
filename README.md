@@ -11,6 +11,7 @@ Catch notebook regressions and broken model endpoints before they reach producti
 [![OpenShift](https://img.shields.io/badge/OpenShift-4.20+-red.svg)](https://www.openshift.com/)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.31+-blue.svg)](https://kubernetes.io/)
 [![OperatorHub](https://img.shields.io/badge/OperatorHub.io-available-brightgreen.svg)](https://operatorhub.io/operator/jupyter-notebook-validator-operator)
+[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/jupyter-notebook-validator-operator)](https://artifacthub.io/packages/search?repo=jupyter-notebook-validator-operator)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg)](https://tosin2013.github.io/jupyter-notebook-validator-operator/)
 
 ## Who is this for?
@@ -65,20 +66,53 @@ flowchart LR
 
 ## Quick Start
 
-### Option A: Helm (recommended)
+### Prerequisites
+
+- OpenShift 4.20 - 4.22 or Kubernetes 1.31 - 1.35
+- `kubectl` or `oc` CLI
+- Optional: External Secrets Operator, KServe / OpenShift AI, Tekton Pipelines
+
+### Option A: OperatorHub (OpenShift)
+
+Install from the built-in OperatorHub catalog:
 
 ```bash
-helm repo add jupyter-validator https://tosin2013.github.io/jupyter-notebook-validator-operator
+oc apply -f - <<EOF
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: jupyter-notebook-validator-operator
+  namespace: openshift-operators
+spec:
+  channel: stable
+  name: jupyter-notebook-validator-operator
+  source: community-operators
+  sourceNamespace: openshift-marketplace
+EOF
+```
+
+### Option B: Helm (any Kubernetes)
+
+```bash
+helm repo add jupyter-validator \
+  https://tosin2013.github.io/jupyter-notebook-validator-operator/charts/
 helm install jupyter-validator jupyter-validator/jupyter-notebook-validator-operator \
   --namespace jupyter-validator-system --create-namespace
 ```
 
-### Option B: Build from source
+### Option C: Kustomize
+
+```bash
+kubectl apply -k \
+  https://github.com/tosin2013/jupyter-notebook-validator-operator/config/default?ref=v1.0.10
+```
+
+### Option D: Build from source
 
 ```bash
 make install
-make docker-build docker-push IMG=quay.io/tosin2013/jupyter-notebook-validator-operator:v0.1.0
-make deploy IMG=quay.io/tosin2013/jupyter-notebook-validator-operator:v0.1.0
+make docker-build docker-push IMG=quay.io/takinosh/jupyter-notebook-validator-operator:latest
+make deploy IMG=quay.io/takinosh/jupyter-notebook-validator-operator:latest
 ```
 
 ### Verify
@@ -87,12 +121,6 @@ make deploy IMG=quay.io/tosin2013/jupyter-notebook-validator-operator:v0.1.0
 kubectl get pods -n jupyter-notebook-validator-operator-system
 kubectl get crd notebookvalidationjobs.mlops.mlops.dev
 ```
-
-### Prerequisites
-
-- OpenShift 4.20+ or Kubernetes 1.31+
-- `kubectl` or `oc` CLI
-- Optional: External Secrets Operator, KServe / OpenShift AI, Tekton Pipelines
 
 ## Usage
 
@@ -152,7 +180,8 @@ This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md).
 - [GitHub Issues](https://github.com/tosin2013/jupyter-notebook-validator-operator/issues) -- bugs and feature requests
 - [GitHub Discussions](https://github.com/tosin2013/jupyter-notebook-validator-operator/discussions) -- Q&A and usage patterns
 - [OperatorHub.io](https://operatorhub.io/operator/jupyter-notebook-validator-operator) -- OLM distribution
-- [Artifact Hub](https://artifacthub.io/packages/search?ts_query=jupyter-notebook-validator-operator) -- Helm distribution
+- [Artifact Hub (OLM)](https://artifacthub.io/packages/olm/community-operators/jupyter-notebook-validator-operator) -- OLM listing on Artifact Hub
+- [Artifact Hub (Helm)](https://artifacthub.io/packages/search?ts_query=jupyter-notebook-validator-operator&kind=0) -- Helm chart distribution
 
 ## License
 

@@ -1,0 +1,26 @@
+{
+  "$comment": "Issue #114: Publish Helm chart to Artifact Hub with Verified Publisher badge.",
+  "authority_id": "114",
+  "criteria": [
+    {
+      "check": "command_exit",
+      "target": "grep -q 'version: 1.0.10' helm/jupyter-notebook-validator-operator/Chart.yaml"
+    },
+    {
+      "check": "file_exists",
+      "target": ".github/workflows/release-helm.yml"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'Kustomize' README.md"
+    },
+    {
+      "check": "command_exit",
+      "target": "grep -q 'repositoryID' artifacthub-repo.yml"
+    }
+  ],
+  "covers": {
+    "declared": "Chart.yaml v1.0.10, Helm release workflow, README 4-method install, artifacthub-repo.yml with repositoryID",
+    "uncovered": "Manual Artifact Hub registration and UUID update (post-merge step)"
+  }
+}
