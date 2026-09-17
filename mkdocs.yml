@@ -51,10 +51,6 @@ plugins:
   - search
   - mermaid2
 
-# Exclude Helm chart repo files from documentation processing
-exclude_docs: |
-  charts/*.tgz
-  charts/.gitkeep
 
 markdown_extensions:
   - admonition
