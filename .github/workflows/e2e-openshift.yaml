@@ -229,7 +229,7 @@ jobs:
 
       - name: Download provisioned cluster credentials
         if: needs.provision-cluster.outputs.cluster_provisioned == 'true'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: cluster-credentials
           path: /tmp/cluster-creds
@@ -1134,7 +1134,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Download Terraform state
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: terraform-state
           path: test/e2e/terraform
