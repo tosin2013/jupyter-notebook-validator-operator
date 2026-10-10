@@ -100,7 +100,7 @@ jobs:
           cat /tmp/kind-config.yaml
 
       - name: Create KinD cluster (Kubernetes v1.31.12)
-        uses: helm/kind-action@v1.15.0
+        uses: helm/kind-action@v1.15.1
         with:
           version: ${{ env.KIND_VERSION }}
           node_image: kindest/node:${{ env.KUBERNETES_VERSION }}

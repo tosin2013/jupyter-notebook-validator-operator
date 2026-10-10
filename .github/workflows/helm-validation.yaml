@@ -142,7 +142,7 @@ jobs:
           version: ${{ env.HELM_VERSION }}
 
       - name: Create Kind Cluster
-        uses: helm/kind-action@v1.15.0
+        uses: helm/kind-action@v1.15.1
         with:
           cluster_name: helm-test
           kubectl_version: ${{ env.KUBECTL_VERSION }}
@@ -182,7 +182,7 @@ jobs:
           version: ${{ env.HELM_VERSION }}
 
       - name: Create Kind Cluster
-        uses: helm/kind-action@v1.15.0
+        uses: helm/kind-action@v1.15.1
         with:
           cluster_name: helm-test
           kubectl_version: ${{ env.KUBECTL_VERSION }}
@@ -277,7 +277,7 @@ jobs:
           version: ${{ env.HELM_VERSION }}
 
       - name: Create Kind Cluster
-        uses: helm/kind-action@v1.15.0
+        uses: helm/kind-action@v1.15.1
         with:
           cluster_name: helm-test
           kubectl_version: ${{ env.KUBECTL_VERSION }}
